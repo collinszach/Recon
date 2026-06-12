@@ -3,12 +3,13 @@ from .base import ATSParser, NormalizedRole
 from .greenhouse import GreenhouseParser
 from .ashby import AshbyParser
 from .lever import LeverParser
+from .workday import WorkdayParser
 
 REGISTRY: dict[str, ATSParser] = {
     "greenhouse": GreenhouseParser(),
     "ashby": AshbyParser(),
     "lever": LeverParser(),
-    # "workday": WorkdayParser(),   # Phase 4
+    "workday": WorkdayParser(),
     # "manual":  handled out-of-band via add_role_manually
 }
 
