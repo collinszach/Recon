@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS application_events (
     note             TEXT,
     at               TIMESTAMPTZ DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_app_events_app ON application_events(application_id);
 
 -- ─── contacts ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS contacts (
@@ -85,8 +86,10 @@ CREATE TABLE IF NOT EXISTS contacts (
     email        TEXT,
     linkedin     TEXT,
     warmth       TEXT,                            -- cold | warm | hot
-    notes        TEXT
+    notes        TEXT,
+    created_at   TIMESTAMPTZ DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_contacts_company ON contacts(company_id);
 
 -- ─── scan_runs (health + cost telemetry) ────────────────────
 CREATE TABLE IF NOT EXISTS scan_runs (

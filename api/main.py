@@ -8,7 +8,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from config import settings
-from db import Base, engine, SessionLocal, Company, Role, Application, DailyBrief, ScanRun
+from db import (
+    Base, engine, SessionLocal, Company, Role, Application, ApplicationEvent,
+    Contact, DailyBrief, ScanRun,
+)
 from seed.companies import seed as seed_companies
 
 logging.basicConfig(level=settings.log_level)
@@ -75,6 +78,7 @@ class AppCreate(BaseModel):
 
 class AppUpdate(BaseModel):
     stage: str | None = None
+    stage_note: str | None = None
     next_action: str | None = None
     next_action_due: date | None = None
     notes: str | None = None
@@ -111,7 +115,9 @@ def update_app(app_id: int, body: AppUpdate, db: Session = Depends(get_db)):
     a = db.get(Application, app_id)
     if not a:
         raise HTTPException(404, "application not found")
-    if body.stage:
+    if body.stage and body.stage != a.stage:
+        db.add(ApplicationEvent(application_id=a.id, from_stage=a.stage,
+                                 to_stage=body.stage, note=body.stage_note))
         a.stage = body.stage
         if body.stage == "applied" and a.applied_at is None:
             from datetime import datetime, timezone
@@ -126,13 +132,84 @@ def update_app(app_id: int, body: AppUpdate, db: Session = Depends(get_db)):
     return _app_dict(a)
 
 
+@app.get("/api/applications/{app_id}/events")
+def list_app_events(app_id: int, db: Session = Depends(get_db)):
+    a = db.get(Application, app_id)
+    if not a:
+        raise HTTPException(404, "application not found")
+    rows = db.scalars(
+        select(ApplicationEvent)
+        .where(ApplicationEvent.application_id == app_id)
+        .order_by(ApplicationEvent.at)
+    ).all()
+    return [{"id": e.id, "from_stage": e.from_stage, "to_stage": e.to_stage,
+             "note": e.note, "at": e.at.isoformat() if e.at else None} for e in rows]
+
+
 def _app_dict(a: Application) -> dict:
     return {"id": a.id, "company_name": a.company_name, "role_title": a.role_title,
             "role_url": a.role_url, "stage": a.stage, "outcome": a.outcome,
             "applied_at": a.applied_at.isoformat() if a.applied_at else None,
             "next_action": a.next_action,
             "next_action_due": a.next_action_due.isoformat() if a.next_action_due else None,
-            "notes": a.notes}
+            "notes": a.notes,
+            "fit_score": a.role.fit_score if a.role else None}
+
+
+# ─── contacts ────────────────────────────────────────────────
+class ContactCreate(BaseModel):
+    company_id: int | None = None
+    name: str | None = None
+    role: str | None = None
+    email: str | None = None
+    linkedin: str | None = None
+    warmth: str | None = None
+    notes: str | None = None
+
+
+class ContactUpdate(BaseModel):
+    company_id: int | None = None
+    name: str | None = None
+    role: str | None = None
+    email: str | None = None
+    linkedin: str | None = None
+    warmth: str | None = None
+    notes: str | None = None
+
+
+@app.get("/api/contacts")
+def list_contacts(company_id: int | None = None, db: Session = Depends(get_db)):
+    q = select(Contact)
+    if company_id:
+        q = q.where(Contact.company_id == company_id)
+    rows = db.scalars(q.order_by(Contact.created_at.desc())).all()
+    return [_contact_dict(c) for c in rows]
+
+
+@app.post("/api/contacts")
+def create_contact(body: ContactCreate, db: Session = Depends(get_db)):
+    c = Contact(**body.model_dump())
+    db.add(c)
+    db.commit()
+    return _contact_dict(c)
+
+
+@app.patch("/api/contacts/{contact_id}")
+def update_contact(contact_id: int, body: ContactUpdate, db: Session = Depends(get_db)):
+    c = db.get(Contact, contact_id)
+    if not c:
+        raise HTTPException(404, "contact not found")
+    for f, v in body.model_dump(exclude_unset=True).items():
+        setattr(c, f, v)
+    db.commit()
+    return _contact_dict(c)
+
+
+def _contact_dict(c: Contact) -> dict:
+    return {"id": c.id, "company_id": c.company_id, "name": c.name, "role": c.role,
+            "email": c.email, "linkedin": c.linkedin, "warmth": c.warmth,
+            "notes": c.notes,
+            "created_at": c.created_at.isoformat() if c.created_at else None}
 
 
 # ─── brief ──────────────────────────────────────────────────

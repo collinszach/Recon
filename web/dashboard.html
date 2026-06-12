@@ -319,6 +319,24 @@
   .pr-title { font-weight: 600; font-size: 13px; margin-bottom: 5px; }
   .pr-body { font-size: 12px; color: var(--ink-light); line-height: 1.5; }
 
+  /* KANBAN / PIPELINE */
+  .kanban { display: grid; grid-template-columns: repeat(7, minmax(180px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 8px; }
+  .kcol { background: var(--paper-dim); border: 1px solid var(--rule); border-radius: 4px; min-height: 120px; display: flex; flex-direction: column; }
+  .kcol-head { font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-light); padding: 10px 10px 8px; border-bottom: 1px solid var(--rule-strong); display: flex; justify-content: space-between; align-items: center; }
+  .kcol-body { padding: 8px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .kcard { background: var(--card); border: 1px solid var(--rule); border-radius: 3px; padding: 10px 11px; font-size: 12px; }
+  .kcard-co { font-weight: 600; font-size: 12.5px; }
+  .kcard-title { font-size: 11.5px; color: var(--ink-light); margin: 2px 0 6px; }
+  .kcard-meta { font-size: 10.5px; color: var(--ink-light); margin-bottom: 6px; line-height: 1.5; }
+  .kcard-meta .overdue { color: var(--rust); font-weight: 600; }
+  .kcard-fit { font-family: "JetBrains Mono", monospace; font-size: 10px; color: var(--green); }
+  .kcard-select { width: 100%; font-family: "JetBrains Mono", monospace; font-size: 10px; padding: 4px 6px; border: 1px solid var(--rule-strong); border-radius: 3px; background: var(--paper); color: var(--ink); }
+  .kcard-link { font-size: 10.5px; }
+  .new-app-form { display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 8px; margin-bottom: 20px; align-items: end; }
+  .new-app-form input, .new-app-form select { font-family: "IBM Plex Sans", sans-serif; font-size: 12px; padding: 7px 9px; border: 1px solid var(--rule-strong); border-radius: 3px; background: var(--card); color: var(--ink); }
+  .new-app-form button { font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; padding: 8px 14px; border: 1px solid var(--rule-strong); border-radius: 3px; background: var(--ink); color: var(--paper); cursor: pointer; }
+  .new-app-form button:hover { background: var(--rust); }
+
   @media (max-width: 820px) {
     .container, .topbar-inner { padding-left: 18px; padding-right: 18px; }
     .tabs { padding: 0 18px; }
@@ -328,6 +346,8 @@
     .phase { grid-template-columns: 100px 1fr; }
     .tbl { font-size: 11px; }
     .tbl th:nth-child(2), .tbl td:nth-child(2) { display: none; }
+    .kanban { grid-template-columns: repeat(7, minmax(160px, 1fr)); }
+    .new-app-form { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -345,6 +365,7 @@
     <button class="tab" onclick="show('companies', this)">Companies</button>
     <button class="tab" onclick="show('life', this)">Life & Money</button>
     <button class="tab" onclick="show('action', this)">Action Plan</button>
+    <button class="tab" onclick="show('pipeline', this)">▤ Pipeline</button>
     <button class="tab" onclick="show('feed', this)">● Recon Feed</button>
   </div>
 </div>
@@ -743,6 +764,40 @@
 </div>
 </div>
 
+<!-- ═══════════ PIPELINE (Kanban) ═══════════ -->
+<div id="p-pipeline" class="panel">
+<div class="container">
+  <div class="sh"><span class="sh-num">●</span><h2>Application Pipeline</h2><span class="sh-sub" id="pipeline-status">connecting…</span></div>
+
+  <div class="curr-note" id="pipeline-offline" style="display:none;">
+    <strong>API not reachable.</strong> This tab is live only when the Recon backend is running.
+    Start it with <code>docker compose up</code> on the NUC, then reload.
+  </div>
+
+  <div id="pipeline-live" style="display:none;">
+    <form class="new-app-form" onsubmit="return createApp(event)">
+      <input id="napp-company" type="text" placeholder="Company" required>
+      <input id="napp-title" type="text" placeholder="Role title">
+      <input id="napp-url" type="url" placeholder="Role URL">
+      <select id="napp-stage">
+        <option value="watching">watching</option>
+        <option value="drafting">drafting</option>
+        <option value="applied">applied</option>
+        <option value="screen">screen</option>
+        <option value="onsite">onsite</option>
+        <option value="offer">offer</option>
+        <option value="closed">closed</option>
+      </select>
+      <button type="submit">+ Add</button>
+    </form>
+
+    <div class="kanban" id="kanban-board">
+      <!-- columns rendered by JS -->
+    </div>
+  </div>
+</div>
+</div>
+
 <script>
   function show(name, el) {
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -751,6 +806,7 @@
     el.classList.add('active');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (name === 'feed' && typeof loadFeed === 'function') loadFeed();
+    if (name === 'pipeline' && typeof loadPipeline === 'function') loadPipeline();
   }
 </script>
 
@@ -835,6 +891,104 @@
     try { await fetch(API + '/api/scan/run', {method:'POST'}); await loadFeed(); }
     catch (e) { alert('scan failed — is the API running?'); }
     btn.textContent = '↻ Run scan now'; btn.disabled = false;
+  }
+</script>
+
+<!-- ═══════════ PIPELINE (live) ═══════════ -->
+<script>
+  const PIPELINE_STAGES = ['watching','drafting','applied','screen','onsite','offer','closed'];
+
+  async function loadPipeline() {
+    try {
+      const h = await fetch(API + '/health').then(r => r.json());
+      document.getElementById('pipeline-status').textContent = 'online · scoring=' + h.scoring_mode;
+      document.getElementById('pipeline-offline').style.display = 'none';
+      document.getElementById('pipeline-live').style.display = 'block';
+    } catch (e) {
+      document.getElementById('pipeline-status').textContent = 'offline';
+      document.getElementById('pipeline-offline').style.display = 'block';
+      document.getElementById('pipeline-live').style.display = 'none';
+      return;
+    }
+    try {
+      const apps = await fetch(API + '/api/applications').then(r => r.json());
+      renderKanban(apps);
+    } catch (e) {
+      document.getElementById('kanban-board').innerHTML = '<div class="curr-note">Could not load applications.</div>';
+    }
+  }
+
+  function renderKanban(apps) {
+    const today = new Date().toISOString().slice(0, 10);
+    const board = document.getElementById('kanban-board');
+    board.innerHTML = PIPELINE_STAGES.map(stage => {
+      const cards = apps.filter(a => a.stage === stage);
+      const cardsHtml = cards.map(a => {
+        const overdue = a.next_action_due && a.next_action_due < today;
+        const fit = (a.fit_score != null) ? `<div class="kcard-fit">fit ${Number(a.fit_score).toFixed(1)}</div>` : '';
+        const nextAction = a.next_action
+          ? `<div class="kcard-meta">${a.next_action}${a.next_action_due ? ` · <span class="${overdue ? 'overdue' : ''}">${a.next_action_due}${overdue ? ' (overdue)' : ''}</span>` : ''}</div>`
+          : '';
+        const link = a.role_url ? `<div class="kcard-link"><a href="${a.role_url}" target="_blank">job posting ↗</a></div>` : '';
+        const opts = PIPELINE_STAGES.map(s => `<option value="${s}" ${s === a.stage ? 'selected' : ''}>${s}</option>`).join('');
+        return `
+          <div class="kcard">
+            <div class="kcard-co">${a.company_name ?? '(unknown)'}</div>
+            <div class="kcard-title">${a.role_title ?? ''}</div>
+            ${fit}
+            ${nextAction}
+            ${link}
+            <select class="kcard-select" onchange="moveStage(${a.id}, this.value)">${opts}</select>
+          </div>`;
+      }).join('');
+      return `
+        <div class="kcol">
+          <div class="kcol-head"><span>${stage}</span><span>${cards.length}</span></div>
+          <div class="kcol-body">${cardsHtml || ''}</div>
+        </div>`;
+    }).join('');
+  }
+
+  async function moveStage(appId, newStage) {
+    try {
+      await fetch(API + '/api/applications/' + appId, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({stage: newStage})
+      });
+      await loadPipeline();
+    } catch (e) {
+      alert('failed to update stage — is the API running?');
+    }
+  }
+
+  async function createApp(ev) {
+    ev.preventDefault();
+    const company = document.getElementById('napp-company').value.trim();
+    const title = document.getElementById('napp-title').value.trim();
+    const url = document.getElementById('napp-url').value.trim();
+    const stage = document.getElementById('napp-stage').value;
+    if (!company) return false;
+    try {
+      await fetch(API + '/api/applications', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          company_name: company,
+          role_title: title || null,
+          role_url: url || null,
+          stage: stage
+        })
+      });
+      document.getElementById('napp-company').value = '';
+      document.getElementById('napp-title').value = '';
+      document.getElementById('napp-url').value = '';
+      document.getElementById('napp-stage').value = 'watching';
+      await loadPipeline();
+    } catch (e) {
+      alert('failed to create application — is the API running?');
+    }
+    return false;
   }
 </script>
 
