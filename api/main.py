@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from config import settings
 from db import (
     Base, engine, SessionLocal, Company, Role, Application, ApplicationEvent,
-    Contact, DailyBrief, ScanRun,
+    Contact, DailyBrief, ScanRun, PushSubscription,
 )
 from seed.companies import seed as seed_companies
 
@@ -247,3 +247,40 @@ def dashboard():
     return FileResponse("web/dashboard.html")
 
 app.mount("/web", StaticFiles(directory="web"), name="web")
+
+
+# ════════════════════════════════════════════════════════════
+# ─── web push: subscription + service worker (added by the   ─
+# ─── notification-delivery feature; see api/notify/push.py)   ─
+# ════════════════════════════════════════════════════════════
+class PushSubscriptionIn(BaseModel):
+    endpoint: str
+    keys: dict
+
+
+@app.post("/api/push/subscribe")
+def push_subscribe(body: PushSubscriptionIn, db: Session = Depends(get_db)):
+    p256dh = body.keys.get("p256dh")
+    auth = body.keys.get("auth")
+    if not p256dh or not auth:
+        raise HTTPException(400, "subscription missing p256dh/auth keys")
+
+    existing = db.scalar(select(PushSubscription).where(PushSubscription.endpoint == body.endpoint))
+    if existing:
+        existing.p256dh = p256dh
+        existing.auth = auth
+    else:
+        db.add(PushSubscription(endpoint=body.endpoint, p256dh=p256dh, auth=auth))
+    db.commit()
+    return {"status": "ok"}
+
+
+@app.get("/api/push/vapid-public-key")
+def push_vapid_public_key():
+    return {"key": settings.vapid_public_key}
+
+
+# service worker must be served from the site root to control the page
+@app.get("/sw.js")
+def service_worker():
+    return FileResponse("web/sw.js", media_type="application/javascript")

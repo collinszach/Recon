@@ -122,3 +122,12 @@ class DailyBrief(Base):
     new_count: Mapped[int] = mapped_column(Integer, default=0)
     action_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    endpoint: Mapped[str] = mapped_column(String, unique=True)
+    p256dh: Mapped[str] = mapped_column(String)
+    auth: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -825,6 +825,7 @@
     <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
       <button class="tab" style="border:1px solid var(--rule); border-radius:4px;" onclick="reconScan(this)">↻ Run scan now</button>
       <button class="tab" style="border:1px solid var(--rule); border-radius:4px;" onclick="loadFeed()">⟳ Refresh</button>
+      <button id="enable-push-btn" class="tab" style="border:1px solid var(--rule); border-radius:4px;" onclick="enablePushNotifications(this)">🔔 Enable notifications</button>
     </div>
 
     <div class="sh"><span class="sh-num">A</span><h2 style="font-size:18px;">Today's Brief</h2></div>
@@ -989,6 +990,71 @@
       alert('failed to create application — is the API running?');
     }
     return false;
+  }
+</script>
+
+<!-- ═══════════ WEB PUSH: service worker registration + ════════
+     enable-notifications button (notification-delivery feature) ═ -->
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW registration failed', e));
+  }
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  async function enablePushNotifications(btn) {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert('Push notifications are not supported in this browser.');
+      return;
+    }
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = '🔔 enabling…';
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        alert('Notification permission was not granted.');
+        return;
+      }
+
+      const { key } = await fetch(API + '/api/push/vapid-public-key').then(r => r.json());
+      if (!key) {
+        alert('Push notifications are not configured on the server yet.');
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(key),
+        });
+      }
+
+      await fetch(API + '/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub.toJSON()),
+      });
+
+      btn.textContent = '🔔 Notifications enabled';
+    } catch (e) {
+      console.error('push subscribe failed', e);
+      alert('Could not enable notifications — is the API running?');
+      btn.textContent = original;
+    } finally {
+      btn.disabled = false;
+    }
   }
 </script>
 

@@ -8,3 +8,9 @@ httpx==0.28.1
 anthropic==0.42.0
 mcp==1.2.0
 python-dotenv==1.0.1
+
+# ─── Notification channels (optional; channels no-op if unconfigured) ───
+pywebpush==2.0.3                    # web push (VAPID)
+# email channel uses stdlib smtplib + a minimal built-in markdown->HTML converter
+google-api-python-client==2.154.0   # Google Doc delivery
+google-auth==2.37.0                  # Google Doc delivery (service account)

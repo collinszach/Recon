@@ -55,6 +55,14 @@ def run_daily_scan() -> dict:
         # build + persist today's brief
         brief = build_brief(db, today, totals)
 
+        # deliver the brief over push / email / gdoc — never let this kill the run
+        try:
+            from notify.deliver import deliver_brief
+            delivery = deliver_brief(brief)
+            log.info("brief delivery: %s", delivery)
+        except Exception as e:
+            log.warning("brief delivery failed: %s: %s", type(e).__name__, e)
+
         run.finished_at = datetime.now(timezone.utc)
         run.companies_scanned = totals["companies"]
         run.new_count = totals["new"]
