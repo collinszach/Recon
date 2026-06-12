@@ -1,0 +1,5 @@
+# Secrets — never let an agent read or commit these
+.env
+*.key
+*.pem
+secrets/

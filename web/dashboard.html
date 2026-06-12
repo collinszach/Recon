@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zach Collins — Master Plan · MBA/MEng '28</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F2EBE0;
+    --paper-dim: #E8E0D2;
+    --paper-deep: #DDD3C2;
+    --card: #FAF6EE;
+    --ink: #1A1612;
+    --ink-soft: #3A332B;
+    --ink-light: #6B6157;
+    --ink-faint: #A39989;
+    --gold: #FDB515;
+    --gold-deep: #C68B0F;
+    --blue: #003262;
+    --rust: #B5390F;
+    --moss: #4A5D23;
+    --plum: #5B3458;
+    --teal: #1F5E5C;
+    --green: #2C6E49;
+    --green-bg: #E6F0E9;
+    --rule: rgba(26, 22, 18, 0.12);
+    --rule-strong: rgba(26, 22, 18, 0.22);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  ::selection { background: var(--gold); color: var(--ink); }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: "IBM Plex Sans", -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.55;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-image: radial-gradient(circle at 1px 1px, rgba(26,22,18,0.035) 1px, transparent 0);
+    background-size: 22px 22px;
+    padding-bottom: 60px;
+  }
+
+  /* TOPBAR */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(242,235,224,0.93);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  .topbar-inner {
+    max-width: 1180px; margin: 0 auto; padding: 12px 28px;
+    display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  }
+  .topbar-mark {
+    font-family: "Fraunces", serif; font-weight: 600; font-style: italic; font-size: 17px;
+  }
+  .topbar-mark::before { content: "—"; color: var(--gold-deep); margin-right: 8px; font-style: normal; }
+  .topbar-meta {
+    font-family: "JetBrains Mono", monospace; font-size: 10px; color: var(--ink-light);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+
+  /* TABS */
+  .tabs {
+    display: flex; gap: 2px; max-width: 1180px; margin: 0 auto; padding: 0 28px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    border-bottom: 1px solid var(--rule);
+  }
+  .tab {
+    font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: 0.1em;
+    text-transform: uppercase; padding: 14px 18px; cursor: pointer; border: none;
+    background: transparent; color: var(--ink-light); border-bottom: 2px solid transparent;
+    margin-bottom: -1px; white-space: nowrap; transition: all 0.15s;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active { color: var(--rust); border-bottom-color: var(--rust); font-weight: 600; }
+
+  /* CONTAINER */
+  .container { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+  .panel { display: none; padding: 40px 0 20px; }
+  .panel.active { display: block; }
+
+  /* HERO */
+  .hero { padding: 48px 0 36px; border-bottom: 1px solid var(--rule); }
+  .hero-eyebrow {
+    font-family: "JetBrains Mono", monospace; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.18em; color: var(--gold-deep); margin-bottom: 16px;
+  }
+  .hero h1 {
+    font-family: "Fraunces", serif; font-size: clamp(34px, 5vw, 56px); font-weight: 600;
+    line-height: 1.04; letter-spacing: -0.025em; margin-bottom: 18px;
+  }
+  .hero h1 em { font-style: italic; font-weight: 300; color: var(--rust); }
+  .hero-lede {
+    font-size: 16px; color: var(--ink-soft); max-width: 640px; line-height: 1.6;
+  }
+  .hero-stats {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+    background: var(--rule); border: 1px solid var(--rule); margin-top: 32px;
+  }
+  .hero-stat { background: var(--paper); padding: 16px 18px; }
+  .hs-num {
+    font-family: "Fraunces", serif; font-size: 28px; font-weight: 600; line-height: 1;
+    color: var(--ink); margin-bottom: 4px;
+  }
+  .hs-label {
+    font-family: "JetBrains Mono", monospace; font-size: 9px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--ink-light);
+  }
+
+  /* SECTION HEADER */
+  .sh { display: flex; align-items: baseline; gap: 14px; margin: 48px 0 24px; padding-bottom: 10px; border-bottom: 1px solid var(--rule-strong); }
+  .sh:first-child { margin-top: 0; }
+  .sh-num {
+    font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--gold-deep);
+    font-weight: 600;
+  }
+  .sh h2 { font-family: "Fraunces", serif; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+  .sh-sub { font-size: 13px; color: var(--ink-light); margin-left: auto; font-style: italic; }
+
+  /* THESIS CALLOUT */
+  .thesis {
+    background: var(--ink); color: var(--paper); padding: 28px 32px; border-radius: 4px;
+    margin-bottom: 36px;
+  }
+  .thesis-label {
+    font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--gold); margin-bottom: 10px;
+  }
+  .thesis-text { font-family: "Fraunces", serif; font-size: 19px; font-weight: 300; line-height: 1.45; }
+  .thesis-text strong { font-weight: 600; color: var(--gold); }
+
+  /* ASSET GRID */
+  .asset-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+    background: var(--rule); border: 1px solid var(--rule); margin-bottom: 12px;
+  }
+  .asset-cell { background: var(--card); padding: 18px 20px; }
+  .a-label {
+    font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--gold-deep); margin-bottom: 6px;
+  }
+  .a-val { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .a-sub { font-size: 12px; color: var(--ink-light); line-height: 1.45; }
+
+  /* TIMELINE */
+  .phase {
+    display: grid; grid-template-columns: 150px 1fr; border-bottom: 1px solid var(--rule);
+    padding: 28px 0;
+  }
+  .phase:last-child { border-bottom: none; }
+  .phase-left { padding-right: 24px; border-right: 2px solid var(--rule-strong); position: relative; }
+  .phase-left::after {
+    content: ''; position: absolute; right: -6px; top: 6px; width: 10px; height: 10px;
+    border-radius: 50%; background: var(--rust); border: 2px solid var(--paper);
+  }
+  .p-dates { font-family: "JetBrains Mono", monospace; font-size: 10px; color: var(--ink-light); }
+  .p-age { font-family: "Fraunces", serif; font-size: 26px; font-weight: 600; line-height: 1; margin: 3px 0; }
+  .p-phase { font-family: "JetBrains Mono", monospace; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--rust); }
+  .p-nw {
+    margin-top: 10px; font-family: "JetBrains Mono", monospace; font-size: 12px;
+    color: var(--green); font-weight: 600; padding: 4px 8px; background: var(--green-bg);
+    border-radius: 3px; display: inline-block;
+  }
+  .phase-right { padding-left: 28px; }
+  .phase-title { font-family: "Fraunces", serif; font-size: 18px; font-weight: 600; margin-bottom: 3px; }
+  .phase-tag { font-size: 12px; color: var(--ink-light); font-style: italic; margin-bottom: 14px; }
+  .phase-body { font-size: 13px; line-height: 1.65; color: var(--ink-soft); margin-bottom: 14px; }
+
+  .detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .detail { background: var(--card); border: 1px solid var(--rule); border-radius: 3px; padding: 12px 14px; }
+  .detail-label {
+    font-family: "JetBrains Mono", monospace; font-size: 8px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--gold-deep); margin-bottom: 6px;
+  }
+  .detail ul { list-style: none; }
+  .detail li { font-size: 11.5px; color: var(--ink-soft); padding: 2px 0 2px 12px; position: relative; line-height: 1.4; }
+  .detail li::before { content: '·'; position: absolute; left: 2px; color: var(--ink-faint); }
+
+  /* CARDS */
+  .card-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 10px; margin-top: 12px; }
+  .mini-card { background: var(--card); border: 1px solid var(--rule); padding: 15px 17px; border-radius: 3px; }
+  .mini-card.go { border-left: 3px solid var(--green); }
+  .mini-card.warn { border-left: 3px solid var(--rust); }
+  .mini-card.note { border-left: 3px solid var(--gold-deep); }
+  .mc-label {
+    font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.08em;
+    text-transform: uppercase; margin-bottom: 5px;
+  }
+  .go .mc-label { color: var(--green); }
+  .warn .mc-label { color: var(--rust); }
+  .note .mc-label { color: var(--gold-deep); }
+  .mc-title { font-weight: 600; font-size: 13px; margin-bottom: 5px; }
+  .mc-body { font-size: 12px; color: var(--ink-light); line-height: 1.45; }
+  .mc-tc { margin-top: 8px; font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--green); }
+
+  /* FORK */
+  .fork-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+  .fork { border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+  .fork-head { padding: 14px 18px 11px; border-bottom: 1px solid var(--rule); }
+  .fork-a .fork-head { background: #fbeee8; }
+  .fork-b .fork-head { background: var(--green-bg); }
+  .fork-tag { font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+  .fork-a .fork-tag { color: var(--rust); }
+  .fork-b .fork-tag { color: var(--green); }
+  .fork-head h3 { font-family: "Fraunces", serif; font-size: 16px; font-weight: 600; line-height: 1.2; }
+  .fork-body { background: var(--card); padding: 14px 18px; }
+  .fork-body ul { list-style: none; }
+  .fork-body li { padding: 5px 0; border-bottom: 1px solid var(--rule); display: flex; gap: 8px; font-size: 12px; line-height: 1.4; }
+  .fork-body li:last-child { border-bottom: none; }
+  .fork-body li::before { content: '→'; font-family: "JetBrains Mono", monospace; font-size: 10px; color: var(--ink-faint); flex-shrink: 0; margin-top: 1px; }
+
+  /* CURRICULUM */
+  .curr-note {
+    background: #fdf6e3; border: 1px solid #e8cf8a; border-radius: 4px; padding: 15px 18px;
+    font-size: 12.5px; line-height: 1.6; color: var(--ink-soft); margin-bottom: 24px;
+  }
+  .curr-note strong { color: var(--gold-deep); }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-light); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  .year-div {
+    font-family: "Fraunces", serif; font-size: 17px; font-weight: 600; margin: 32px 0 18px;
+    padding-bottom: 9px; border-bottom: 2px solid var(--ink); display: flex; align-items: center; gap: 12px;
+  }
+  .year-tag { font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-light); font-weight: 400; }
+
+  .sem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+  .sem { border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+  .sem-head { padding: 12px 16px 10px; border-bottom: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: center; }
+  .sem-head.f { background: #fbeee8; border-left: 4px solid var(--rust); }
+  .sem-head.s { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .sem-label { font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-light); }
+  .sem-name { font-family: "Fraunces", serif; font-size: 15px; font-weight: 600; }
+  .sem-units { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink-light); }
+  .sem-body { background: var(--card); }
+  .crow { display: flex; gap: 10px; padding: 9px 16px; border-bottom: 1px solid var(--rule); align-items: flex-start; }
+  .crow:last-child { border-bottom: none; }
+  .ctype { flex-shrink: 0; width: 48px; font-family: "JetBrains Mono", monospace; font-size: 8px; padding: 2px 4px; border-radius: 2px; text-align: center; margin-top: 1px; line-height: 1.3; }
+  .t-core { background: #fbe4da; color: var(--rust); }
+  .t-meng { background: #fdf0cc; color: var(--gold-deep); }
+  .t-elec { background: var(--green-bg); color: var(--green); }
+  .t-cap { background: #e8e2f0; color: var(--plum); }
+  .cinfo { flex: 1; }
+  .cname { font-size: 12px; font-weight: 600; line-height: 1.25; }
+  .ccode { font-family: "JetBrains Mono", monospace; font-size: 9.5px; color: var(--ink-light); margin-top: 1px; }
+  .cwhy { font-size: 10.5px; color: var(--ink-light); margin-top: 2px; font-style: italic; line-height: 1.35; }
+  .cunits { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink-faint); flex-shrink: 0; width: 22px; text-align: right; }
+  .milestone { display: flex; gap: 10px; padding: 9px 16px; background: #faf2dc; border-bottom: 1px solid var(--rule); align-items: center; }
+  .milestone:last-child { border-bottom: none; }
+  .mi-star { color: var(--gold-deep); font-size: 13px; }
+  .mi-text { font-size: 11px; color: var(--ink-soft); }
+  .mi-text b { color: var(--gold-deep); }
+
+  /* CONCENTRATION */
+  .conc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 16px 0; }
+  .conc-card { background: var(--card); border: 1px solid var(--rule); border-top: 3px solid var(--gold-deep); border-radius: 3px; padding: 16px 18px; }
+  .conc-code { font-family: "JetBrains Mono", monospace; font-size: 13px; font-weight: 600; color: var(--gold-deep); }
+  .conc-units { font-family: "JetBrains Mono", monospace; font-size: 10px; color: var(--ink-faint); float: right; }
+  .conc-title { font-weight: 600; font-size: 14px; margin: 4px 0 6px; }
+  .conc-body { font-size: 12px; color: var(--ink-light); line-height: 1.5; }
+
+  /* TABLES */
+  .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tbl th {
+    font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-light); text-align: left; padding: 9px 11px;
+    border-bottom: 1px solid var(--rule-strong); background: var(--paper-dim);
+  }
+  .tbl td { padding: 11px 11px; border-bottom: 1px solid var(--rule); vertical-align: top; line-height: 1.4; }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tr:hover td { background: var(--card); }
+  .co-name { font-weight: 600; font-size: 13px; }
+  .co-sub { font-size: 11px; color: var(--ink-light); }
+  .badge { display: inline-block; font-family: "JetBrains Mono", monospace; font-size: 9px; padding: 2px 7px; border-radius: 2px; letter-spacing: 0.03em; }
+  .b-s { background: var(--green-bg); color: var(--green); }
+  .b-a { background: #fbeee8; color: var(--rust); }
+  .b-b { background: #fdf0cc; color: var(--gold-deep); }
+  .stage { display: inline-block; font-family: "JetBrains Mono", monospace; font-size: 9px; padding: 2px 6px; border-radius: 2px; border: 1px solid var(--rule-strong); color: var(--ink-light); }
+  .tc { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--green); }
+  .fit-score { font-family: "Fraunces", serif; font-size: 16px; font-weight: 600; color: var(--ink); }
+
+  /* FIRE TIERS */
+  .fire-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin-bottom: 28px; }
+  .fire-tier { background: var(--card); padding: 22px; }
+  .fire-tier.fat { border-left: 3px solid var(--rust); }
+  .fire-tier.coast { border-left: 3px solid var(--green); }
+  .fire-tier.lean { border-left: 3px solid var(--gold-deep); }
+  .ft-tier { font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-light); margin-bottom: 6px; }
+  .ft-name { font-family: "Fraunces", serif; font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+  .ft-num { font-family: "JetBrains Mono", monospace; font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .fat .ft-num { color: var(--rust); }
+  .coast .ft-num { color: var(--green); }
+  .lean .ft-num { color: var(--gold-deep); }
+  .ft-body { font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
+  .ft-meta { margin-top: 10px; font-family: "JetBrains Mono", monospace; font-size: 10px; color: var(--ink-light); }
+
+  /* STACK */
+  .stack { background: var(--card); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; margin: 16px 0; }
+  .stack-row { display: grid; grid-template-columns: 32px 1fr auto; }
+  .stack-num { color: white; font-family: "Fraunces", serif; font-size: 17px; font-weight: 600; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid rgba(255,255,255,0.2); }
+  .stack-info { padding: 11px 16px; border-bottom: 1px solid var(--rule); }
+  .stack-info b { font-size: 13px; }
+  .stack-info p { font-size: 11px; color: var(--ink-light); margin-top: 2px; }
+  .stack-amt { padding: 11px 16px; border-bottom: 1px solid var(--rule); font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--green); white-space: nowrap; display: flex; align-items: center; }
+
+  /* PRINCIPLES */
+  .principles { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .principle { background: var(--card); padding: 20px; }
+  .pr-num { font-family: "Fraunces", serif; font-size: 34px; font-weight: 600; color: var(--gold); line-height: 1; margin-bottom: 8px; }
+  .pr-title { font-weight: 600; font-size: 13px; margin-bottom: 5px; }
+  .pr-body { font-size: 12px; color: var(--ink-light); line-height: 1.5; }
+
+  @media (max-width: 820px) {
+    .container, .topbar-inner { padding-left: 18px; padding-right: 18px; }
+    .tabs { padding: 0 18px; }
+    .hero-stats { grid-template-columns: 1fr 1fr; }
+    .asset-grid, .principles, .fire-grid { grid-template-columns: 1fr; }
+    .sem-grid, .fork-grid, .conc-grid, .detail-grid { grid-template-columns: 1fr; }
+    .phase { grid-template-columns: 100px 1fr; }
+    .tbl { font-size: 11px; }
+    .tbl th:nth-child(2), .tbl td:nth-child(2) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="topbar-mark">Zach Collins · Master Plan</div>
+    <div class="topbar-meta">MBA/MEng ME '28 · v2.0 · Jun 2026</div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="show('overview', this)">Overview</button>
+    <button class="tab" onclick="show('career', this)">Career Path</button>
+    <button class="tab" onclick="show('curriculum', this)">Curriculum</button>
+    <button class="tab" onclick="show('companies', this)">Companies</button>
+    <button class="tab" onclick="show('life', this)">Life & Money</button>
+    <button class="tab" onclick="show('action', this)">Action Plan</button>
+    <button class="tab" onclick="show('feed', this)">● Recon Feed</button>
+  </div>
+</div>
+
+<!-- ═══════════ OVERVIEW ═══════════ -->
+<div id="p-overview" class="panel active">
+<div class="container">
+  <div class="hero">
+    <div class="hero-eyebrow">Master Plan · Synthesized Edition</div>
+    <h1>The complete map:<br><em>school, career, money, life.</em></h1>
+    <p class="hero-lede">One plan that pulls together the curriculum strategy, the commercial career path, the target company board, and the road to Fat FIRE — all built around a single profile: a mechanical engineer who builds things and is about to hold a rare dual credential.</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="hs-num">60</div><div class="hs-label">Total units</div></div>
+      <div class="hero-stat"><div class="hs-num">$200K+</div><div class="hs-label">TC floor</div></div>
+      <div class="hero-stat"><div class="hs-num">~33</div><div class="hs-label">Coast FIRE age</div></div>
+      <div class="hero-stat"><div class="hs-num">~45</div><div class="hs-label">Fat FIRE age</div></div>
+    </div>
+  </div>
+
+  <div class="thesis" style="margin-top: 40px;">
+    <div class="thesis-label">Core thesis</div>
+    <div class="thesis-text">Stay in Mechanical Engineering. Build a <strong>custom concentration</strong> around ML, digital twins, and embedded hardware. Pair it with a deliberately allocated MBA elective stack. Target <strong>commercial product roles</strong> where physical things generate intelligence — robotics, fleet, wearables, supply chain tech — and let the dual credential be the thing no other candidate can match.</div>
+  </div>
+
+  <div class="sh"><span class="sh-num">01</span><h2>Why This Profile Is Rare</h2></div>
+  <div class="asset-grid">
+    <div class="asset-cell"><div class="a-label">Operational credibility</div><div class="a-val">100+ production releases</div><div class="a-sub">SAP EWM/TM enterprise supply chain systems shipped into demanding environments. Most MBA PMs have never shipped.</div></div>
+    <div class="asset-cell"><div class="a-label">Builder's instinct</div><div class="a-val">6 systems built solo</div><div class="a-sub">Full-stack data platforms with Postgres, TimescaleDB, vector DBs, AI routing — built for yourself, for real use.</div></div>
+    <div class="asset-cell"><div class="a-label">Domain authenticity</div><div class="a-val">Surfer · runner · car person</div><div class="a-sub">In wearables, outdoor, and mobility tech, being the target user is a genuine edge you can't fake.</div></div>
+    <div class="asset-cell"><div class="a-label">Cloud + data fluency</div><div class="a-val">AWS SA · Security+</div><div class="a-sub">Cloud certifications plus hands-on data pipeline work signal technical seriousness to engineering orgs.</div></div>
+    <div class="asset-cell"><div class="a-label">Mechanical depth</div><div class="a-val">ME, summa cum laude</div><div class="a-sub">The MEng lets you build hardware credibility most PMs structurally cannot — DFM, embedded, controls.</div></div>
+    <div class="asset-cell"><div class="a-label">Dual credential</div><div class="a-val">Only concurrent MBA/MEng at a top-10 MBA</div><div class="a-sub">~20–30 person cohort. Business + engineering credibility at once. The single sharpest differentiator on any board.</div></div>
+  </div>
+
+  <div class="sh"><span class="sh-num">02</span><h2>The Four Priority Domains</h2><span class="sh-sub">every course and company maps to one</span></div>
+  <div class="asset-grid">
+    <div class="asset-cell"><div class="a-label">α · AI & Data</div><div class="a-val">ME 276DS · MBA 200A</div><div class="a-sub">Databricks, NVIDIA, Samsara Intelligence, Scale AI. The ML literacy that lets you reason about model-driven products.</div></div>
+    <div class="asset-cell"><div class="a-label">∞ · SCM & Digital Twins</div><div class="a-val">ME 239 · MBA 248</div><div class="a-sub">Samsara, Flexport, Microsoft D365, Celonis. Your supply chain background, now wrapped in simulation and twin methodology.</div></div>
+    <div class="asset-cell"><div class="a-label">⊞ · Hardware & IoT</div><div class="a-val">ME 235 · ME 290P</div><div class="a-sub">Rivian, Apple, Oura, Boston Dynamics, Figure. Embedded systems credibility for physical-product PM roles.</div></div>
+    <div class="asset-cell"><div class="a-label">§ · Venture & Product</div><div class="a-val">MBA 267 · 295T · 295C</div><div class="a-sub">The PM craft and the founder toolkit — how products get built and how companies get started.</div></div>
+    <div class="asset-cell"><div class="a-label">$ · Finance depth</div><div class="a-val">IEOR 221 · MBA 231</div><div class="a-sub">Optional fintech wedge (Mercury, Stripe, Plaid) plus the cap-table fluency to evaluate your own equity offers.</div></div>
+    <div class="asset-cell"><div class="a-label">↗ · Platform strategy</div><div class="a-val">MBA 290T</div><div class="a-sub">Network effects and multi-sided markets — the strategic lens for any platform-shaped company you join or build.</div></div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════ CAREER PATH ═══════════ -->
+<div id="p-career" class="panel">
+<div class="container">
+  <div class="sh"><span class="sh-num">03</span><h2>10-Year Career Roadmap</h2><span class="sh-sub">commercial-first · founder/tech-lead trajectory</span></div>
+
+  <div class="phase">
+    <div class="phase-left"><div class="p-dates">2026–2027</div><div class="p-age">25–26</div><div class="p-phase">Phase 0</div><div class="p-nw">NW ~$10–30K</div></div>
+    <div class="phase-right">
+      <div class="phase-title">Year 1 — Explore & Signal</div>
+      <div class="phase-tag">Build the network. Land the internship. Don't lock in too early.</div>
+      <div class="phase-body">Year 1 is for sharpening which domain you want to own and building the relationships that make recruiting easy. Run the MBA core sprint, go deep on two domains, and meet 40+ founders, operators, and investors. The January decision: company internship (operator path) vs. startup co-founder search (founder path).</div>
+      <div class="card-row">
+        <div class="mini-card go"><div class="mc-label">Do this</div><div class="mc-title">Berkeley Skydeck</div><div class="mc-body">Apply in Year 1 even with an early idea. The network is where your co-founder or first angel comes from.</div></div>
+        <div class="mini-card go"><div class="mc-label">Do this</div><div class="mc-title">EECS co-founder search</div><div class="mc-body">You're the product/ops/business side. Find a technical co-founder in robotics, CV, or embedded by spring.</div></div>
+        <div class="mini-card warn"><div class="mc-label">Decision gate</div><div class="mc-title">January 2027 fork</div><div class="mc-body">Operator path or founder path. This sets the entire spring strategy. Don't defer it.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-left"><div class="p-dates">Summer 2027</div><div class="p-age">26</div><div class="p-phase">Phase 1</div><div class="p-nw">NW ~$25–50K</div></div>
+    <div class="phase-right">
+      <div class="phase-title">Internship — The Domain Bet</div>
+      <div class="phase-tag">12 weeks to convert. A return offer is your highest-value FT leverage.</div>
+      <div class="phase-body">Pick a company in your target domain where a return offer would be genuinely exciting. Ship a feature by week 10. If on the founder path, use the summer to validate a specific problem instead. Then: Tour du Mont Blanc in August — the marquee trip of your 20s, at peak fitness.</div>
+      <div class="card-row">
+        <div class="mini-card go"><div class="mc-label">Primary</div><div class="mc-title">Samsara · Rivian (PA)</div><div class="mc-body">Fleet IoT and EV/data — your SCM + hardware fit. Formal or ad-hoc MBA PM intern tracks.</div><div class="mc-tc">$7–14K/mo</div></div>
+        <div class="mini-card go"><div class="mc-label">Primary</div><div class="mc-title">Databricks · Microsoft</div><div class="mc-body">ML platform and cloud SCM/AI. Formal MBA pipelines, strong Berkeley presence, high conversion.</div><div class="mc-tc">$6.5–14K/mo</div></div>
+        <div class="mini-card note"><div class="mc-label">Stretch / lifestyle</div><div class="mc-title">Oura · Strava · Mercury</div><div class="mc-body">Wearables and fitness data where you're the user; fintech if you take the finance track.</div><div class="mc-tc">$6–13K/mo</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-left"><div class="p-dates">2027–2028</div><div class="p-age">26–27</div><div class="p-phase">Phase 2</div><div class="p-nw">NW ~$0–15K</div></div>
+    <div class="phase-right">
+      <div class="phase-title">Year 2 — Commit & Recruit</div>
+      <div class="phase-tag">The fork becomes permanent. Capstone delivers. Offers lock.</div>
+      <div class="phase-body">By August 2027 you know your domain. Convert the return offer or recruit hard for the FT role that sets up your domain apprenticeship. Negotiate toward the $310–350K TC target using competing offers as leverage.</div>
+      <div class="fork-grid">
+        <div class="fork fork-a">
+          <div class="fork-head"><div class="fork-tag">Path A — Operator first</div><h3>Join a strong company, own a product area</h3></div>
+          <div class="fork-body"><ul>
+            <li>Convert return offer or recruit into a target company</li>
+            <li>Sr. PM / PM II title, $200K+ TC floor, ideally $300K+</li>
+            <li>Model the equity: cliff, vesting, 409A vs. last round</li>
+            <li>Own one product surface end-to-end within 12 months</li>
+            <li>Keep side projects alive as portfolio signal</li>
+          </ul></div>
+        </div>
+        <div class="fork fork-b">
+          <div class="fork-head"><div class="fork-tag">Path B — Founder track</div><h3>Co-found from Berkeley, raise pre-seed</h3></div>
+          <div class="fork-body"><ul>
+            <li>Co-founder locked by October 2027</li>
+            <li>Thesis in robotics, fleet, wearables, or SCM tech</li>
+            <li>Apply to YC or Skydeck cohort in parallel</li>
+            <li>$500K–1.5M pre-seed from Berkeley + domain angels</li>
+            <li>~18 months personal runway before needing salary</li>
+          </ul></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-left"><div class="p-dates">2028–2031</div><div class="p-age">27–30</div><div class="p-phase">Phase 3</div><div class="p-nw">NW ~$300–600K</div></div>
+    <div class="phase-right">
+      <div class="phase-title">Domain Apprenticeship — Go Deep</div>
+      <div class="phase-tag">Hardest phase to rush, easiest to waste.</div>
+      <div class="phase-body">Three years of genuine depth: become the person who understands the technical system, the customer, and the competitive map better than anyone. By 30 — Senior/Group PM with 2+ shipped products and VC/Head-of-Product inbound (Path A), or Series A with PMF (Path B).</div>
+      <div class="card-row">
+        <div class="mini-card go"><div class="mc-label">Comp target</div><div class="mc-title">$300–400K+ TC by 30</div><div class="mc-body">Achievable at strong companies within 2 years. Founder cash is lower; equity compensates if Series A closes.</div></div>
+        <div class="mini-card go"><div class="mc-label">Reputation</div><div class="mc-title">Known in your domain</div><div class="mc-body">One technical post per quarter, one conference per year. Be the name people drop for your space.</div></div>
+        <div class="mini-card note"><div class="mc-label">Watch for</div><div class="mc-title">The Head of Product offer</div><div class="mc-body">Year 2–3 inbound from a Series A/B wanting a first product hire — the founder on-ramp from Path A.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-left"><div class="p-dates">2031–2034</div><div class="p-age">30–34</div><div class="p-phase">Phase 4</div><div class="p-nw">NW ~$1.2–2.2M</div></div>
+    <div class="phase-right">
+      <div class="phase-title">Leverage — Build or Lead</div>
+      <div class="phase-tag">The market knows your name. Use it.</div>
+      <div class="phase-body">Operator and founder paths converge: VP/Head of Product at a high-growth company, founding your second company with a pre-built network, or moving into an EIR/VC role with domain expertise as the thesis.</div>
+      <div class="card-row">
+        <div class="mini-card go"><div class="mc-label">Path A</div><div class="mc-title">VP / Head of Product</div><div class="mc-body">Series C/D in your domain. $400K+ TC + real equity. Owning roadmap, in the strategy room.</div></div>
+        <div class="mini-card warn"><div class="mc-label">Path B</div><div class="mc-title">Scaling or second company</div><div class="mc-body">Series A/B growth, or a sharper second swing with investor network in hand.</div></div>
+        <div class="mini-card note"><div class="mc-label">Optional</div><div class="mc-title">Principal at a deep-tech fund</div><div class="mc-body">5+ years of depth makes a VC seat realistic — evaluating the space you've been building in.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-left"><div class="p-dates">2034+</div><div class="p-age">34–39</div><div class="p-phase">Phase 5</div><div class="p-nw">NW ~$3.5–6M</div></div>
+    <div class="phase-right">
+      <div class="phase-title">Peak Freedom — Work From Choice</div>
+      <div class="phase-tag">Coast FIRE cleared. Fat FIRE on trajectory.</div>
+      <div class="phase-body">Senior leader or founder with genuine domain expertise, compensated for what you know rather than how long you've stayed. Enough autonomy to surf on a Tuesday. A single equity event here can pull Fat FIRE forward to your late 30s. The work is interesting because you chose the domain — not because you have to be there.</div>
+    </div>
+  </div>
+
+  <div class="sh"><span class="sh-num">04</span><h2>Principles to Hold</h2></div>
+  <div class="principles">
+    <div class="principle"><div class="pr-num">1</div><div class="pr-title">Domain depth beats role breadth</div><div class="pr-body">The ME-PM who knows digital twins and supply chains cold beats the generalist who's touched five industries. Optionality comes from depth.</div></div>
+    <div class="principle"><div class="pr-num">2</div><div class="pr-title">Never anchor the salary low</div><div class="pr-body">Your first offer sets the floor for a decade. Defend $200K+ TC, aim for $300K+. Every $10K of base shortens the FIRE path ~4–6 months.</div></div>
+    <div class="principle"><div class="pr-num">3</div><div class="pr-title">Every course answers an interview question</div><div class="pr-body">ME 276DS → "can you reason about ML?" ME 235 → "have you built hardware?" MBA 267 → "do you think like a PM?" Nothing on the transcript is for breadth alone.</div></div>
+    <div class="principle"><div class="pr-num">4</div><div class="pr-title">Build in public</div><div class="pr-body">Keep shipping side projects. Your GitHub and portfolio site are recruiting assets classmates don't have. Don't let them go dark at Berkeley.</div></div>
+    <div class="principle"><div class="pr-num">5</div><div class="pr-title">Ship in your first 90 days</div><div class="pr-body">In every role, be known for shipping something real, fast. That reputation compounds faster than any title or credential.</div></div>
+    <div class="principle"><div class="pr-num">6</div><div class="pr-title">WLB is designed, not granted</div><div class="pr-body">Protect surf sessions, long runs, and travel like board meetings. Work expands to fill whatever time you give it.</div></div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════ CURRICULUM ═══════════ -->
+<div id="p-curriculum" class="panel">
+<div class="container">
+  <div class="sh"><span class="sh-num">05</span><h2>The Curriculum</h2><span class="sh-sub">~60 units · 4 semesters · graduate May 2028</span></div>
+
+  <div class="curr-note"><strong>The strategy:</strong> Stay in Mechanical Engineering and build a custom 12-unit concentration around three priorities — machine learning (ME 276DS), digital twins (ME 239), and embedded hardware (ME 235) — rounded out by New Product Development (ME 290P). The Berkeley Academic Guide permits ME course substitutions with faculty advisor consent, so this concentration is petition-built rather than off-the-shelf. The 19 units of MBA electives are each allocated to a specific priority domain. No department switch, no deferral.</div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:#B5390F"></span> MBA Core (required)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#C68B0F"></span> MEng / ME Concentration</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#2C6E49"></span> Recommended Elective</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#5B3458"></span> Capstone</div>
+  </div>
+
+  <div class="year-div">Year 1 — Build the Foundation <span class="year-tag">2026–2027</span></div>
+  <div class="sem-grid">
+    <div class="sem">
+      <div class="sem-head f"><div><div class="sem-label">Fall 2026 · Aug–Dec</div><div class="sem-name">Fall — MBA Core Sprint</div></div><div class="sem-units">~15u</div></div>
+      <div class="sem-body">
+        <div class="crow"><div class="ctype t-core">CORE</div><div class="cinfo"><div class="cname">Data Analytics</div><div class="ccode">MBA 200A</div><div class="cwhy">Foundational quant — feeds finance and data courses later</div></div><div class="cunits">2u</div></div>
+        <div class="crow"><div class="ctype t-core">CORE</div><div class="cinfo"><div class="cname">Economics for Business Decision Making</div><div class="ccode">MBA 201A</div><div class="cwhy">Microeconomic foundation, competitive advantage frameworks</div></div><div class="cunits">2u</div></div>
+        <div class="crow"><div class="ctype t-core">CORE</div><div class="cinfo"><div class="cname">Financial Accounting</div><div class="ccode">MBA 202</div><div class="cwhy">Reading statements — table stakes for equity diligence</div></div><div class="cunits">2u</div></div>
+        <div class="crow"><div class="ctype t-core">CORE</div><div class="cinfo"><div class="cname">Leading People</div><div class="ccode">MBA 205</div><div class="cwhy">Org behavior — foundational for managing eng teams</div></div><div class="cunits">2u</div></div>
+        <div class="crow"><div class="ctype t-core">CORE</div><div class="cinfo"><div class="cname">Marketing</div><div class="ccode">MBA 206</div><div class="cwhy">Consumer + B2B framework for GTM</div></div><div class="cunits">2u</div></div>
+        <div class="crow"><div class="ctype t-elec">ELEC</div><div class="cinfo"><div class="cname">Negotiations & Conflict Resolution</div><div class="ccode">MBA 252</div><div class="cwhy">Taken early — leverage for spring internship offers</div></div><div class="cunits">2u</div></div>
+        <div class="crow"><div class="ctype t-meng">ME</div><div class="cinfo"><div class="cname">Design of Microprocessor-Based Mechanical Systems</div><div class="ccode">ME 235 · Concentration 1/4</div><div class="cwhy">Embedded hardware — serves Samsara, Rivian, Figure, Zipline</div></div><div class="cunits">3u</div></div>
+        <div class="milestone"><span class="mi-star">★</span><div class="mi-text"><b>Oct:</b> Internship apps open. 15+ applications. Attend every campus tech presentation.</div></div>
+      </div>
+    </div>
+    <div class="sem">
+      <div class="sem-head s"><div><div class="sem-label">Spring 2027 · Jan–May</div><div class="sem-name">Spring — ML Anchor</div></div><div class="sem-units">~16u</div></div>
+      <div class="sem-body">
+        <div class="crow"><div class="ctype t-core">CORE</div><div class="cinfo"><div class="cname">Data and Decisions</div><div class="ccode">MBA 200S</div><div class="cwhy">Statistics and decision theory</div></div><div class="cunits">2u</div></div>
+        <div class="crow"><div class="ctype t-core">CORE</div><div class="cinfo"><div class="cname">Introduction to Finance</div><div class="ccode">MBA 203</div><div class="cwhy">Foundation for fintech PM conversations</div></div><div class="cunits">2u</div></div>
+        <div class="crow"><div class="ctype t-core">CORE</div><div class="cinfo"><div class="cname">Operations</div><div class="ccode">MBA 204</div><div class="cwhy">Supply chain and operations adjacency — your home turf</div></div><div class="cunits">2u</div></div>
+        <div class="crow"><div class="ctype t-core">CORE</div><div class="cinfo"><div class="cname">Macroeconomics in the Global Economy</div><div class="ccode">MBA 201B</div><div class="cwhy">Global cycles, supply chain disruption context</div></div><div class="cunits">2u</div></div>
+        <div class="crow"><div class="ctype t-elec">ELEC</div><div class="cinfo"><div class="cname">Product Management</div><div class="ccode">MBA 267 · flagship PM</div><div class="cwhy">The core PM credential at Haas. Final project = portfolio artifact</div></div><div class="cunits">3u</div></div>
+        <div class="crow"><div class="ctype t-meng">ME</div><div class="cinfo"><div class="cname">Statistics & Data Science for Engineers</div><div class="ccode">ME 276DS · Concentration 2/4</div><div class="cwhy">Full ML course: supervised learning, CNNs, RNNs, time series. Python</div></div><div class="cunits">4u</div></div>
+        <div class="milestone"><span class="mi-star">★</span><div class="mi-text"><b>Feb–Mar:</b> Internship offers close. Target acceptance by late March.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="curr-note" style="background:#fbeee8; border-color:#e0a890;"><strong>Summer 2027 — Internship + Tour du Mont Blanc.</strong> 12-week PM/TPM internship at a primary target (Samsara, Microsoft, Databricks, Rivian) with the goal of a return offer. Then TMB in August: ~110 miles, 35K+ ft of climbing, at peak fitness from half-marathon training and surf. The leverage from a return offer carries through all of FT recruiting.</div>
+
+  <div class="year-div">Year 2 — Specialize & Launch <span class="year-tag">2027–2028</span></div>
+  <div class="sem-grid">
+    <div class="sem">
+      <div class="sem-head f"><div><div class="sem-label">Fall 2027 · Aug–Dec</div><div class="sem-name">Fall — Concentration Depth</div></div><div class="sem-units">~15.5u</div></div>
+      <div class="sem-body">
+        <div class="crow"><div class="ctype t-core">CORE</div><div class="cinfo"><div class="cname">Strategic Leadership</div><div class="ccode">MBA 299</div><div class="cwhy">Competitive positioning — foundational for product/startup strategy</div></div><div class="cunits">2u</div></div>
+        <div class="crow"><div class="ctype t-core">CORE</div><div class="cinfo"><div class="cname">Ethics & Responsible Business Leadership</div><div class="ccode">MBA 207</div><div class="cwhy">Required — relevant when products collect physical/biometric data</div></div><div class="cunits">1u</div></div>
+        <div class="crow"><div class="ctype t-elec">ELEC</div><div class="cinfo"><div class="cname">Start-up Lab (Applied Innovation)</div><div class="ccode">MBA 295T</div><div class="cwhy">Fulfills Applied Innovation requirement. Project-based entrepreneurship</div></div><div class="cunits">3u</div></div>
+        <div class="crow"><div class="ctype t-elec">ELEC</div><div class="cinfo"><div class="cname">Supply Chain Management</div><div class="ccode">MBA 248</div><div class="cwhy">Core SCM depth — Samsara, Flexport, Microsoft D365</div></div><div class="cunits">3u</div></div>
+        <div class="crow"><div class="ctype t-meng">ME</div><div class="cinfo"><div class="cname">Modeling, Simulation & Digital Twins</div><div class="ccode">ME 239 · Concentration 3/4</div><div class="cwhy">Digital twins is literally Samsara's category; Flexport, D365, Rivian too</div></div><div class="cunits">3u</div></div>
+        <div class="crow"><div class="ctype t-meng">ME</div><div class="cinfo"><div class="cname">Intro to Financial Engineering <span style="color:var(--ink-faint)">(petition)</span></div><div class="ccode">IEOR 221 · finance anchor</div><div class="cwhy">Petitioned ME substitution or supplemental — fintech wedge</div></div><div class="cunits">3u</div></div>
+        <div class="crow"><div class="ctype t-cap">CAP</div><div class="cinfo"><div class="cname">MBA/MEng Capstone · Phase 1</div><div class="ccode">ENGIN 296MB</div><div class="cwhy">Scope with a tech-company sponsor</div></div><div class="cunits">1.5u</div></div>
+        <div class="milestone"><span class="mi-star">★</span><div class="mi-text"><b>Oct:</b> FT recruiting opens. 20+ applications. Target 2+ offers by December.</div></div>
+      </div>
+    </div>
+    <div class="sem">
+      <div class="sem-head s"><div><div class="sem-label">Spring 2028 · Jan–May</div><div class="sem-name">Spring — Deliver & Close</div></div><div class="sem-units">~14u</div></div>
+      <div class="sem-body">
+        <div class="crow"><div class="ctype t-core">CORE</div><div class="cinfo"><div class="cname">Leadership Communication</div><div class="ccode">MBA 200C</div><div class="cwhy">Executive and board-level messaging</div></div><div class="cunits">1u</div></div>
+        <div class="crow"><div class="ctype t-core">CORE</div><div class="cinfo"><div class="cname">Communication in Diverse Environments</div><div class="ccode">MBA 205D</div><div class="cwhy">Leading diverse technical and business teams</div></div><div class="cunits">1u</div></div>
+        <div class="crow"><div class="ctype t-elec">ELEC</div><div class="cinfo"><div class="cname">Opportunity Recognition in Silicon Valley</div><div class="ccode">MBA 295C</div><div class="cwhy">Venture exposure — Mercury, Crusoe, Databricks adjacency</div></div><div class="cunits">3u</div></div>
+        <div class="crow"><div class="ctype t-elec">ELEC</div><div class="cinfo"><div class="cname">Strategy for the Networked Economy</div><div class="ccode">MBA 290T</div><div class="cwhy">Platform & network effects — Stripe, Plaid, Microsoft, Discord</div></div><div class="cunits">3u</div></div>
+        <div class="crow"><div class="ctype t-elec">ELEC</div><div class="cinfo"><div class="cname">Corporate Finance</div><div class="ccode">MBA 231</div><div class="cwhy">Finance depth beyond intro core — fintech PM interviews</div></div><div class="cunits">2u</div></div>
+        <div class="crow"><div class="ctype t-meng">ME</div><div class="cinfo"><div class="cname">New Product Development</div><div class="ccode">ME 290P · Concentration 4/4</div><div class="cwhy">Core PM methodology through the ME department. Rounds to 12u</div></div><div class="cunits">3u</div></div>
+        <div class="crow"><div class="ctype t-meng">MENG</div><div class="cinfo"><div class="cname">Tech Management & Teaming</div><div class="ccode">E270B + E270C</div><div class="cwhy">General MEng / Fung Institute requirement (bundled)</div></div><div class="cunits">2u</div></div>
+        <div class="crow"><div class="ctype t-cap">CAP</div><div class="cinfo"><div class="cname">MBA/MEng Capstone · Phase 2</div><div class="ccode">ENGIN 296MB</div><div class="cwhy">Delivery and final presentation</div></div><div class="cunits">1.5u</div></div>
+        <div class="milestone"><span class="mi-star">★</span><div class="mi-text"><b>May:</b> FT offers locked & negotiated — $310–350K TC target. Graduate.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sh"><span class="sh-num">06</span><h2>The Custom Concentration</h2><span class="sh-sub">4 courses · 12 units · petition-built</span></div>
+  <div class="curr-note">The ME MEng concentration requires 12 units of 200-level coursework. The standard tracks (Advanced Energy, Aerospace, Biomechanics, Control of Robotic & Autonomous Systems, Fluids, MEMS/Nano, Mechanics & Dynamics, Modeling & Simulation of Advanced Manufacturing, Product Design) are physical-science tracks — none maps cleanly to a commercial PM target list. Per the Academic Guide, <em>"Course substitutions may be allowed with the consent of the department ME MEng faculty advisor."</em> That's the door to a custom concentration spanning hardware, ML, digital twins, and product development.</div>
+  <div class="conc-grid">
+    <div class="conc-card"><span class="conc-units">3u</span><div class="conc-code">ME 235</div><div class="conc-title">Microprocessor-Based Mechanical Systems</div><div class="conc-body">Embedded hardware, sensors, thermal components, instruments. Serves Samsara (IoT fleet), Rivian, Figure AI, Zipline. Prereq: ME 132 or undergrad controls equivalent.</div></div>
+    <div class="conc-card"><span class="conc-units">4u</span><div class="conc-code">ME 276DS</div><div class="conc-title">Statistics & Data Science for Engineers</div><div class="conc-body">Probability, optimization, ML estimation, supervised learning, decision trees, deep learning, CNNs, RNNs, LSTMs, time series, clustering, PCA. Python-based. Serves Databricks, NVIDIA, Scale AI.</div></div>
+    <div class="conc-card"><span class="conc-units">3u</span><div class="conc-code">ME 239</div><div class="conc-title">Modeling, Simulation & Digital Twins</div><div class="conc-body">Digital twins is literally Samsara's product category. Flexport uses them for shipment visibility; Microsoft D365 SCM runs on twin architecture; Rivian for vehicle lifecycle.</div></div>
+    <div class="conc-card"><span class="conc-units">3u</span><div class="conc-code">ME 290P</div><div class="conc-title">New Product Development</div><div class="conc-body">Core PM methodology delivered through the ME department. Rounds the concentration to exactly 12u — or yields to IEOR 221 if the petition is approved as a 5th course (13u).</div></div>
+  </div>
+  <div class="curr-note" style="background:#fdf0cc; border-color:#e8cf8a;"><strong>IEOR 221 petition strategy.</strong> Introduction to Financial Engineering is the finance anchor (interest rates, arbitrage, Brownian motion, options pricing, Black-Scholes) for any fintech conversation. <em>Best:</em> petition approved, counts as a 5th concentration course. <em>Acceptable:</em> denied, take it supplemental and non-degree-counting. <em>Fallback:</em> skip it, rely on MBA 203 + 231, add another ME Product Design course. Confirm with your ME faculty advisor before Fall 2026 orientation.</div>
+</div>
+</div>
+
+<!-- ═══════════ COMPANIES ═══════════ -->
+<div id="p-companies" class="panel">
+<div class="container">
+  <div class="sh"><span class="sh-num">07</span><h2>Target Companies</h2><span class="sh-sub">commercial-first · $200K+ TC floor · WLB-weighted</span></div>
+
+  <div class="curr-note"><strong>Recentered commercial.</strong> The picks below prioritize commercial product roles where your background is a bonus, not the reason you're hired. Fit scores weight: JD match, obtainability, TC, WLB, and how well each maps to the curriculum. Where a company has a formal MBA pipeline, that's noted — it raises obtainability significantly.</div>
+
+  <div class="year-div" style="font-size:15px;">Tier A — Primary Targets <span class="year-tag">apply first · highest combined fit</span></div>
+  <table class="tbl">
+    <thead><tr><th>Company</th><th>Domain</th><th>Stage</th><th>Why you specifically</th><th>Fit</th><th>TC</th></tr></thead>
+    <tbody>
+      <tr><td><div class="co-name">Samsara</div><div class="co-sub">SF · NYSE:IOT</div></td><td>Fleet IoT</td><td><span class="stage">Public</span></td><td>SAP supply chain is their literal customer stack. MEng = hardware credibility. Best WLB at this TC level. Ad-hoc MBA PM via Haas Tech Networking Night.</td><td><span class="fit-score">9.5</span></td><td><span class="tc">$280–350K</span></td></tr>
+      <tr><td><div class="co-name">Microsoft Azure</div><div class="co-sub">Redmond</div></td><td>Cloud / AI</td><td><span class="stage">Public</span></td><td>Formal Aspire MBA PM, 75–80% conversion. D365 Supply Chain mirrors your SAP EWM background. Best-in-tier WLB (4.1). Redmond = ski/hike.</td><td><span class="fit-score">9.0</span></td><td><span class="tc">$225–295K</span></td></tr>
+      <tr><td><div class="co-name">Apple</div><div class="co-sub">Cupertino · EPM</div></td><td>Hardware</td><td><span class="stage">Public</span></td><td>Engineering Program Manager JDs literally require a BS/MS in ME. Your MEng + 100+ releases = the ideal profile. No MBA pipeline — pure networking + referral.</td><td><span class="fit-score">9.5</span></td><td><span class="tc">$260–450K</span></td></tr>
+      <tr><td><div class="co-name">Databricks</div><div class="co-sub">SF</div></td><td>AI / Data</td><td><span class="stage">Pre-IPO</span></td><td>Berkeley-founded (AMPLab DNA), strongest Haas pipeline, 500+ alumni. 5 formal MBA tracks incl. TPM. ME 276DS is the direct course match.</td><td><span class="fit-score">9.0</span></td><td><span class="tc">$330–400K</span></td></tr>
+      <tr><td><div class="co-name">Rivian</div><div class="co-sub">Palo Alto</div></td><td>EV / Data</td><td><span class="stage">Public</span></td><td>Formal MBA PM intern (Palo Alto). MEng = DFM credibility. R1T/R1S brand fits your outdoor life. Target Palo Alto software/data roles for WLB.</td><td><span class="fit-score">9.0</span></td><td><span class="tc">$230–290K</span></td></tr>
+      <tr><td><div class="co-name">NVIDIA</div><div class="co-sub">Santa Clara</div></td><td>AI / GPU</td><td><span class="stage">Public</span></td><td>Formal MBA PM + Corp Dev intern programs, newer and less saturated than Google/MSFT. Cloud certs + MEng = genuine edge. Flat orgs, long tenures, 7/10 WLB.</td><td><span class="fit-score">8.8</span></td><td><span class="tc">$300–450K</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="year-div" style="font-size:15px;">Tier B — Strong Swings <span class="year-tag">accept one tradeoff: WLB, TC ceiling, or risk</span></div>
+  <table class="tbl">
+    <thead><tr><th>Company</th><th>Domain</th><th>Stage</th><th>Why / tradeoff</th><th>Fit</th><th>TC</th></tr></thead>
+    <tbody>
+      <tr><td><div class="co-name">Google Cloud</div><div class="co-sub">Seattle / SF</div></td><td>Cloud / AI</td><td><span class="stage">Public</span></td><td>Best WLB in tier (4.2). GCP cert is a rare MBA differentiator. Top-3 Haas employer. Tradeoff: slowest promo velocity (L5→L6 = 3–5 yrs).</td><td><span class="fit-score">9.5</span></td><td><span class="tc">$355–420K</span></td></tr>
+      <tr><td><div class="co-name">Celonis</div><div class="co-sub">NYC / Munich</div></td><td>Process Mining</td><td><span class="stage">~$13B</span></td><td>Highest-conviction SAP-adjacent play — Celonis mines SAP HANA data, so your EWM/TM background <em>is</em> their go-to-market profile. IPO rumored 2026–27.</td><td><span class="fit-score">9.2</span></td><td><span class="tc">$250–350K</span></td></tr>
+      <tr><td><div class="co-name">Waymo</div><div class="co-sub">SF / Mountain View</div></td><td>Autonomy</td><td><span class="stage">Alphabet</span></td><td>$460K median — outsized comp, liquid Alphabet RSUs. Autonomy = frontier hardware + software. Tradeoff: no MBA pipeline, pure networking.</td><td><span class="fit-score">7.8</span></td><td><span class="tc">$435–460K</span></td></tr>
+      <tr><td><div class="co-name">Mercury</div><div class="co-sub">SF / remote</div></td><td>Fintech</td><td><span class="stage">Private</span></td><td>Best WLB-TC balance in fintech (4.3, remote-first). Strategic Finance MBA intern confirmed; convert to PM. 10 straight profitable quarters.</td><td><span class="fit-score">8.0</span></td><td><span class="tc">$230–386K</span></td></tr>
+      <tr><td><div class="co-name">Procore</div><div class="co-sub">Carpinteria, CA</div></td><td>Construction Tech</td><td><span class="stage">Public</span></td><td>Coastal surf town HQ. Construction = physical operations where ME differentiates. Median $283K, strong WLB. Triple fit: surf + hardware + SCM.</td><td><span class="fit-score">8.2</span></td><td><span class="tc">$199–352K</span></td></tr>
+      <tr><td><div class="co-name">Meta Reality Labs</div><div class="co-sub">Menlo Park</div></td><td>AR / VR Hardware</td><td><span class="stage">Public</span></td><td>Quest / Orion AR is frontier hardware. MEng differentiates vs. software-only MBAs. Tradeoff: RL intensity + reorg risk, Menlo Park only.</td><td><span class="fit-score">8.0</span></td><td><span class="tc">$290–450K</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="year-div" style="font-size:15px;">Tier C — Lifestyle & Passion Bets <span class="year-tag">trade TC for culture, brand, or the life you want</span></div>
+  <table class="tbl">
+    <thead><tr><th>Company</th><th>Domain</th><th>Stage</th><th>Why / tradeoff</th><th>Fit</th><th>TC</th></tr></thead>
+    <tbody>
+      <tr><td><div class="co-name">onX Maps</div><div class="co-sub">Denver / SLC</div></td><td>Outdoor Tech</td><td><span class="stage">Private</span></td><td>Best WLB of the whole board. Basecamps in MT, gear discounts, "Get Out Get Active" cash. Tradeoff: $40–80K TC haircut.</td><td><span class="fit-score">9.0</span></td><td><span class="tc">$170–230K</span></td></tr>
+      <tr><td><div class="co-name">Oura</div><div class="co-sub">San Diego / SF</div></td><td>Wearables</td><td><span class="stage">Series D</span></td><td>Hardware PM JDs request ME/EE. You're the target user. SD = elite surf. Strong culture. Physical device + subscription data platform.</td><td><span class="fit-score">8.2</span></td><td><span class="tc">$200–280K</span></td></tr>
+      <tr><td><div class="co-name">Strava</div><div class="co-sub">San Francisco</div></td><td>Fitness Data</td><td><span class="stage">S-1 filed</span></td><td>180M users, you use it daily (surf/run/tennis). IPO optionality. Tradeoff: TC borderline at the floor.</td><td><span class="fit-score">8.0</span></td><td><span class="tc">$200–260K</span></td></tr>
+      <tr><td><div class="co-name">Sonos</div><div class="co-sub">Santa Barbara</div></td><td>Audio Hardware</td><td><span class="stage">Public</span></td><td>Best WLB of any hardware company (4.3). Coastal SoCal. ME-relevant. Tradeoff: recovering from 2024 app stumble.</td><td><span class="fit-score">7.2</span></td><td><span class="tc">$211–367K</span></td></tr>
+      <tr><td><div class="co-name">Boston Dynamics</div><div class="co-sub">Waltham, MA</div></td><td>Robotics</td><td><span class="stage">Hyundai</span></td><td>Stretch PM = warehouse automation (direct SAP WMS parallel). Atlas = frontier humanoid. ME required. Engineering-first culture.</td><td><span class="fit-score">8.0</span></td><td><span class="tc">$180–280K</span></td></tr>
+      <tr><td><div class="co-name">WHOOP</div><div class="co-sub">Boston</div></td><td>Wearables</td><td><span class="stage">Series F</span></td><td>Athlete-first culture, "MBA a plus" in AI PM roles. 18-wk parental leave, fitness perks. Mission-driven. Tradeoff: TC below big-tech.</td><td><span class="fit-score">7.5</span></td><td><span class="tc">$175–230K</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="curr-note" style="margin-top:24px;"><strong>Conscious passes.</strong> Companies that fail your stated criteria: roles where "PM" means program/project management rather than product; any company advertising 60+ hour weeks as culture; declining businesses with below-market comp; and anything that would route you back into serving government as the primary customer. Selling commercial product that <em>can</em> serve government is fine — being defined by it is not.</div>
+</div>
+</div>
+
+<!-- ═══════════ LIFE & MONEY ═══════════ -->
+<div id="p-life" class="panel">
+<div class="container">
+  <div class="sh"><span class="sh-num">08</span><h2>The FIRE Landscape</h2><span class="sh-sub">Coast is the safety net · Fat is the goal</span></div>
+  <div class="fire-grid">
+    <div class="fire-tier coast"><div class="ft-tier">Tier 1 · Safety net</div><div class="ft-name">Coast FIRE</div><div class="ft-num">~$1M invested</div><div class="ft-body">Enough that compounding alone funds a standard retirement — you never need to save another dollar. Work pressure fundamentally changes. This is the real near-term finish line.</div><div class="ft-meta">Target age: 33–35</div></div>
+    <div class="fire-tier lean"><div class="ft-tier">Tier 2 · Waypoint</div><div class="ft-name">Lean FIRE</div><div class="ft-num">~$2.5–3M</div><div class="ft-body">Fully retired today but tight in the Bay Area; comfortable if you relocate. A milestone on the way, not the destination.</div><div class="ft-meta">Target age: 38–43</div></div>
+    <div class="fire-tier fat"><div class="ft-tier">Tier 3 · The goal</div><div class="ft-name">Fat FIRE</div><div class="ft-num">~$5–6M</div><div class="ft-body">Fully retired with no lifestyle compromise — Bay Area or anywhere, partner, annual TMB-style travel, nice vehicles, dinners out, all uncounted.</div><div class="ft-meta">Target age: 45–48 (sooner with an equity event)</div></div>
+  </div>
+
+  <div class="sh"><span class="sh-num">09</span><h2>Life Phases — Bay Area Scenario</h2></div>
+
+  <div class="phase">
+    <div class="phase-left"><div class="p-dates">Summer 2026</div><div class="p-age">25</div><div class="p-phase">The Move</div><div class="p-nw">NW $100–141K</div></div>
+    <div class="phase-right">
+      <div class="phase-title">DC → Berkeley. Reset everything.</div>
+      <div class="detail-grid">
+        <div class="detail"><div class="detail-label">Housing</div><ul><li>3–4 bed shared house, Southside or North Berkeley with classmates</li><li>Your share ~$1,200–1,600/mo vs $2,300 solo — saves $8–13K/yr</li><li>RSO-protected unit preferred (rent capped at 65% CPI)</li></ul></div>
+        <div class="detail"><div class="detail-label">Vehicle</div><ul><li>Decision: CPO Gen 5 4Runner TRD Off-Road (~$40K) or delay</li><li>If buy: ~$720/mo + $190 insurance + $200 gas</li><li>If delay: save $1,110/mo, Zipcar + roommate rides</li></ul></div>
+        <div class="detail"><div class="detail-label">Finances</div><ul><li>Monthly burn: $3,520 (car) / $2,300 (no car)</li><li>Tuition + fees: ~$65K/yr · all-in $93–107K/yr</li><li>Starting savings $141K · federal loans $20.5K</li></ul></div>
+        <div class="detail"><div class="detail-label">Life & Health</div><ul><li>LDR with partner begins; ~1 flight/month (~$3,600/yr)</li><li>Surf Pacifica / Ocean Beach / Santa Cruz (45–90 min)</li><li>Half-marathon training; RSF gym included; goal 50+ surf sessions/yr</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-left"><div class="p-dates">2027–2030</div><div class="p-age">27–30</div><div class="p-phase">First 3 Years</div><div class="p-nw">NW $300–550K</div></div>
+    <div class="phase-right">
+      <div class="phase-title">Earn, clear debt, start compounding hard</div>
+      <div class="phase-body">First post-Berkeley role at $200K+ (target $300K+). All debt — federal loans + car — cleared by 29. Max every tax-advantaged account from Day 1, then pour the rest into low-cost index funds. Saving $90–140K/yr at this income.</div>
+      <div class="detail-grid">
+        <div class="detail"><div class="detail-label">Investments</div><ul><li>Resume contributions immediately on first paycheck</li><li>401k → HSA → backdoor Roth → mega backdoor → taxable</li><li>VTI/VXUS core; avoid lifestyle creep on the raise</li></ul></div>
+        <div class="detail"><div class="detail-label">Life</div><ul><li>Partner cohabitation decision; possible DC ↔ Bay resolution</li><li>Continue racing calendar; TMB memories bank</li><li>Build domain reputation: quarterly posts, annual conference</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-left"><div class="p-dates">2030–2034</div><div class="p-age">30–34</div><div class="p-phase">Staff / Director</div><div class="p-nw">NW $1.2–2.2M</div></div>
+    <div class="phase-right">
+      <div class="phase-title">Seniority compounds — Coast FIRE clears</div>
+      <div class="phase-body">Group PM / Director / VP or founder traction. RSU vesting + salary + market compounding pushes you through Coast FIRE (~$1M) around 33. From here, compounding alone reaches $5M+ by 60 — the rest is genuine choice.</div>
+    </div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-left"><div class="p-dates">2034–2047</div><div class="p-age">34–47</div><div class="p-phase">Freedom</div><div class="p-nw">NW $3.5–10M+</div></div>
+    <div class="phase-right">
+      <div class="phase-title">VP / CPO / Founder → Peak Freedom → Fat FIRE</div>
+      <div class="phase-body">Senior leadership or founder outcomes. A liquidity event (Series B/C equity, founder exit, IPO) can pull Fat FIRE forward to your late 30s. Absent that, the salary-and-compounding path reaches $5–6M by 45–48. Family, surfing, purpose, and work entirely on your terms.</div>
+    </div>
+  </div>
+
+  <div class="sh"><span class="sh-num">10</span><h2>Savings Stack — Every Year, In Order</h2></div>
+  <div class="stack">
+    <div class="stack-row"><div class="stack-num" style="background:#B5390F">1</div><div class="stack-info"><b>401(k) to employer match</b><p>Free money first. Always — even before Roth.</p></div><div class="stack-amt">to match</div></div>
+    <div class="stack-row"><div class="stack-num" style="background:#2C6E49">2</div><div class="stack-info"><b>HSA (if on HDHP)</b><p>Triple tax advantage. Invest it, don't spend it — best account in the stack.</p></div><div class="stack-amt">$4,300/yr</div></div>
+    <div class="stack-row"><div class="stack-num" style="background:#2C6E49">3</div><div class="stack-info"><b>Backdoor Roth IRA</b><p>Non-deductible traditional → immediate conversion. Clean at any income.</p></div><div class="stack-amt">$7,000/yr</div></div>
+    <div class="stack-row"><div class="stack-num" style="background:#C68B0F">4</div><div class="stack-info"><b>401(k) full max</b><p>Beyond the match. Pre-tax reduces the CA + federal hit.</p></div><div class="stack-amt">$23,500 tot</div></div>
+    <div class="stack-row"><div class="stack-num" style="background:#C68B0F">5</div><div class="stack-info"><b>Mega Backdoor Roth (if plan allows)</b><p>After-tax 401(k) → in-plan Roth conversion. Check on Day 1.</p></div><div class="stack-amt">up to $43K</div></div>
+    <div class="stack-row"><div class="stack-num" style="background:#B5390F">6</div><div class="stack-info"><b>Taxable brokerage — VTI/VXUS</b><p>Everything above flows here. Liquid, flexible — your Fat FIRE vehicle.</p></div><div class="stack-amt">remainder</div></div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════ ACTION PLAN ═══════════ -->
+<div id="p-action" class="panel">
+<div class="container">
+  <div class="sh"><span class="sh-num">11</span><h2>Three-Horizon Action Plan</h2></div>
+
+  <div class="year-div" style="font-size:15px;">Now → Fall 2026 <span class="year-tag">pre-MBA</span></div>
+  <div class="card-row">
+    <div class="mini-card go"><div class="mc-label">01</div><div class="mc-title">Quantify every past outcome</div><div class="mc-body">Attach dollar values, SKU counts, latency and error-rate improvements to your supply chain work before the context fades. These become every PM interview story.</div></div>
+    <div class="mini-card go"><div class="mc-label">02</div><div class="mc-title">Ship a public AI/data project</div><div class="mc-body">A supply chain or logistics tool that actually ships. Differentiator in every AI PM interview and proof of the builder instinct.</div></div>
+    <div class="mini-card go"><div class="mc-label">03</div><div class="mc-title">Confirm the curriculum with your advisor</div><div class="mc-body">Email the ME MEng faculty advisor about the IEOR 221 petition and ME 276DS / ME 239 availability for your terms. Lock the concentration before orientation.</div></div>
+    <div class="mini-card note"><div class="mc-label">04</div><div class="mc-title">Set up hardware-PM job alerts</div><div class="mc-body">Apple EPM and similar ME-required roles have no MBA season — continuous monitoring + referral is the path. Build the saved searches now.</div></div>
+  </div>
+
+  <div class="year-div" style="font-size:15px;">Fall 2026 → Summer 2027 <span class="year-tag">MBA Year 1</span></div>
+  <div class="card-row">
+    <div class="mini-card go"><div class="mc-label">01</div><div class="mc-title">Apply to formal MBA PM pipelines (Oct–Nov)</div><div class="mc-body">Microsoft Aspire (75–80% conversion safety net), NVIDIA MBA PM/Corp Dev (Jul–Sept window), Rivian Palo Alto, Databricks TPM.</div></div>
+    <div class="mini-card go"><div class="mc-label">02</div><div class="mc-title">Work the Berkeley network</div><div class="mc-body">Haas Tech Networking Night (Samsara CFO is a Haas MBA), Databricks' Berkeley faculty roots, Google + Salesforce formal Haas recruiting.</div></div>
+    <div class="mini-card go"><div class="mc-label">03</div><div class="mc-title">Cold-InMail Haas alumni</div><div class="mc-body">Build lists at Apple, NVIDIA, Waymo, Celonis, Procore, Oura. MBA+MEng is rare — high response rates on cold outreach.</div></div>
+    <div class="mini-card warn"><div class="mc-label">04</div><div class="mc-title">Convert the internship</div><div class="mc-body">Target Samsara, Microsoft, or Rivian — not a no-program company. A return offer is your single highest-value FT leverage.</div></div>
+  </div>
+
+  <div class="year-div" style="font-size:15px;">Fall 2027 → Spring 2028 <span class="year-tag">full-time recruiting</span></div>
+  <div class="card-row">
+    <div class="mini-card go"><div class="mc-label">01</div><div class="mc-title">Lead with the dual-credential story</div><div class="mc-body">"The only concurrent MBA+MEng at a top-10 MBA, ~20-person cohort." No other candidate pairs that with shipped enterprise PM work + cloud certs + ME.</div></div>
+    <div class="mini-card go"><div class="mc-label">02</div><div class="mc-title">Run the lateral-hire tracks in parallel</div><div class="mc-body">Apple EPM, Celonis Sr PM, Waymo PM, Meta RL — no formal MBA season, so apply when ready, not on a calendar.</div></div>
+    <div class="mini-card warn"><div class="mc-label">03</div><div class="mc-title">Use the return offer as a floor</div><div class="mc-body">A $242K offer becomes leverage to negotiate a $367K one. Competing offers lift TC 10–30%.</div></div>
+    <div class="mini-card note"><div class="mc-label">04</div><div class="mc-title">Pick two buckets, not three</div><div class="mc-body">Safe anchor (Microsoft / Google Cloud / Samsara) + profile-bullseye swing (Apple EPM / Databricks / NVIDIA). Lifestyle tier is the conscious culture-over-TC trade.</div></div>
+  </div>
+
+  <div class="thesis" style="margin-top:36px;">
+    <div class="thesis-label">The one-line version</div>
+    <div class="thesis-text">Build the custom ME concentration, convert a summer internship into a <strong>$300K+ commercial PM offer</strong>, clear all debt by 29, hit <strong>Coast FIRE by ~33</strong>, and let depth, equity, and compounding carry you to <strong>Fat FIRE by ~45</strong> — surfing the whole way.</div>
+  </div>
+</div>
+</div>
+
+<script>
+  function show(name, el) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('p-' + name).classList.add('active');
+    el.classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (name === 'feed' && typeof loadFeed === 'function') loadFeed();
+  }
+</script>
+
+<!-- ═══════════ RECON FEED (live) ═══════════ -->
+<div id="p-feed" class="panel">
+<div class="container">
+  <div class="sh"><span class="sh-num">12</span><h2>Recon Feed — Live</h2><span class="sh-sub" id="feed-status">connecting…</span></div>
+
+  <div class="curr-note" id="feed-offline" style="display:none;">
+    <strong>API not reachable.</strong> This tab is live only when the Recon backend is running.
+    Start it with <code>docker compose up</code> on the NUC, then reload. Until then, the rest of
+    the dashboard works fully offline as a static page.
+  </div>
+
+  <div id="feed-live" style="display:none;">
+    <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+      <button class="tab" style="border:1px solid var(--rule); border-radius:4px;" onclick="reconScan(this)">↻ Run scan now</button>
+      <button class="tab" style="border:1px solid var(--rule); border-radius:4px;" onclick="loadFeed()">⟳ Refresh</button>
+    </div>
+
+    <div class="sh"><span class="sh-num">A</span><h2 style="font-size:18px;">Today's Brief</h2></div>
+    <div id="brief-box" class="curr-note" style="white-space:pre-wrap; font-family:'IBM Plex Sans';">loading…</div>
+
+    <div class="sh"><span class="sh-num">B</span><h2 style="font-size:18px;">Open Roles</h2><span class="sh-sub" id="roles-count"></span></div>
+    <table class="tbl"><thead><tr><th>Company</th><th>Title</th><th>Loc</th><th>Fit</th><th>TC</th><th></th></tr></thead>
+      <tbody id="roles-body"><tr><td colspan="6">loading…</td></tr></tbody>
+    </table>
+
+    <div class="sh"><span class="sh-num">C</span><h2 style="font-size:18px;">Pipeline</h2></div>
+    <table class="tbl"><thead><tr><th>Company</th><th>Role</th><th>Stage</th><th>Next action</th></tr></thead>
+      <tbody id="apps-body"><tr><td colspan="4">loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+</div>
+
+<script>
+  const API = (location.origin && location.origin.startsWith('http')) ? location.origin : 'http://localhost:8000';
+
+  async function loadFeed() {
+    try {
+      const h = await fetch(API + '/health').then(r => r.json());
+      document.getElementById('feed-status').textContent = 'online · scoring=' + h.scoring_mode;
+      document.getElementById('feed-offline').style.display = 'none';
+      document.getElementById('feed-live').style.display = 'block';
+    } catch (e) {
+      document.getElementById('feed-status').textContent = 'offline';
+      document.getElementById('feed-offline').style.display = 'block';
+      document.getElementById('feed-live').style.display = 'none';
+      return;
+    }
+    // brief
+    try {
+      const b = await fetch(API + '/api/brief').then(r => r.json());
+      document.getElementById('brief-box').textContent = b.markdown || '(no brief yet — run a scan)';
+    } catch (e) {}
+    // roles
+    try {
+      const roles = await fetch(API + '/api/roles?min_fit=0').then(r => r.json());
+      document.getElementById('roles-count').textContent = roles.length + ' open';
+      document.getElementById('roles-body').innerHTML = roles.length ? roles.map(r => `
+        <tr><td><b>${r.company ?? ''}</b></td><td>${r.title ?? ''}</td>
+        <td>${r.location ?? ''}</td>
+        <td><span class="fit-score">${r.fit_score != null ? r.fit_score.toFixed(1) : '—'}</span></td>
+        <td class="tc">${r.tc_estimate ?? '—'}</td>
+        <td>${r.url ? `<a href="${r.url}" target="_blank">open</a>` : ''}</td></tr>`).join('')
+        : '<tr><td colspan="6">No open roles yet. Run a scan.</td></tr>';
+    } catch (e) {}
+    // pipeline
+    try {
+      const apps = await fetch(API + '/api/applications').then(r => r.json());
+      document.getElementById('apps-body').innerHTML = apps.length ? apps.map(a => `
+        <tr><td><b>${a.company_name ?? ''}</b></td><td>${a.role_title ?? ''}</td>
+        <td><span class="badge b-a">${a.stage}</span></td>
+        <td>${a.next_action ?? ''}</td></tr>`).join('')
+        : '<tr><td colspan="4">No applications tracked yet.</td></tr>';
+    } catch (e) {}
+  }
+
+  async function reconScan(btn) {
+    btn.textContent = '↻ scanning…'; btn.disabled = true;
+    try { await fetch(API + '/api/scan/run', {method:'POST'}); await loadFeed(); }
+    catch (e) { alert('scan failed — is the API running?'); }
+    btn.textContent = '↻ Run scan now'; btn.disabled = false;
+  }
+</script>
+
+</body>
+</html>
