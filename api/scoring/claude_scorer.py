@@ -12,35 +12,77 @@ log = logging.getLogger("recon.scoring")
 PRICE_IN = 3.0 / 1_000_000
 PRICE_OUT = 15.0 / 1_000_000
 
-PROFILE = """\
+_CANDIDATE = """\
 CANDIDATE PROFILE — Zach Collins
 - Incoming UC Berkeley concurrent MBA (Haas) + MEng (Mechanical Engineering), class of 2028.
-- Background: product manager on enterprise SAP EWM/TM supply-chain systems for large
+- TECHNICAL PRODUCT MANAGER. PM on enterprise SAP EWM/TM supply-chain systems for large
   institutional clients; 100+ production releases shipped into demanding environments.
-- Builder: ships production data systems solo (time-series pipelines, vector DBs, AI routing,
-  Postgres/TimescaleDB, Docker, FastAPI, Next.js).
+- ENGINEERING LEADERSHIP: has led software development teams AND data-engineering teams;
+  built and shipped cloud applications end-to-end.
+- DEEP TECHNICAL STACK (hands-on, not just certified): AWS (Solutions Architect certified;
+  built and ran applications in the cloud), Databricks, data engineering & pipelines, REST APIs,
+  SQL, AI/ML integration, vector DBs, time-series (Postgres/TimescaleDB), Docker, FastAPI,
+  Next.js. Ships production data systems solo.
 - Credentials: AWS Solutions Architect, CompTIA Security+, ME degree (summa cum laude).
 - Custom MEng concentration: ML (ME 276DS), digital twins (ME 239), embedded hardware (ME 235),
   new product development (ME 290P).
 - Active surfer, trail runner, tennis player, car enthusiast — authentic user of outdoor/athlete tech.
 
+He can credibly OWN technical / data-platform / AI / cloud / API / infrastructure product
+areas and partner deeply with engineering. Weight technical-PM, data, AI, cloud, platform, and
+developer-facing roles UP; he is not a generalist non-technical PM.
+
 PRIORITY DOMAINS (map each role to the closest one):
   AI&Data | SCM&Twins | Hardware | Venture | Finance | Platform | other
+"""
 
-HARD RULES:
-- Target COMMERCIAL product roles. Selling to government is acceptable; serving government
-  EXCLUSIVELY is a downgrade. Pure defense/government roles -> lower the score and note it.
-- "PM" must mean PRODUCT management, not program/project management. If the role is program/
-  project management, set is_product_pm=false and tier no higher than "review".
-- $200K+ total comp is the floor; $300K+ is the target. Below-floor roles are tier C at best
-  unless an exceptional lifestyle/passion fit.
-- Weight work-life balance positively; brutal-hours cultures are a downgrade.
+INTERN_PROFILE = _CANDIDATE + """
+CURRENT GOAL: land a SUMMER 2027 PRODUCT-MANAGEMENT / APM INTERNSHIP (the internship summer
+between the two program years; a return offer sets up full-time recruiting).
 
-TIERS:
-  A = strong commercial fit, on-target comp, clear domain match.
-  B = good fit with one tradeoff (comp ceiling, WLB, or risk).
-  C = lifestyle/passion bet or below-floor comp accepted for culture/brand.
-  pass = program mgmt, exclusively-government, declining business, or clear misfit.
+HARD RULES (internship lens):
+- Score how good a fit the posting is as a Summer 2027 internship.
+- TERM: target is Summer 2027. A role explicitly tied to a DIFFERENT summer (e.g. "Summer 2025"
+  or "Summer 2026" only, with no 2027 cohort) is off-cycle -> tier "pass", note the term. A role
+  with no stated year, or an MBA/grad internship that recruits a year ahead, is fine — most
+  Summer 2027 reqs are not posted yet, so an unspecified-year internship at a target company is
+  a strong WATCH.
+- "PM" must mean PRODUCT management, not program/project management. If program/project, set
+  is_product_pm=false and tier no higher than "C".
+- Prefer COMMERCIAL product internships. Exclusively-government/defense -> downgrade and note it.
+- A FULL-TIME role that slipped through is NOT what this lens wants -> tier "pass".
+- Weight WLB positively; put the monthly stipend (not annual TC) in tc_estimate if stated —
+  do not invent a number.
+
+TIERS (internship):
+  A = strong Summer-2027-eligible PRODUCT/APM internship at a target-domain company, clear fit.
+  B = good internship fit with one tradeoff (domain stretch, WLB, off-priority team, or stage risk).
+  C = passion/lifestyle internship, below-priority domain, or program/project internship.
+  pass = full-time role, off-cycle (non-2027) internship, exclusively-government, or clear misfit.
+"""
+
+FULLTIME_PROFILE = _CANDIDATE + """
+CURRENT GOAL: map the FULL-TIME PRODUCT-MANAGEMENT career market — roles Zach would target
+post-graduation (2028) or convert into from an internship. Score full-time product roles.
+
+HARD RULES (full-time lens):
+- "PM" must mean PRODUCT management, not program/project management. If program/project, set
+  is_product_pm=false and tier no higher than "C".
+- Target COMMERCIAL product roles. Exclusively-government/defense -> downgrade and note it.
+- $200K+ total comp is the floor; $300K+ is the target. Put the TC range in tc_estimate if
+  stated; do not invent a number. Clearly below-floor roles are tier C at best unless an
+  exceptional lifestyle/passion fit.
+- SENIORITY: Zach is early-career (incoming MBA/MEng, ~few yrs PM experience). Senior/Staff/
+  Principal/Director/VP/Head-of-Product roles likely out-reach his level — note it as a concern
+  and cap the tier, UNLESS the role is explicitly new-grad / early-career / APM / rotational.
+- Weight WLB positively; brutal-hours cultures are a downgrade.
+- An INTERNSHIP is not what this lens wants -> tier "pass".
+
+TIERS (full-time):
+  A = strong commercial PRODUCT role, on-target comp, clear domain match, attainable seniority.
+  B = good fit with one tradeoff (comp ceiling, WLB, seniority stretch, or stage risk).
+  C = below-floor comp for passion/brand, domain stretch, or program/project role.
+  pass = internship, exclusively-government, clear seniority mismatch, or misfit.
 """
 
 INSTRUCTIONS = """\
@@ -73,7 +115,12 @@ def score_roles(db: Session, roles: list[Role]) -> dict:
 
 def _apply(role: Role, data: dict) -> None:
     role.fit_score = float(data.get("fit_score") or 0)
-    role.score_tier = data.get("tier")
+    tier = data.get("tier")
+    # Deterministic guardrail: "PM must mean PRODUCT". A non-product internship
+    # can't sit in the top tiers no matter how the model felt about the company.
+    if data.get("is_product_pm") is False and tier in ("A", "B"):
+        tier = "C"
+    role.score_tier = tier
     role.domain = data.get("domain")
     role.why_fit = data.get("why_fit")
     role.concerns = data.get("concerns")
@@ -84,23 +131,50 @@ def _apply(role: Role, data: dict) -> None:
 
 
 def _score_stub(db: Session, roles: list[Role]) -> dict:
-    """Heuristic scorer — lets the whole pipeline run with zero API spend."""
+    """Heuristic scorer — lets the whole pipeline run with zero API spend.
+    Intern-aware: rewards product internships, downgrades program/project ones,
+    flags off-cycle summers it can read from the title."""
+    import re
+    from scan.intern_filter import is_internship
+    target = str(settings.intern_target_year)
+    senior = re.compile(r"\b(senior|sr\.?|staff|principal|lead|director|vp|vice\s+president|head)\b", re.I)
     for r in roles:
         t = (r.title or "").lower()
-        is_pm = "product" in t and "manager" in t or "product manager" in t
-        is_program = ("program manager" in t or "project manager" in t) and "product" not in t
-        score = 7.0 if is_pm else (3.0 if is_program else 5.0)
-        if r.company and r.company.tier == "A":
-            score += 1.0
+        is_product = "product" in t
+        is_program = ("program" in t or "project" in t) and not is_product
+        intern = is_internship(r.title, r.department)
+        years = re.findall(r"\b(20\d{2})\b", t)
+        off_cycle = bool(years) and target not in years and intern
+        concern = None
+        if intern:
+            if off_cycle:
+                score, tier, concern = 2.0, "pass", f"Off-cycle: title names {','.join(years)}, not {target}."
+            elif is_program:
+                score, tier, concern = 3.5, "C", "Program/project internship, not product."
+            elif is_product:
+                score = 7.0 + (1.0 if r.company and r.company.tier == "A" else 0.0)
+                tier = "A" if score >= 8 else "B"
+            else:
+                score, tier = 5.0, "C"
+        else:  # full-time lens
+            if is_program:
+                score, tier, concern = 3.5, "C", "Program/project role, not product."
+            elif is_product and senior.search(t):
+                score, tier, concern = 6.0, "C", "Likely above an early-career seniority level."
+            elif is_product:
+                score = 7.0 + (1.0 if r.company and r.company.tier == "A" else 0.0)
+                tier = "A" if score >= 8 else "B"
+            else:
+                score, tier = 5.0, "C"
         _apply(r, {
             "fit_score": min(score, 10),
-            "tier": "A" if score >= 8 else "B" if score >= 6 else "pass" if is_program else "C",
+            "tier": tier,
             "domain": "other",
             "why_fit": "Heuristic stub score — enable SCORING_MODE=live for real scoring.",
-            "concerns": "Program/project role, not product." if is_program else None,
+            "concerns": concern,
             "curriculum_hook": None,
             "tc_estimate": None,
-            "is_product_pm": bool(is_pm and not is_program),
+            "is_product_pm": bool(is_product and not is_program),
         })
     db.commit()
     log.info("stub-scored %d roles", len(roles))
@@ -109,14 +183,18 @@ def _score_stub(db: Session, roles: list[Role]) -> dict:
 
 def _score_live(db: Session, roles: list[Role]) -> dict:
     from anthropic import Anthropic
+    from scan.intern_filter import is_internship
     client = Anthropic(api_key=settings.anthropic_api_key)
     tok_in = tok_out = 0
 
     for r in roles:
+        # Pick the lens that matches the role: internship vs full-time PM.
+        profile = (INTERN_PROFILE if is_internship(r.title, r.department)
+                   else FULLTIME_PROFILE)
         msg = client.messages.create(
             model=settings.claude_model,
             max_tokens=400,
-            system=PROFILE,
+            system=profile,
             messages=[{"role": "user", "content": INSTRUCTIONS + "\n\nROLE:\n" + _role_blob(r)}],
         )
         tok_in += msg.usage.input_tokens

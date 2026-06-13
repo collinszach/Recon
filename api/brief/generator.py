@@ -36,8 +36,15 @@ def build_brief(db: Session, today: date, totals: dict) -> DailyBrief:
         )
     ).all()
 
+    # Headline counts scored roles per track, not the full-time firehose.
+    interns = totals.get("interns")
+    fulltime = totals.get("fulltime")
+    parts = []
+    if interns is not None: parts.append(f"{interns} internships")
+    if fulltime is not None: parts.append(f"{fulltime} full-time PM")
+    head_new = " · ".join(parts) if parts else f"{totals['new']} new"
     lines = [f"# Recon — {today.isoformat()}",
-             f"**{totals['new']} new · {totals['changed']} changed · "
+             f"**{head_new} · {totals['changed']} changed · "
              f"{len(action_items) + len(due)} need action**\n"]
 
     lines.append("## Needs your action")
@@ -48,15 +55,29 @@ def build_brief(db: Session, today: date, totals: dict) -> DailyBrief:
     for a in action_items:
         lines.append(f"- 🕓 {a.company_name} — {a.role_title}: applied {a.applied_at.date()}, no movement in 10+ days")
 
-    lines.append("\n## New & changed roles worth your time")
-    if not fresh:
-        lines.append("- No new high-fit roles today.")
-    for r in fresh:
+    from scan.intern_filter import is_internship
+
+    def _line(r):
         co = r.company.name if r.company else "?"
         tc = f" · {r.tc_estimate}" if r.tc_estimate else ""
         why = f" — {r.why_fit}" if r.why_fit else ""
         flag = "" if r.is_product_pm is not False else " ⚠️(program/PM check)"
-        lines.append(f"- **{co}** {r.title} — fit {r.fit_score:.1f}{tc}{flag}{why}")
+        return f"- **{co}** {r.title} — fit {r.fit_score:.1f}{tc}{flag}{why}"
+
+    interns_fresh = [r for r in fresh if is_internship(r.title, r.department)]
+    ft_fresh = [r for r in fresh if not is_internship(r.title, r.department)]
+
+    lines.append("\n## Summer 2027 internships worth your time")
+    if not interns_fresh:
+        lines.append("- No new high-fit internships today. (Most Summer 2027 reqs post Aug 2026–Jan 2027.)")
+    for r in interns_fresh:
+        lines.append(_line(r))
+
+    lines.append("\n## Full-time product roles worth your time")
+    if not ft_fresh:
+        lines.append("- No new high-fit full-time product roles today.")
+    for r in ft_fresh:
+        lines.append(_line(r))
 
     # pipeline snapshot
     lines.append("\n## Pipeline snapshot")

@@ -12,6 +12,16 @@ class Settings(BaseSettings):
     claude_model: str = "claude-sonnet-4-6"
     scoring_mode: str = "stub"          # "stub" | "live"
 
+    # ─── Focus: which tracks to scan/score ──────────────────
+    # "intern"   -> only internships          "fulltime" -> only full-time PM roles
+    # "both"     -> internships + full-time product-management roles (default)
+    track_mode: str = "both"
+    intern_target_year: int = 2027      # the summer term being targeted
+    score_max_intern: int = 200         # cost cap: max internships scored per scan
+    score_max_fulltime: int = 200       # cost cap: max full-time PM roles scored per scan
+    # back-compat: if intern_only is set true it forces track_mode="intern"
+    intern_only: bool = False
+
     scan_hour_local: int = 6
     scan_min_delay_sec: float = 2.0
     scan_max_delay_sec: float = 5.0

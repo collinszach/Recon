@@ -3,9 +3,11 @@ import logging
 from datetime import datetime, timezone, date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from config import settings
 from db import SessionLocal, Company, Role, ScanRun
 from parsers import get_parser
 from scan.reconcile import reconcile_company
+from scan.intern_filter import filter_internships, filter_fulltime_pm
 from scoring.claude_scorer import score_roles
 from brief.generator import build_brief
 
@@ -46,11 +48,33 @@ def run_daily_scan() -> dict:
                 errors.append(msg)
                 log.warning("scan error %s", msg)
 
-        # score only the new + changed roles
+        # score only the new + changed roles, narrowed to the tracks we care about
+        # (internships and/or full-time product-management roles). Everything else
+        # stays in the DB unscored — keeps the feed and the API bill focused.
         score_cost = {"tokens_in": 0, "tokens_out": 0, "usd": 0.0}
         if fresh_role_ids:
-            roles = db.scalars(select(Role).where(Role.id.in_(fresh_role_ids))).all()
-            score_cost = score_roles(db, roles)
+            fresh = db.scalars(select(Role).where(Role.id.in_(fresh_role_ids))).all()
+            mode = "intern" if settings.intern_only else settings.track_mode
+            tier_rank = {"A": 0, "B": 1, "C": 2}
+            to_score: list[Role] = []
+
+            if mode in ("intern", "both"):
+                interns = filter_internships(fresh)[: settings.score_max_intern]
+                to_score += interns
+                totals["interns"] = len(interns)
+
+            if mode in ("fulltime", "both"):
+                ft = filter_fulltime_pm(fresh)
+                # target-tier companies first, so the cap keeps the best roles
+                ft.sort(key=lambda r: tier_rank.get(r.company.tier if r.company else "C", 3))
+                ft = ft[: settings.score_max_fulltime]
+                to_score += ft
+                totals["fulltime"] = len(ft)
+
+            log.info("track filter (%s): %d internships + %d full-time PM of %d new/changed",
+                     mode, totals.get("interns", 0), totals.get("fulltime", 0), len(fresh))
+            if to_score:
+                score_cost = score_roles(db, to_score)
 
         # build + persist today's brief
         brief = build_brief(db, today, totals)

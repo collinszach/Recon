@@ -44,8 +44,15 @@ def health():
 # ─── roles ──────────────────────────────────────────────────
 @app.get("/api/roles")
 def list_roles(tier: str | None = None, company: str | None = None,
-               min_fit: float = 0.0, db: Session = Depends(get_db)):
+               min_fit: float = 0.0, scored_only: bool = True,
+               track: str | None = None,
+               db: Session = Depends(get_db)):
+    from scan.intern_filter import is_internship
     q = select(Role).where(Role.status.in_(["open", "changed"]))
+    if scored_only:
+        # Only scored roles are surfaced (internships + full-time PM roles are
+        # what gets scored). Pass scored_only=false to browse the raw set.
+        q = q.where(Role.scored_at.isnot(None))
     if min_fit:
         q = q.where(Role.fit_score >= min_fit)
     rows = db.scalars(q.order_by(Role.fit_score.desc().nullslast())).all()
@@ -56,12 +63,20 @@ def list_roles(tier: str | None = None, company: str | None = None,
             continue
         if tier and co and co.tier != tier:
             continue
+        role_track = "intern" if is_internship(r.title, r.department) else "fulltime"
+        if track and role_track != track:
+            continue
         out.append({
+            "track": role_track,
             "id": r.id, "company": co.name if co else None,
-            "tier": co.tier if co else None, "title": r.title,
+            "company_tier": co.tier if co else None,
+            "tier": r.score_tier,               # fit tier (A/B/C/pass) from scoring
+            "title": r.title,
             "location": r.location, "url": r.url, "status": r.status,
             "fit_score": r.fit_score, "domain": r.domain,
-            "why_fit": r.why_fit, "tc_estimate": r.tc_estimate,
+            "why_fit": r.why_fit, "concerns": r.concerns,
+            "curriculum_hook": r.curriculum_hook,
+            "tc_estimate": r.tc_estimate,       # pay / stipend
             "is_product_pm": r.is_product_pm,
         })
     return out

@@ -24,14 +24,17 @@ server = FastMCP("recon") if FastMCP else None
 
 def _register():
     @server.tool()
-    def list_open_roles(tier: str | None = None, min_fit: float = 0.0) -> str:
-        """List currently-open roles, optionally filtered by tier (A/B/C) and minimum fit score."""
+    def list_open_roles(tier: str | None = None, min_fit: float = 0.0,
+                        scored_only: bool = True) -> str:
+        """List currently-open roles, optionally filtered by tier (A/B/C) and minimum fit score.
+        In internship mode only scored (= internship) roles are returned by default; pass
+        scored_only=false to browse the full set."""
         db = SessionLocal()
         try:
-            rows = db.scalars(
-                select(Role).where(Role.status.in_(["open", "changed"]))
-                .order_by(Role.fit_score.desc().nullslast())
-            ).all()
+            q = select(Role).where(Role.status.in_(["open", "changed"]))
+            if scored_only:
+                q = q.where(Role.scored_at.isnot(None))
+            rows = db.scalars(q.order_by(Role.fit_score.desc().nullslast())).all()
             out = []
             for r in rows:
                 co = r.company
