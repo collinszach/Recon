@@ -32,8 +32,14 @@ He can credibly OWN technical / data-platform / AI / cloud / API / infrastructur
 areas and partner deeply with engineering. Weight technical-PM, data, AI, cloud, platform, and
 developer-facing roles UP; he is not a generalist non-technical PM.
 
+DEFENSE / NATIONAL SECURITY IS IN SCOPE and a genuine strength, not a penalty: his Deloitte work
+ran a mission-critical FEDERAL supply chain (SAP EWM/TM), he led an MBSE digital-twin initiative
+on a DEFENSE Smart MRO facility, and he interned at Collins Aerospace (Raytheon). Defense-tech
+PRODUCT roles (autonomy, defense data platforms, hardware, space) should be ranked on merit and
+treated as a priority domain — his cleared-adjacent, federal, and hardware background is an edge.
+
 PRIORITY DOMAINS (map each role to the closest one):
-  AI&Data | SCM&Twins | Hardware | Venture | Finance | Platform | other
+  AI&Data | SCM&Twins | Hardware | Venture | Finance | Platform | Defense | other
 """
 
 INTERN_PROFILE = _CANDIDATE + """
@@ -49,7 +55,8 @@ HARD RULES (internship lens):
   a strong WATCH.
 - "PM" must mean PRODUCT management, not program/project management. If program/project, set
   is_product_pm=false and tier no higher than "C".
-- Prefer COMMERCIAL product internships. Exclusively-government/defense -> downgrade and note it.
+- COMMERCIAL and DEFENSE/national-security product internships are both in scope and ranked on
+  merit — defense is a priority domain given his federal/MBSE/aerospace background, not a penalty.
 - A FULL-TIME role that slipped through is NOT what this lens wants -> tier "pass".
 - Weight WLB positively; put the monthly stipend (not annual TC) in tc_estimate if stated —
   do not invent a number.
@@ -58,7 +65,7 @@ TIERS (internship):
   A = strong Summer-2027-eligible PRODUCT/APM internship at a target-domain company, clear fit.
   B = good internship fit with one tradeoff (domain stretch, WLB, off-priority team, or stage risk).
   C = passion/lifestyle internship, below-priority domain, or program/project internship.
-  pass = full-time role, off-cycle (non-2027) internship, exclusively-government, or clear misfit.
+  pass = full-time role, off-cycle (non-2027) internship, or clear misfit.
 """
 
 FULLTIME_PROFILE = _CANDIDATE + """
@@ -68,7 +75,9 @@ post-graduation (2028) or convert into from an internship. Score full-time produ
 HARD RULES (full-time lens):
 - "PM" must mean PRODUCT management, not program/project management. If program/project, set
   is_product_pm=false and tier no higher than "C".
-- Target COMMERCIAL product roles. Exclusively-government/defense -> downgrade and note it.
+- COMMERCIAL and DEFENSE/national-security product roles are both in scope and ranked on merit;
+  defense-tech (autonomy, defense data platforms, hardware, space) is a priority domain for him,
+  not a downgrade — his federal supply chain, MBSE-on-defense-MRO, and aerospace background fit.
 - $200K+ total comp is the floor; $300K+ is the target. Put the TC range in tc_estimate if
   stated; do not invent a number. Clearly below-floor roles are tier C at best unless an
   exceptional lifestyle/passion fit.
@@ -82,7 +91,7 @@ TIERS (full-time):
   A = strong commercial PRODUCT role, on-target comp, clear domain match, attainable seniority.
   B = good fit with one tradeoff (comp ceiling, WLB, seniority stretch, or stage risk).
   C = below-floor comp for passion/brand, domain stretch, or program/project role.
-  pass = internship, exclusively-government, clear seniority mismatch, or misfit.
+  pass = internship, clear seniority mismatch, or misfit.
 """
 
 INSTRUCTIONS = """\
@@ -90,7 +99,7 @@ Score the role below. Respond with ONLY a JSON object, no prose, no markdown fen
 {
   "fit_score": <float 0-10>,
   "tier": "A" | "B" | "C" | "pass",
-  "domain": "AI&Data" | "SCM&Twins" | "Hardware" | "Venture" | "Finance" | "Platform" | "other",
+  "domain": "AI&Data" | "SCM&Twins" | "Hardware" | "Venture" | "Finance" | "Platform" | "Defense" | "other",
   "why_fit": "<= 2 sentences, specific to this JD",
   "concerns": "<= 1 sentence or null",
   "curriculum_hook": "which course(s) this role justifies, or null",

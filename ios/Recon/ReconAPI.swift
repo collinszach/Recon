@@ -26,23 +26,49 @@ struct ReconAPI {
         return false
     }
 
-    /// Join base + path without percent-encoding the query string (which
-    /// appendingPathComponent would do to the "?").
-    private func makeURL(_ path: String) -> URL {
-        let base = config.baseURL.absoluteString.hasSuffix("/")
-            ? String(config.baseURL.absoluteString.dropLast())
-            : config.baseURL.absoluteString
-        return URL(string: base + "/" + path) ?? config.baseURL
+    /// Join base + path without percent-encoding the query string.
+    private func makeURL(_ base: URL, _ path: String) -> URL {
+        let b = base.absoluteString.hasSuffix("/") ? String(base.absoluteString.dropLast()) : base.absoluteString
+        return URL(string: b + "/" + path) ?? base
+    }
+
+    /// Ordered base URLs to try: whatever last worked first (Auto mode), then the
+    /// configured candidates.
+    @MainActor private func orderedBases() -> [URL] {
+        var bases = config.candidateBaseURLs
+        if let last = config.lastWorking, let i = bases.firstIndex(of: last) {
+            bases.remove(at: i); bases.insert(last, at: 0)
+        }
+        return bases
+    }
+
+    /// Execute a request against each candidate base in order; first success wins
+    /// and is remembered for the session. Throws the last error if all fail.
+    private func execute(_ method: String, _ path: String, body: Data?) async throws -> Data {
+        let bases = await orderedBases()
+        var lastError: Error = APIError.badStatus(-1)
+        for base in bases {
+            var req = URLRequest(url: makeURL(base, path))
+            req.httpMethod = method
+            req.timeoutInterval = 12
+            if let body { req.httpBody = body; req.setValue("application/json", forHTTPHeaderField: "Content-Type") }
+            await MainActor.run { config.authorize(&req) }
+            do {
+                let (data, resp) = try await URLSession.shared.data(for: req)
+                if isAccessChallenge(resp) { lastError = APIError.access; continue }
+                guard let http = resp as? HTTPURLResponse else { lastError = APIError.badStatus(-1); continue }
+                guard (200..<300).contains(http.statusCode) else { lastError = APIError.badStatus(http.statusCode); continue }
+                await MainActor.run { config.lastWorking = base }
+                return data
+            } catch {
+                lastError = error   // connection refused / timeout -> try next base
+            }
+        }
+        throw lastError
     }
 
     private func get<T: Decodable>(_ path: String, as type: T.Type) async throws -> T {
-        var req = URLRequest(url: makeURL(path))
-        req.timeoutInterval = 20
-        await MainActor.run { config.authorize(&req) }
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        if isAccessChallenge(resp) { throw APIError.access }
-        guard let http = resp as? HTTPURLResponse else { throw APIError.badStatus(-1) }
-        guard (200..<300).contains(http.statusCode) else { throw APIError.badStatus(http.statusCode) }
+        let data = try await execute("GET", path, body: nil)
         do { return try JSONDecoder().decode(T.self, from: data) }
         catch { throw APIError.decode(error.localizedDescription) }
     }
@@ -50,15 +76,7 @@ struct ReconAPI {
     @discardableResult
     private func send<B: Encodable, T: Decodable>(_ method: String, _ path: String,
                                                   body: B, as type: T.Type) async throws -> T {
-        var req = URLRequest(url: makeURL(path))
-        req.httpMethod = method
-        req.timeoutInterval = 20
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(body)
-        await MainActor.run { config.authorize(&req) }
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode)
-        else { throw APIError.badStatus((resp as? HTTPURLResponse)?.statusCode ?? -1) }
+        let data = try await execute(method, path, body: try JSONEncoder().encode(body))
         return try JSONDecoder().decode(T.self, from: data)
     }
 
@@ -93,10 +111,7 @@ struct ReconAPI {
         try await send("PATCH", "api/resume/experiences/\(e.id ?? 0)", body: e, as: Experience.self)
     }
     func deleteExperience(id: Int) async throws {
-        var req = URLRequest(url: makeURL("api/resume/experiences/\(id)"))
-        req.httpMethod = "DELETE"
-        await MainActor.run { config.authorize(&req) }
-        _ = try await URLSession.shared.data(for: req)
+        _ = try await execute("DELETE", "api/resume/experiences/\(id)", body: nil)
     }
 
     func tailor(roleId: Int) async throws -> Tailoring {

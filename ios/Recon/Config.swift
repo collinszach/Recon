@@ -5,6 +5,7 @@ import Combine
 /// override, persisted in UserDefaults so a TestFlight/dev build can be pointed
 /// at the home NUC or the public tunnel without rebuilding.
 enum Endpoint: String, CaseIterable, Identifiable {
+    case auto     // try Local first, fall back to the tunnel
     case tunnel   // public, HTTPS, works anywhere (Cloudflare Tunnel)
     case local    // home / Tailscale, plain HTTP to the NUC
     case custom   // user-entered URL
@@ -13,6 +14,7 @@ enum Endpoint: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
+        case .auto:   return "Auto (Local → Tunnel)"
         case .tunnel: return "Tunnel (anywhere)"
         case .local:  return "Local (Tailscale)"
         case .custom: return "Custom"
@@ -48,9 +50,13 @@ final class AppConfig: ObservableObject {
         didSet { UserDefaults.standard.set(cfAccessSecret, forKey: dCfSecret) }
     }
 
+    /// Per-session memory of whichever candidate base last worked, so Auto mode
+    /// doesn't re-probe a dead endpoint on every call.
+    var lastWorking: URL?
+
     private init() {
-        let raw = UserDefaults.standard.string(forKey: dEndpoint) ?? Endpoint.tunnel.rawValue
-        endpoint = Endpoint(rawValue: raw) ?? .tunnel
+        let raw = UserDefaults.standard.string(forKey: dEndpoint) ?? Endpoint.auto.rawValue
+        endpoint = Endpoint(rawValue: raw) ?? .auto
         customURL = UserDefaults.standard.string(forKey: dCustom) ?? Self.localURL
         cfAccessId = UserDefaults.standard.string(forKey: dCfId) ?? ""
         cfAccessSecret = UserDefaults.standard.string(forKey: dCfSecret) ?? ""
@@ -64,14 +70,23 @@ final class AppConfig: ObservableObject {
         }
     }
 
-    /// The base URL the WebView should load.
-    var baseURL: URL {
-        let s: String
+    private var localURLValue: URL  { URL(string: Self.localURL)!  }
+    private var tunnelURLValue: URL { URL(string: Self.tunnelURL)! }
+
+    /// Ordered base URLs the API client should try (first that works wins).
+    var candidateBaseURLs: [URL] {
         switch endpoint {
-        case .tunnel: s = Self.tunnelURL
-        case .local:  s = Self.localURL
-        case .custom: s = customURL.isEmpty ? Self.tunnelURL : customURL
+        case .auto:   return [localURLValue, tunnelURLValue]
+        case .local:  return [localURLValue]
+        case .tunnel: return [tunnelURLValue]
+        case .custom: return [URL(string: customURL) ?? tunnelURLValue]
         }
-        return URL(string: s) ?? URL(string: Self.tunnelURL)!
+    }
+
+    /// The primary base URL (for the WebView / display). In Auto, prefer whatever
+    /// last worked, else Local.
+    var baseURL: URL {
+        if endpoint == .auto { return lastWorking ?? localURLValue }
+        return candidateBaseURLs.first ?? tunnelURLValue
     }
 }

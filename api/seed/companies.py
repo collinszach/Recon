@@ -149,6 +149,20 @@ SEED = [
     ("Writer",             "C", "ashby",      "writer",         "https://writer.com/company/careers/", "AI&Data · enterprise generative AI"),
     ("Baseten",            "C", "ashby",      "baseten",        "https://www.baseten.co/careers/", "AI&Data · ML model serving infra"),
     ("Modal",              "C", "ashby",      "modal",          "https://modal.com/careers", "AI&Data · serverless ML compute"),
+
+    # ════════════════════════════════════════════════════════════════════
+    # DEFENSE / NATIONAL SECURITY — in scope per Zach (federal supply chain,
+    # MBSE on a defense Smart MRO, Collins Aerospace/Raytheon). Ranked on merit.
+    # ════════════════════════════════════════════════════════════════════
+    ("Anduril",            "A", "greenhouse", "andurilindustries", "https://www.anduril.com/careers/", "Defense/Hardware/AI · autonomy + defense logistics — strong SCM+hardware+AI fit"),
+    ("Palantir",           "A", "lever",      "palantir",       "https://www.palantir.com/careers/", "Defense/AI&Data · data platforms for gov + commercial — direct federal/data fit"),
+    ("Shield AI",          "B", "lever",      "shieldai",       "https://shield.ai/careers/", "Defense/AI · autonomous aircraft (Hivemind)"),
+    ("Saronic",            "B", "ashby",      "saronic",        "https://www.saronic.com/careers", "Defense/Hardware · autonomous naval vessels"),
+    ("Epirus",             "B", "greenhouse", "epirus",         "https://www.epirusinc.com/careers", "Defense/Hardware · directed-energy systems"),
+    ("Mach Industries",    "B", "ashby",      "mach",           "https://www.machindustries.com/careers", "Defense/Hardware · advanced defense manufacturing"),
+    ("Rocket Lab",         "B", "greenhouse", "rocketlab",      "https://www.rocketlabusa.com/careers/", "Defense/Space · launch + space systems"),
+    ("Helsing",            "B", "greenhouse", "helsing",        "https://helsing.ai/jobs", "Defense/AI · AI for defense (Europe — location tradeoff)"),
+    ("Primer",             "C", "ashby",      "primer",         "https://primer.ai/careers/", "Defense/AI&Data · NLP for national security"),
 ]
 
 
