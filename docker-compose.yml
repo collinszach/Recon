@@ -9,8 +9,8 @@ services:
     volumes:
       - recon-pgdata:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
-    ports:
-      - "5432:5432"
+    # No host port: api/worker reach Postgres by service name on the compose
+    # network. Avoids clashing with other Postgres instances on a shared host.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-recon}"]
       interval: 5s
@@ -22,8 +22,7 @@ services:
     image: redis:7-alpine
     container_name: recon-redis
     command: ["redis-server", "--save", "60", "1", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
-    ports:
-      - "6379:6379"
+    # No host port (internal only) — avoids clashing with other Redis on the host.
     restart: unless-stopped
 
   api:
@@ -33,8 +32,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Host port is env-gated so even a bare `docker compose up` (without the prod
+    # overlay) lands on the right port. The NUC sets API_PORT=8010 in .env
+    # (8000 is taken there); local dev defaults to 8000.
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     volumes:
       - ./web:/app/web:ro
     restart: unless-stopped

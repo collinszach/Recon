@@ -6,3 +6,9 @@ node_modules/
 .DS_Store
 *.log
 .pytest_cache/
+
+# Xcode / iOS
+xcuserdata/
+*.xcuserstate
+DerivedData/
+.build/

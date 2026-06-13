@@ -1,0 +1,22 @@
+# Production overlay for the Beelink NUC (zach@100.91.198.28).
+#
+# Ports are handled entirely by the base compose now: it publishes only the API
+# (env-gated `${API_PORT:-8000}`; the NUC's .env sets API_PORT=8010 since 8000 is
+# taken) and keeps Postgres/Redis internal. So even a bare `docker compose up`
+# without this overlay comes up correctly — this overlay only adds the tunnel.
+#
+# Bring up with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+services:
+  # Recon's own Cloudflare connector — self-contained, no dependency on the NUC's
+  # other tunnels. Host networking so it reaches the API at the same origin the
+  # Cloudflare dashboard Public Hostname uses (http://100.91.198.28:8010); a
+  # bridge network can't hairpin to the host's published port. Outbound-only.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: recon-cloudflared
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    network_mode: host
+    restart: unless-stopped
