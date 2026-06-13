@@ -78,3 +78,47 @@ enum Stage: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String { rawValue.capitalized }
 }
+
+// ── Resume ──────────────────────────────────────────────────
+struct ResumeProfile: Codable {
+    var full_name: String?
+    var headline: String?
+    var location: String?
+    var summary: String?
+    var skills: String?
+    var education: String?
+    var links: String?
+}
+
+struct Experience: Codable, Identifiable, Hashable {
+    var id: Int? = nil
+    var kind: String = "work"
+    var company: String? = nil
+    var title: String? = nil
+    var location: String? = nil
+    var start_date: String? = nil
+    var end_date: String? = nil
+    var bullets: String? = nil
+    var sort_order: Int? = nil
+
+    var dateRange: String {
+        [start_date, end_date].compactMap { $0 }.joined(separator: " – ")
+    }
+}
+
+struct ResumeData: Codable {
+    var profile: ResumeProfile
+    var experiences: [Experience]
+}
+
+/// Result of POST /api/roles/{id}/tailor
+struct Tailoring: Codable {
+    let match_score: Double?
+    let verdict: String?
+    let strengths: [String]?
+    let gaps: [String]?
+    let keywords: [String]?
+    let tailored_summary: String?
+    let suggested_bullets: [String]?
+    let error: String?
+}

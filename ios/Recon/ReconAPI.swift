@@ -78,4 +78,28 @@ struct ReconAPI {
     func move(appId: Int, to stage: String) async throws -> AppItem {
         try await send("PATCH", "api/applications/\(appId)", body: StageUpdate(stage: stage), as: AppItem.self)
     }
+
+    // ---- resume ----
+    func resume() async throws -> ResumeData { try await get("api/resume", as: ResumeData.self) }
+
+    struct OK: Decodable { let status: String? }
+    func saveProfile(_ p: ResumeProfile) async throws {
+        _ = try await send("PUT", "api/resume", body: p, as: OK.self)
+    }
+    func addExperience(_ e: Experience) async throws -> Experience {
+        try await send("POST", "api/resume/experiences", body: e, as: Experience.self)
+    }
+    func updateExperience(_ e: Experience) async throws -> Experience {
+        try await send("PATCH", "api/resume/experiences/\(e.id ?? 0)", body: e, as: Experience.self)
+    }
+    func deleteExperience(id: Int) async throws {
+        var req = URLRequest(url: makeURL("api/resume/experiences/\(id)"))
+        req.httpMethod = "DELETE"
+        await MainActor.run { config.authorize(&req) }
+        _ = try await URLSession.shared.data(for: req)
+    }
+
+    func tailor(roleId: Int) async throws -> Tailoring {
+        try await send("POST", "api/roles/\(roleId)/tailor", body: [String: String](), as: Tailoring.self)
+    }
 }

@@ -15,6 +15,9 @@ struct ContentView: View {
             NavTab(title: "Pipeline", store: store, showSettings: $showSettings) { PipelineView() }
                 .tabItem { Label("Pipeline", systemImage: "rectangle.stack") }
 
+            NavTab(title: "Résumé", store: store, showSettings: $showSettings) { ResumeView() }
+                .tabItem { Label("Résumé", systemImage: "doc.text") }
+
             NavTab(title: "Plan", store: store, showSettings: $showSettings) { PlanView() }
                 .tabItem { Label("Plan", systemImage: "map") }
         }

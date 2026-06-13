@@ -5,12 +5,12 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from config import settings
 from db import (
     Base, engine, SessionLocal, Company, Role, Application, ApplicationEvent,
-    Contact, DailyBrief, ScanRun, PushSubscription,
+    Contact, DailyBrief, ScanRun, PushSubscription, Resume, ResumeExperience,
 )
 from seed.companies import seed as seed_companies
 
@@ -30,9 +30,11 @@ def get_db():
 
 @app.on_event("startup")
 def startup():
-    Base.metadata.create_all(engine)   # safety net; init.sql does the real work
+    Base.metadata.create_all(engine)   # safety net; creates new tables (e.g. resume) too
     added = seed_companies()
     log.info("startup: seeded %d new companies", added)
+    from resume.seed import seed as seed_resume
+    log.info("startup: seeded %d resume rows", seed_resume())
 
 
 # ─── health ─────────────────────────────────────────────────
@@ -254,6 +256,96 @@ def scan_runs(db: Session = Depends(get_db)):
              "companies": r.companies_scanned, "new": r.new_count,
              "changed": r.changed_count, "closed": r.closed_count,
              "cost_usd": r.est_cost_usd, "errors": r.errors} for r in rows]
+
+
+# ─── resume ──────────────────────────────────────────────────
+class ResumeProfileIn(BaseModel):
+    full_name: str | None = None
+    headline: str | None = None
+    location: str | None = None
+    summary: str | None = None
+    skills: str | None = None
+    education: str | None = None
+    links: str | None = None
+
+
+class ExperienceIn(BaseModel):
+    kind: str = "work"
+    company: str | None = None
+    title: str | None = None
+    location: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    bullets: str | None = None
+    sort_order: int | None = None
+
+
+def _exp_dict(e: ResumeExperience) -> dict:
+    return {"id": e.id, "kind": e.kind, "company": e.company, "title": e.title,
+            "location": e.location, "start_date": e.start_date, "end_date": e.end_date,
+            "bullets": e.bullets, "sort_order": e.sort_order}
+
+
+@app.get("/api/resume")
+def get_resume(db: Session = Depends(get_db)):
+    r = db.scalar(select(Resume).limit(1))
+    profile = ({"full_name": r.full_name, "headline": r.headline, "location": r.location,
+                "summary": r.summary, "skills": r.skills, "education": r.education,
+                "links": r.links} if r else {})
+    exps = db.scalars(select(ResumeExperience).order_by(ResumeExperience.sort_order)).all()
+    return {"profile": profile, "experiences": [_exp_dict(e) for e in exps]}
+
+
+@app.put("/api/resume")
+def update_resume(body: ResumeProfileIn, db: Session = Depends(get_db)):
+    r = db.scalar(select(Resume).limit(1))
+    if not r:
+        r = Resume(id=1)
+        db.add(r)
+    for f, v in body.model_dump(exclude_unset=True).items():
+        setattr(r, f, v)
+    db.commit()
+    return {"status": "ok"}
+
+
+@app.post("/api/resume/experiences")
+def add_experience(body: ExperienceIn, db: Session = Depends(get_db)):
+    data = body.model_dump(exclude_unset=True)
+    if data.get("sort_order") is None:
+        data["sort_order"] = (db.scalar(select(func.max(ResumeExperience.sort_order))) or 0) + 1
+    e = ResumeExperience(**data)
+    db.add(e)
+    db.commit()
+    return _exp_dict(e)
+
+
+@app.patch("/api/resume/experiences/{exp_id}")
+def update_experience(exp_id: int, body: ExperienceIn, db: Session = Depends(get_db)):
+    e = db.get(ResumeExperience, exp_id)
+    if not e:
+        raise HTTPException(404, "experience not found")
+    for f, v in body.model_dump(exclude_unset=True).items():
+        setattr(e, f, v)
+    db.commit()
+    return _exp_dict(e)
+
+
+@app.delete("/api/resume/experiences/{exp_id}")
+def delete_experience(exp_id: int, db: Session = Depends(get_db)):
+    e = db.get(ResumeExperience, exp_id)
+    if e:
+        db.delete(e)
+        db.commit()
+    return {"status": "ok"}
+
+
+@app.post("/api/roles/{role_id}/tailor")
+def tailor_role_endpoint(role_id: int, db: Session = Depends(get_db)):
+    role = db.get(Role, role_id)
+    if not role:
+        raise HTTPException(404, "role not found")
+    from resume.tailor import tailor_role
+    return tailor_role(db, role)
 
 
 # ─── static: master dashboard at / ──────────────────────────

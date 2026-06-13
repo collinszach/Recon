@@ -85,6 +85,7 @@ struct RoleDetailView: View {
     let role: Role
     @EnvironmentObject var store: Store
     @State private var tracked = false
+    @State private var showTailor = false
 
     var body: some View {
         ScrollView {
@@ -105,12 +106,17 @@ struct RoleDetailView: View {
                 if let c = role.concerns, !c.isEmpty { Section_("Concerns", c, tint: Theme.rust) }
                 if let h = role.curriculumHook, !h.isEmpty { Section_("Curriculum hook", h) }
 
+                Button { showTailor = true } label: {
+                    Label("Tailor my résumé to this role", systemImage: "wand.and.stars")
+                        .frame(maxWidth: .infinity)
+                }.buttonStyle(.borderedProminent).tint(Theme.gold)
+
                 HStack(spacing: 12) {
                     if let urlStr = role.url, let url = URL(string: urlStr) {
                         Link(destination: url) {
                             Label("Open posting", systemImage: "safari")
                                 .frame(maxWidth: .infinity)
-                        }.buttonStyle(.borderedProminent).tint(Theme.rust)
+                        }.buttonStyle(.bordered).tint(Theme.rust)
                     }
                     Button {
                         Task { await store.track(role); tracked = true }
@@ -126,6 +132,7 @@ struct RoleDetailView: View {
         .navigationTitle(role.company ?? "Role")
         .navigationBarTitleDisplayMode(.inline)
         .scrollContentBackground(.hidden)
+        .sheet(isPresented: $showTailor) { TailorView(role: role).environmentObject(store) }
     }
 
     private var facts: some View {

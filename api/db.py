@@ -131,3 +131,32 @@ class PushSubscription(Base):
     p256dh: Mapped[str] = mapped_column(String)
     auth: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Resume(Base):
+    """Single-row master resume profile (id=1). Experiences live in ResumeExperience."""
+    __tablename__ = "resume"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    full_name: Mapped[str | None] = mapped_column(String)
+    headline: Mapped[str | None] = mapped_column(String)
+    location: Mapped[str | None] = mapped_column(String)
+    summary: Mapped[str | None] = mapped_column(Text)
+    skills: Mapped[str | None] = mapped_column(Text)
+    education: Mapped[str | None] = mapped_column(Text)
+    links: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now(), onupdate=func.now())
+
+
+class ResumeExperience(Base):
+    __tablename__ = "resume_experiences"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String, default="work")   # work | project | leadership
+    company: Mapped[str | None] = mapped_column(String)
+    title: Mapped[str | None] = mapped_column(String)
+    location: Mapped[str | None] = mapped_column(String)
+    start_date: Mapped[str | None] = mapped_column(String)
+    end_date: Mapped[str | None] = mapped_column(String)
+    bullets: Mapped[str | None] = mapped_column(Text)          # newline-separated
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
