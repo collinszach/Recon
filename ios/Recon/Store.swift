@@ -8,6 +8,7 @@ final class Store: ObservableObject {
     @Published var apps: [AppItem] = []
 
     @Published var resume: ResumeData?
+    @Published var companies: [Company] = []
 
     @Published var loading = false
     @Published var error: String?
@@ -54,6 +55,10 @@ final class Store: ObservableObject {
     // ---- resume ----
     func loadResume() async {
         do { resume = try await api.resume() }
+        catch { self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
+    }
+    func loadCompanies() async {
+        do { companies = try await api.companies() }
         catch { self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
     }
     func saveProfile(_ p: ResumeProfile) async {

@@ -86,6 +86,7 @@ struct ReconAPI {
     }
     func brief() async throws -> Brief { try await get("api/brief", as: Brief.self) }
     func applications() async throws -> [AppItem] { try await get("api/applications", as: [AppItem].self) }
+    func companies() async throws -> [Company] { try await get("api/companies", as: [Company].self) }
 
     // ---- writes ----
     struct NewApp: Encodable { let role_id: Int; let stage: String }

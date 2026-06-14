@@ -100,6 +100,30 @@ struct AppItem: Codable, Identifiable, Hashable {
     }
 }
 
+struct Company: Codable, Identifiable, Hashable {
+    let id: Int
+    let name: String
+    let tier: String?
+    let atsName: String?
+    let careersUrl: String?
+    let notes: String?
+    let tracked: Int
+    let surfaced: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, tier, notes, tracked, surfaced
+        case atsName = "ats_name"
+        case careersUrl = "careers_url"
+    }
+    /// Domain + blurb split out of the seed note ("Domain · why ...").
+    var domain: String? { notes?.components(separatedBy: " · ").first }
+    var blurb: String? {
+        guard let n = notes else { return nil }
+        let parts = n.components(separatedBy: " · ")
+        return parts.count > 1 ? parts.dropFirst().joined(separator: " · ") : n
+    }
+}
+
 enum Stage: String, CaseIterable, Identifiable {
     case watching, drafting, applied, screen, onsite, offer, closed
     var id: String { rawValue }

@@ -91,6 +91,27 @@ def list_roles(tier: str | None = None, company: str | None = None,
     return out
 
 
+# ─── companies (Plan breakdown) ─────────────────────────────
+@app.get("/api/companies")
+def list_companies(db: Session = Depends(get_db)):
+    from scan.intern_filter import is_internship, is_ops_strategy
+    cos = db.scalars(select(Company).order_by(Company.name)).all()
+    out = []
+    for co in cos:
+        open_roles = [r for r in co.roles if r.status in ("open", "changed")]
+        surfaced = [r for r in open_roles
+                    if r.scored_at is not None and (r.score_tier or "").upper() != "PASS"]
+        out.append({
+            "id": co.id, "name": co.name, "tier": co.tier,
+            "ats_name": co.ats_name, "careers_url": co.careers_url, "notes": co.notes,
+            "tracked": len(open_roles), "surfaced": len(surfaced),
+        })
+    # tier A first, then by surfaced desc
+    rank = {"A": 0, "B": 1, "C": 2}
+    out.sort(key=lambda c: (rank.get(c["tier"], 3), -c["surfaced"]))
+    return out
+
+
 # ─── applications (pipeline) ────────────────────────────────
 class AppCreate(BaseModel):
     role_id: int | None = None
