@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     intern_target_year: int = 2027      # the summer term being targeted
     score_max_intern: int = 200         # cost cap: max internships scored per scan
     score_max_fulltime: int = 200       # cost cap: max full-time PM roles scored per scan
+    score_max_ops: int = 150            # cost cap: max ops/strategy roles scored per scan
     # back-compat: if intern_only is set true it forces track_mode="intern"
     intern_only: bool = False
 

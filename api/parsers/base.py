@@ -3,9 +3,30 @@ from __future__ import annotations
 import hashlib
 import random
 import time
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 import httpx
 from config import settings
+
+
+def parse_dt(value) -> datetime | None:
+    """Best-effort parse of an ATS posting date: ISO-8601 string or epoch (s/ms)."""
+    if value is None:
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            ts = float(value)
+            if ts > 1e12:  # epoch milliseconds
+                ts /= 1000.0
+            return datetime.fromtimestamp(ts, tz=timezone.utc)
+        s = str(value).strip()
+        if not s:
+            return None
+        if s.isdigit():
+            return parse_dt(int(s))
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except (ValueError, OSError, OverflowError):
+        return None
 
 
 @dataclass
@@ -17,6 +38,7 @@ class NormalizedRole:
     department: str | None = None
     url: str | None = None
     description: str = ""
+    posted_at: "datetime | None" = None      # when the ATS says it was posted
     description_hash: str = field(default="")
 
     def __post_init__(self):

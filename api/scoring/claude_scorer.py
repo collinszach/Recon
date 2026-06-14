@@ -38,8 +38,14 @@ on a DEFENSE Smart MRO facility, and he interned at Collins Aerospace (Raytheon)
 PRODUCT roles (autonomy, defense data platforms, hardware, space) should be ranked on merit and
 treated as a priority domain — his cleared-adjacent, federal, and hardware background is an edge.
 
+CAREER TRAJECTORY: end goal is FOUNDER, CTO, or COO. He is OPEN TO OPERATIONS / STRATEGY roles
+(BizOps, Strategy & Ops, Chief of Staff, GM, corp dev) as a path to general management and the
+founder track — value broad scope, ownership/P&L, 0->1 building, and a clear runway to GM or the
+exec suite. He is also OPEN TO THE AVIATION / AEROSPACE sector where applicable (Collins Aerospace
+background + ME degree). Rank roles that build toward founder/CTO/COO higher than narrow IC tracks.
+
 PRIORITY DOMAINS (map each role to the closest one):
-  AI&Data | SCM&Twins | Hardware | Venture | Finance | Platform | Defense | other
+  AI&Data | SCM&Twins | Hardware | Venture | Finance | Platform | Defense | Aerospace | other
 """
 
 INTERN_PROFILE = _CANDIDATE + """
@@ -58,8 +64,8 @@ HARD RULES (internship lens):
 - COMMERCIAL and DEFENSE/national-security product internships are both in scope and ranked on
   merit — defense is a priority domain given his federal/MBSE/aerospace background, not a penalty.
 - A FULL-TIME role that slipped through is NOT what this lens wants -> tier "pass".
-- Weight WLB positively; put the monthly stipend (not annual TC) in tc_estimate if stated —
-  do not invent a number.
+- Weight WLB positively; put the HOURLY or MONTHLY wage/stipend (not annual TC) in tc_estimate if
+  stated — do not invent a number.
 
 TIERS (internship):
   A = strong Summer-2027-eligible PRODUCT/APM internship at a target-domain company, clear fit.
@@ -92,6 +98,30 @@ TIERS (full-time):
   B = good fit with one tradeoff (comp ceiling, WLB, seniority stretch, or stage risk).
   C = below-floor comp for passion/brand, domain stretch, or program/project role.
   pass = internship, clear seniority mismatch, or misfit.
+"""
+
+OPS_PROFILE = _CANDIDATE + """
+CURRENT GOAL (ops lens): map full-time OPERATIONS / STRATEGY roles that build toward GM / founder
+/ CTO / COO. Score business-operations, strategy, chief-of-staff, corp-dev, and GM roles.
+
+HARD RULES (ops/strategy lens):
+- In scope: BizOps, Strategy & Operations, Chief of Staff, Corporate Strategy/Development, RevOps,
+  GTM strategy, General Manager. NOT here: pure product PM (own track), internships, or narrow
+  technical/field ops (security/network/IT/clinical/warehouse/flight ops).
+- His edge: technical PM + engineering, AWS/data, SCM/federal background, MEng/MBA — strong for
+  technical ops, data/analytics-driven strategy, supply-chain ops, and platform/GM roles.
+- FOUNDER/CTO/COO runway: rank UP roles with broad scope, ownership/P&L, 0->1 building, and a path
+  to GM or the exec suite. Rank DOWN execution-only ops with no strategic surface.
+- $200K+ floor / $300K+ target; commercial, defense, and aerospace all in scope; WLB-weighted.
+- Seniority: he's early-career — Director/VP/Head roles likely stretch; note it and cap the tier
+  unless the role is explicitly open to his level.
+- is_product_pm should be FALSE for ops/strategy roles (they're not product management).
+
+TIERS (ops/strategy):
+  A = strong strategy/ops/GM role with founder-track scope, attainable level, clear domain fit.
+  B = good fit with one tradeoff (level stretch, narrow scope, comp ceiling, WLB).
+  C = execution-heavy or narrow ops, domain stretch, or below-floor for brand/passion.
+  pass = internship, pure product-PM, excluded technical/field ops, or clear misfit.
 """
 
 INSTRUCTIONS = """\
@@ -192,14 +222,18 @@ def _score_stub(db: Session, roles: list[Role]) -> dict:
 
 def _score_live(db: Session, roles: list[Role]) -> dict:
     from anthropic import Anthropic
-    from scan.intern_filter import is_internship
+    from scan.intern_filter import is_internship, is_ops_strategy
     client = Anthropic(api_key=settings.anthropic_api_key)
     tok_in = tok_out = 0
 
     for r in roles:
-        # Pick the lens that matches the role: internship vs full-time PM.
-        profile = (INTERN_PROFILE if is_internship(r.title, r.department)
-                   else FULLTIME_PROFILE)
+        # Pick the lens that matches the role: internship, ops/strategy, or product.
+        if is_internship(r.title, r.department):
+            profile = INTERN_PROFILE
+        elif is_ops_strategy(r.title, r.department):
+            profile = OPS_PROFILE
+        else:
+            profile = FULLTIME_PROFILE
         msg = client.messages.create(
             model=settings.claude_model,
             max_tokens=400,

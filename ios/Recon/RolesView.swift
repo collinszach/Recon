@@ -20,6 +20,10 @@ struct RoleRow: View {
                     Label(loc, systemImage: "mappin.and.ellipse")
                         .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
                 }
+                if let posted = role.postedText {
+                    Label(posted, systemImage: "clock")
+                        .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                }
             }
             Text(role.summary).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(2)
         }
@@ -44,7 +48,13 @@ struct RolesView: View {
     @State private var filter: String = "All"
     private let filters = ["All", "A", "B", "C"]
 
-    var trackFeed: [Role] { track == "intern" ? store.internFeed : store.fulltimeFeed }
+    var trackFeed: [Role] {
+        switch track {
+        case "fulltime": return store.fulltimeFeed
+        case "ops":      return store.opsFeed
+        default:         return store.internFeed
+        }
+    }
     var shown: [Role] {
         filter == "All" ? trackFeed
             : trackFeed.filter { ($0.tier ?? "").uppercased() == filter }
@@ -55,8 +65,9 @@ struct RolesView: View {
             VStack(alignment: .leading, spacing: 12) {
                 if let err = store.error { ErrorBanner(message: err) }
                 Picker("Track", selection: $track) {
-                    Text("Internships (\(store.internFeed.count))").tag("intern")
+                    Text("Intern (\(store.internFeed.count))").tag("intern")
                     Text("Full-time (\(store.fulltimeFeed.count))").tag("fulltime")
+                    Text("Ops (\(store.opsFeed.count))").tag("ops")
                 }.pickerStyle(.segmented)
                 Picker("Tier", selection: $filter) {
                     ForEach(filters, id: \.self) { Text($0) }
@@ -87,6 +98,14 @@ struct RoleDetailView: View {
     @State private var tracked = false
     @State private var showTailor = false
 
+    /// levels.fyi has no public API, so deep-link a search for the company.
+    private var levelsURL: URL? {
+        guard let co = role.company,
+              let q = co.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+        else { return nil }
+        return URL(string: "https://www.levels.fyi/?search=\(q)")
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -110,6 +129,13 @@ struct RoleDetailView: View {
                     Label("Tailor my résumé to this role", systemImage: "wand.and.stars")
                         .frame(maxWidth: .infinity)
                 }.buttonStyle(.borderedProminent).tint(Theme.gold)
+
+                if let levels = levelsURL {
+                    Link(destination: levels) {
+                        Label("Check comp on levels.fyi", systemImage: "chart.bar")
+                            .frame(maxWidth: .infinity)
+                    }.buttonStyle(.bordered).tint(Theme.inkSoft)
+                }
 
                 HStack(spacing: 12) {
                     if let urlStr = role.url, let url = URL(string: urlStr) {
@@ -138,6 +164,8 @@ struct RoleDetailView: View {
     private var facts: some View {
         VStack(spacing: 0) {
             FactRow("Pay", role.pay, tint: Theme.green)
+            Divider().background(Theme.hair)
+            FactRow("Posted", role.postedText ?? "—")
             Divider().background(Theme.hair)
             FactRow("Location", role.location ?? "—")
             Divider().background(Theme.hair)

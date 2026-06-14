@@ -5,7 +5,7 @@ Endpoint:
 
 `org` is the company's Lever slug.
 """
-from .base import ATSParser, NormalizedRole, client, polite_delay
+from .base import ATSParser, NormalizedRole, client, polite_delay, parse_dt
 
 BASE = "https://api.lever.co/v0/postings/{org}?mode=json"
 
@@ -34,6 +34,7 @@ class LeverParser(ATSParser):
                     department=cats.get("team") or cats.get("department"),
                     url=job.get("hostedUrl") or job.get("applyUrl"),
                     description=(job.get("descriptionPlain") or "")[:6000],
+                    posted_at=parse_dt(job.get("createdAt")),
                 )
             )
         return roles

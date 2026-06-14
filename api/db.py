@@ -42,6 +42,7 @@ class Role(Base):
     department: Mapped[str | None] = mapped_column(String)
     url: Mapped[str | None] = mapped_column(String)
     description_hash: Mapped[str | None] = mapped_column(String)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # from the ATS
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     status: Mapped[str] = mapped_column(String, default="open")

@@ -49,7 +49,7 @@ def list_roles(tier: str | None = None, company: str | None = None,
                min_fit: float = 0.0, scored_only: bool = True,
                track: str | None = None,
                db: Session = Depends(get_db)):
-    from scan.intern_filter import is_internship
+    from scan.intern_filter import is_internship, is_ops_strategy
     q = select(Role).where(Role.status.in_(["open", "changed"]))
     if scored_only:
         # Only scored roles are surfaced (internships + full-time PM roles are
@@ -65,7 +65,12 @@ def list_roles(tier: str | None = None, company: str | None = None,
             continue
         if tier and co and co.tier != tier:
             continue
-        role_track = "intern" if is_internship(r.title, r.department) else "fulltime"
+        if is_internship(r.title, r.department):
+            role_track = "intern"
+        elif is_ops_strategy(r.title, r.department):
+            role_track = "ops"
+        else:
+            role_track = "fulltime"
         if track and role_track != track:
             continue
         out.append({
@@ -75,6 +80,8 @@ def list_roles(tier: str | None = None, company: str | None = None,
             "tier": r.score_tier,               # fit tier (A/B/C/pass) from scoring
             "title": r.title,
             "location": r.location, "url": r.url, "status": r.status,
+            "posted_at": r.posted_at.isoformat() if r.posted_at else None,
+            "first_seen": r.first_seen.isoformat() if r.first_seen else None,
             "fit_score": r.fit_score, "domain": r.domain,
             "why_fit": r.why_fit, "concerns": r.concerns,
             "curriculum_hook": r.curriculum_hook,

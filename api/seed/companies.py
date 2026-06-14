@@ -163,6 +163,7 @@ SEED = [
     ("Rocket Lab",         "B", "greenhouse", "rocketlab",      "https://www.rocketlabusa.com/careers/", "Defense/Space · launch + space systems"),
     ("Helsing",            "B", "greenhouse", "helsing",        "https://helsing.ai/jobs", "Defense/AI · AI for defense (Europe — location tradeoff)"),
     ("Primer",             "C", "ashby",      "primer",         "https://primer.ai/careers/", "Defense/AI&Data · NLP for national security"),
+    ("Astranis",           "B", "greenhouse", "astranis",       "https://www.astranis.com/careers", "Aerospace/Space · GEO satellites — aerospace sector, ME/hardware fit"),
 ]
 
 

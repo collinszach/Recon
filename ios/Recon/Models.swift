@@ -18,6 +18,8 @@ struct Role: Codable, Identifiable, Hashable {
     let curriculumHook: String?
     let tcEstimate: String?    // pay / stipend
     let isProductPm: Bool?
+    let postedAt: String?
+    let firstSeen: String?
 
     enum CodingKeys: String, CodingKey {
         case id, track, company, title, location, url, status, domain, tier, concerns
@@ -27,11 +29,36 @@ struct Role: Codable, Identifiable, Hashable {
         case curriculumHook = "curriculum_hook"
         case tcEstimate = "tc_estimate"
         case isProductPm = "is_product_pm"
+        case postedAt = "posted_at"
+        case firstSeen = "first_seen"
     }
 
     var pay: String { tcEstimate?.isEmpty == false ? tcEstimate! : "Pay not listed" }
     var summary: String { whyFit ?? "Not yet summarized." }
     var fitText: String { fitScore.map { String(format: "%.1f", $0) } ?? "–" }
+
+    /// "Posted 3d ago" from the ATS posting date, falling back to when Recon
+    /// first saw it ("Seen 2d ago").
+    var postedText: String? {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso2 = ISO8601DateFormatter(); iso2.formatOptions = [.withInternetDateTime]
+        func parse(_ s: String?) -> Date? {
+            guard let s else { return nil }
+            return iso.date(from: s) ?? iso2.date(from: s)
+        }
+        if let d = parse(postedAt) { return "Posted \(Self.ago(d))" }
+        if let d = parse(firstSeen) { return "Seen \(Self.ago(d))" }
+        return nil
+    }
+    private static func ago(_ d: Date) -> String {
+        let days = Int(Date().timeIntervalSince(d) / 86400)
+        if days <= 0 { return "today" }
+        if days == 1 { return "1d ago" }
+        if days < 30 { return "\(days)d ago" }
+        let mo = days / 30
+        return mo == 1 ? "1mo ago" : "\(mo)mo ago"
+    }
 }
 
 /// GET /api/brief

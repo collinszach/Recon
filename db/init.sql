@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS roles (
     department        TEXT,
     url               TEXT,
     description_hash  TEXT,                      -- drives change detection
+    posted_at         TIMESTAMPTZ,               -- when the ATS says it was posted
     first_seen        TIMESTAMPTZ DEFAULT now(),
     last_seen         TIMESTAMPTZ DEFAULT now(),
     status            TEXT CHECK (status IN ('open','changed','closed')) DEFAULT 'open',

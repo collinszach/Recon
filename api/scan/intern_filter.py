@@ -93,3 +93,46 @@ def is_fulltime_pm(title: str | None, department: str | None = None) -> bool:
 def filter_fulltime_pm(roles: list) -> list:
     return [r for r in roles if is_fulltime_pm(getattr(r, "title", None),
                                                getattr(r, "department", None))]
+
+
+# ── Operations / strategy roles (Zach is open to ops; founder/CTO/COO path) ──
+_OPS_RE = re.compile(
+    r"\b("
+    r"chief\s+of\s+staff|"
+    r"business\s+operations|biz\s*ops|"
+    r"strateg(y|ic)\s*(and|&|,)?\s*(operations|ops)|"
+    r"(operations|ops)\s*(and|&|,)?\s*strateg(y|ic)|"
+    r"revenue\s+operations|rev\s*ops|"
+    r"corporate\s+(strategy|development)|corp\s+dev|"
+    r"business\s+strategy|"
+    r"go-?to-?market\s+strateg(y|ic)|gtm\s+strateg(y|ic)|"
+    r"general\s+manager|"
+    r"(strategy|strategic)\s+(manager|lead|director|principal|associate|analyst|partner)|"
+    r"head\s+of\s+(strategy|operations|business\s+operations)|"
+    r"(vp|vice\s+president|director|head)\s*(of)?\s*(business\s+operations|strategy)"
+    r")\b",
+    re.IGNORECASE,
+)
+# Operations roles that are NOT the biz/strategy kind we want.
+_OPS_FALSE_RE = re.compile(
+    r"\b(security\s+operations|network\s+operations|it\s+operations|noc\b|soc\s+analyst|"
+    r"clinical\s+operations|flight\s+operations|manufacturing\s+operations|"
+    r"warehouse\s+operations|field\s+operations|trading\s+operations)\b",
+    re.IGNORECASE,
+)
+
+
+def is_ops_strategy(title: str | None, department: str | None = None) -> bool:
+    """True for a business-operations / strategy / GM / chief-of-staff role
+    (not an internship, not the excluded technical/field-ops kinds)."""
+    hay = " ".join(p for p in (title, department) if p)
+    if not hay or is_internship(title, department):
+        return False
+    if _OPS_FALSE_RE.search(hay) and not _OPS_RE.search(_OPS_FALSE_RE.sub(" ", hay)):
+        return False
+    return bool(_OPS_RE.search(hay))
+
+
+def filter_ops_strategy(roles: list) -> list:
+    return [r for r in roles if is_ops_strategy(getattr(r, "title", None),
+                                                getattr(r, "department", None))]

@@ -5,7 +5,7 @@ Endpoint:
 
 `token` is the board slug, e.g. the company's greenhouse board name.
 """
-from .base import ATSParser, NormalizedRole, client, polite_delay
+from .base import ATSParser, NormalizedRole, client, polite_delay, parse_dt
 
 BASE = "https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true"
 
@@ -33,6 +33,7 @@ class GreenhouseParser(ATSParser):
                     department=_first_department(job),
                     url=job.get("absolute_url"),
                     description=_strip(job.get("content", "")),
+                    posted_at=parse_dt(job.get("first_published") or job.get("updated_at")),
                 )
             )
         return roles

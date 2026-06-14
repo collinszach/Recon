@@ -21,6 +21,7 @@ final class Store: ObservableObject {
     }
     var internFeed: [Role]   { feed.filter { ($0.track ?? "intern") == "intern" } }
     var fulltimeFeed: [Role] { feed.filter { $0.track == "fulltime" } }
+    var opsFeed: [Role]      { feed.filter { $0.track == "ops" } }
     var passCount: Int { roles.filter { ($0.tier ?? "").uppercased() == "PASS" }.count }
 
     func refresh() async {

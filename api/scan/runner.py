@@ -7,7 +7,7 @@ from config import settings
 from db import SessionLocal, Company, Role, ScanRun
 from parsers import get_parser
 from scan.reconcile import reconcile_company
-from scan.intern_filter import filter_internships, filter_fulltime_pm
+from scan.intern_filter import filter_internships, filter_fulltime_pm, filter_ops_strategy
 from scoring.claude_scorer import score_roles
 from brief.generator import build_brief
 
@@ -71,8 +71,15 @@ def run_daily_scan() -> dict:
                 to_score += ft
                 totals["fulltime"] = len(ft)
 
-            log.info("track filter (%s): %d internships + %d full-time PM of %d new/changed",
-                     mode, totals.get("interns", 0), totals.get("fulltime", 0), len(fresh))
+            if mode in ("ops", "both"):
+                ops = filter_ops_strategy(fresh)
+                ops.sort(key=lambda r: tier_rank.get(r.company.tier if r.company else "C", 3))
+                ops = ops[: settings.score_max_ops]
+                to_score += ops
+                totals["ops"] = len(ops)
+
+            log.info("track filter (%s): %d internships + %d full-time PM + %d ops/strategy of %d new/changed",
+                     mode, totals.get("interns", 0), totals.get("fulltime", 0), totals.get("ops", 0), len(fresh))
             if to_score:
                 score_cost = score_roles(db, to_score)
 

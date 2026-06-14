@@ -12,7 +12,7 @@ colon-delimited string: "{tenant}:{dc}:{site}", e.g.
 "nvidia:wd5:NVIDIAExternalCareerSite" maps to
 https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite/jobs
 """
-from .base import ATSParser, NormalizedRole, client, polite_delay
+from .base import ATSParser, NormalizedRole, client, polite_delay, parse_dt
 
 BASE = "https://{tenant}.{dc}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs"
 PUBLIC_URL = "https://{tenant}.{dc}.myworkdayjobs.com/{site}{path}"
@@ -69,4 +69,5 @@ def _normalize(job: dict, tenant: str, dc: str, site: str) -> NormalizedRole:
         department=None,
         url=PUBLIC_URL.format(tenant=tenant, dc=dc, site=site, path=path),
         description=f"{loc or ''} {description}".strip()[:6000],
+        posted_at=parse_dt(job.get("startDate") or job.get("postedOnDate")),
     )

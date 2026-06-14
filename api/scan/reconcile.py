@@ -29,6 +29,7 @@ def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole
                 department=f.department,
                 url=f.url,
                 description_hash=f.description_hash,
+                posted_at=f.posted_at,
                 status="open",
             )
             db.add(role)
@@ -41,6 +42,8 @@ def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole
                 row.department = f.department
                 row.url = f.url
                 row.description_hash = f.description_hash
+                if f.posted_at:
+                    row.posted_at = f.posted_at
                 row.status = "changed"
                 row.scored_at = None          # force re-score
                 changed_ids.append(row.id)

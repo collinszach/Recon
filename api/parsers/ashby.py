@@ -5,7 +5,7 @@ Endpoint:
 
 `org` is the company's Ashby job-board slug.
 """
-from .base import ATSParser, NormalizedRole, client, polite_delay
+from .base import ATSParser, NormalizedRole, client, polite_delay, parse_dt
 
 BASE = "https://api.ashbyhq.com/posting-api/job-board/{org}?includeCompensation=true"
 
@@ -32,6 +32,7 @@ class AshbyParser(ATSParser):
                     department=job.get("department") or job.get("team"),
                     url=job.get("jobUrl") or job.get("applyUrl"),
                     description=(job.get("descriptionPlain") or "")[:6000],
+                    posted_at=parse_dt(job.get("publishedAt") or job.get("publishedDate")),
                 )
             )
         return roles
