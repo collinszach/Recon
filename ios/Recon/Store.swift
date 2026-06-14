@@ -80,4 +80,26 @@ final class Store: ObservableObject {
         do { return try await api.tailor(roleId: roleId) }
         catch { self.error = error.localizedDescription; return nil }
     }
+    func resumeChat(_ turns: [ChatTurn]) async -> ChatResponse? {
+        do { return try await api.resumeChat(turns) }
+        catch { self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription; return nil }
+    }
+    /// Apply a coach-proposed update via the existing CRUD, then refresh.
+    func applyProposed(_ up: ProposedUpdate) async {
+        if let p = up.profile { await saveProfile(mergedProfile(p)) }
+        if let e = up.experience { await saveExperience(e) }
+        await loadResume()
+    }
+    /// Merge a partial profile from the coach onto the current one (don't blank fields).
+    private func mergedProfile(_ p: ResumeProfile) -> ResumeProfile {
+        var base = resume?.profile ?? ResumeProfile()
+        if let v = p.full_name { base.full_name = v }
+        if let v = p.headline { base.headline = v }
+        if let v = p.location { base.location = v }
+        if let v = p.summary { base.summary = v }
+        if let v = p.skills { base.skills = v }
+        if let v = p.education { base.education = v }
+        if let v = p.links { base.links = v }
+        return base
+    }
 }

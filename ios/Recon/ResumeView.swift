@@ -6,6 +6,7 @@ struct ResumeView: View {
     @State private var editProfile = false
     @State private var editExp: Experience?
     @State private var addKind: String?
+    @State private var showChat = false
 
     private let kinds: [(String, String)] = [("work", "Experience"),
                                               ("project", "Projects"),
@@ -15,6 +16,11 @@ struct ResumeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let err = store.error { ErrorBanner(message: err) }
+
+                Button { showChat = true } label: {
+                    Label("Open AI résumé coach", systemImage: "bubble.left.and.text.bubble.right")
+                        .frame(maxWidth: .infinity)
+                }.buttonStyle(.borderedProminent).tint(Theme.rust)
 
                 if let r = store.resume {
                     profileCard(r.profile)
@@ -47,6 +53,7 @@ struct ResumeView: View {
         .sheet(item: $editExp) { ExperienceEditor(exp: $0) }
         .sheet(item: Binding(get: { addKind.map { Experience(id: nil, kind: $0) } },
                              set: { _ in addKind = nil })) { ExperienceEditor(exp: $0) }
+        .sheet(isPresented: $showChat) { ResumeChatView().environmentObject(store) }
     }
 
     private func profileCard(_ p: ResumeProfile) -> some View {

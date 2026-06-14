@@ -355,6 +355,21 @@ def tailor_role_endpoint(role_id: int, db: Session = Depends(get_db)):
     return tailor_role(db, role)
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatIn(BaseModel):
+    messages: list[ChatMessage]
+
+
+@app.post("/api/resume/chat")
+def resume_chat(body: ChatIn, db: Session = Depends(get_db)):
+    from resume.coach import coach_reply
+    return coach_reply(db, [m.model_dump() for m in body.messages])
+
+
 # ─── static: master dashboard at / ──────────────────────────
 @app.get("/", response_class=HTMLResponse)
 def dashboard():

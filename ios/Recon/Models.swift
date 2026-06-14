@@ -107,14 +107,14 @@ enum Stage: String, CaseIterable, Identifiable {
 }
 
 // ── Resume ──────────────────────────────────────────────────
-struct ResumeProfile: Codable {
-    var full_name: String?
-    var headline: String?
-    var location: String?
-    var summary: String?
-    var skills: String?
-    var education: String?
-    var links: String?
+struct ResumeProfile: Codable, Hashable {
+    var full_name: String? = nil
+    var headline: String? = nil
+    var location: String? = nil
+    var summary: String? = nil
+    var skills: String? = nil
+    var education: String? = nil
+    var links: String? = nil
 }
 
 struct Experience: Codable, Identifiable, Hashable {
@@ -136,6 +136,24 @@ struct Experience: Codable, Identifiable, Hashable {
 struct ResumeData: Codable {
     var profile: ResumeProfile
     var experiences: [Experience]
+}
+
+// ── Résumé coach chat ───────────────────────────────────────
+struct ChatTurn: Identifiable, Hashable {
+    let id = UUID()
+    let role: String       // "user" | "assistant"
+    let content: String
+}
+
+struct ProposedUpdate: Codable, Hashable {
+    let summary: String?
+    let profile: ResumeProfile?      // partial profile fields
+    let experience: Experience?      // edit (id set) or add (id nil)
+}
+
+struct ChatResponse: Codable {
+    let reply: String
+    let proposed_update: ProposedUpdate?
 }
 
 /// Result of POST /api/roles/{id}/tailor
