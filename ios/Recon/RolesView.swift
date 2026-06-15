@@ -97,6 +97,7 @@ struct RoleDetailView: View {
     @EnvironmentObject var store: Store
     @State private var tracked = false
     @State private var showTailor = false
+    @State private var showOutreach = false
 
     /// levels.fyi has no public API, so deep-link a search for the company.
     private var levelsURL: URL? {
@@ -130,6 +131,11 @@ struct RoleDetailView: View {
                         .frame(maxWidth: .infinity)
                 }.buttonStyle(.borderedProminent).tint(Theme.gold)
 
+                Button { showOutreach = true } label: {
+                    Label("Draft outreach", systemImage: "envelope")
+                        .frame(maxWidth: .infinity)
+                }.buttonStyle(.bordered).tint(Theme.rust)
+
                 if let levels = levelsURL {
                     Link(destination: levels) {
                         Label("Check comp on levels.fyi", systemImage: "chart.bar")
@@ -159,6 +165,7 @@ struct RoleDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .scrollContentBackground(.hidden)
         .sheet(isPresented: $showTailor) { TailorView(role: role).environmentObject(store) }
+        .sheet(isPresented: $showOutreach) { OutreachView(role: role).environmentObject(store) }
     }
 
     private var facts: some View {

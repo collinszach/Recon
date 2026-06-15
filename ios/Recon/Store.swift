@@ -119,6 +119,11 @@ final class Store: ObservableObject {
         do { return try await api.tailor(roleId: roleId) }
         catch { self.error = error.localizedDescription; return nil }
     }
+    func draftOutreach(roleId: Int) async -> Outreach? {
+        do { return try await api.draftOutreach(roleId: roleId) }
+        catch { return Outreach(subject: nil, draft: nil,
+                                error: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription) }
+    }
     func resumeChat(_ turns: [ChatTurn]) async -> ChatResponse? {
         do { return try await api.resumeChat(turns) }
         catch { self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription; return nil }

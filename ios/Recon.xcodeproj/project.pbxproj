@@ -23,6 +23,7 @@
 		9CD0E9FAF72E8591772EB2DB /* Cache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 977EA2656415D2003F53FABA /* Cache.swift */; };
 		9DDEA06D0EB1E46DEF05CC3B /* CurriculumData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A962BF4AC58831091B17184 /* CurriculumData.swift */; };
 		C7C29FC63C967D104B0557CD /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = CECF1C27E840019FA2318A80 /* Config.swift */; };
+		C9E461B04F9A903CD6A62CCB /* OutreachView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90025B482BF866FEDC4EE6C7 /* OutreachView.swift */; };
 		E9C52D468CB0219C5EBA10DC /* RolesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8087971EA041AC04E15E2BD /* RolesView.swift */; };
 		FAD4614433E40A5174EB8709 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DDD42416FEDA27BE78FEC79 /* Models.swift */; };
 		FC7A5571EB72F3AE450F7E8E /* ReconAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C38C7B32C800934526AB5EE /* ReconAPI.swift */; };
@@ -40,6 +41,7 @@
 		6DDD42416FEDA27BE78FEC79 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		76BA873DE6B0360D7C07241B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		8ADA461DA6E79A1B1FFEF1C0 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
+		90025B482BF866FEDC4EE6C7 /* OutreachView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutreachView.swift; sourceTree = "<group>"; };
 		977EA2656415D2003F53FABA /* Cache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cache.swift; sourceTree = "<group>"; };
 		9D3678E34E3D51F0A0A375DE /* ResumeChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResumeChatView.swift; sourceTree = "<group>"; };
 		9EF14321F35C4BFF97D597A1 /* TailorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TailorView.swift; sourceTree = "<group>"; };
@@ -72,6 +74,7 @@
 				6A962BF4AC58831091B17184 /* CurriculumData.swift */,
 				4206E9767DC519781176F669 /* Info.plist */,
 				6DDD42416FEDA27BE78FEC79 /* Models.swift */,
+				90025B482BF866FEDC4EE6C7 /* OutreachView.swift */,
 				E1772CE16FE1EC11150F68CD /* PipelineView.swift */,
 				02705E9FE1CBEC98C1C0D160 /* PlanView.swift */,
 				1C38C7B32C800934526AB5EE /* ReconAPI.swift */,
@@ -182,6 +185,7 @@
 				8931911BC248EF29396159E5 /* ContentView.swift in Sources */,
 				9DDEA06D0EB1E46DEF05CC3B /* CurriculumData.swift in Sources */,
 				FAD4614433E40A5174EB8709 /* Models.swift in Sources */,
+				C9E461B04F9A903CD6A62CCB /* OutreachView.swift in Sources */,
 				8C251550BAE93B2382F8C60A /* PipelineView.swift in Sources */,
 				6EBCFC2DB27B951FF4F1F22E /* PlanView.swift in Sources */,
 				FC7A5571EB72F3AE450F7E8E /* ReconAPI.swift in Sources */,

@@ -118,6 +118,9 @@ struct ReconAPI {
     func tailor(roleId: Int) async throws -> Tailoring {
         try await send("POST", "api/roles/\(roleId)/tailor", body: [String: String](), as: Tailoring.self)
     }
+    func draftOutreach(roleId: Int) async throws -> Outreach {
+        try await send("POST", "api/roles/\(roleId)/draft_outreach", body: [String: String](), as: Outreach.self)
+    }
 
     struct ChatReq: Encodable { let messages: [[String: String]] }
     func resumeChat(_ turns: [ChatTurn]) async throws -> ChatResponse {

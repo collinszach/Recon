@@ -180,6 +180,13 @@ struct ChatResponse: Codable {
     let proposed_update: ProposedUpdate?
 }
 
+/// Result of POST /api/roles/{id}/draft_outreach
+struct Outreach: Codable {
+    let subject: String?
+    let draft: String?
+    let error: String?
+}
+
 /// Result of POST /api/roles/{id}/tailor
 struct Tailoring: Codable {
     let match_score: Double?

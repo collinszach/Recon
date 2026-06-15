@@ -22,6 +22,8 @@ struct ResumeView: View {
                         .frame(maxWidth: .infinity)
                 }.buttonStyle(.borderedProminent).tint(Theme.rust)
 
+                if let r = store.resume { onePageMeter(r) }
+
                 if let r = store.resume {
                     profileCard(r.profile)
                     ForEach(kinds, id: \.0) { kind, label in
@@ -54,6 +56,38 @@ struct ResumeView: View {
         .sheet(item: Binding(get: { addKind.map { Experience(id: nil, kind: $0) } },
                              set: { _ in addKind = nil })) { ExperienceEditor(exp: $0) }
         .sheet(isPresented: $showChat) { ResumeChatView().environmentObject(store) }
+    }
+
+    /// Rough "does it fit one page?" gauge from total content length.
+    private func onePageMeter(_ r: ResumeData) -> some View {
+        let p = r.profile
+        let bulletText = r.experiences.map { $0.bullets ?? "" }.joined(separator: "\n")
+        let chars = [p.summary, p.skills, p.education, bulletText]
+            .compactMap { $0 }.joined().count
+        let lines = bulletText.split(whereSeparator: \.isNewline).count + r.experiences.count
+        let budget = 3500.0
+        let frac = min(Double(chars) / budget, 1.2)
+        // weight chars + line count into one signal
+        let tight = chars <= 3100 && lines <= 24
+        let full = chars <= 3900 && lines <= 30
+        let (color, label): (Color, String) =
+            tight ? (Theme.green, "Fits one page")
+                  : full ? (Theme.gold, "Getting full — tighten a little")
+                         : (Theme.rust, "Running long — trim for one page")
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label(label, systemImage: "doc.plaintext").font(.caption.weight(.semibold))
+                    .foregroundStyle(color)
+                Spacer()
+                Text("\(chars) chars · \(lines) lines").font(.caption2).foregroundStyle(Theme.inkSoft)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Theme.hair).frame(height: 6)
+                    Capsule().fill(color).frame(width: geo.size.width * min(frac, 1.0), height: 6)
+                }
+            }.frame(height: 6)
+        }.reconCard()
     }
 
     private func profileCard(_ p: ResumeProfile) -> some View {
