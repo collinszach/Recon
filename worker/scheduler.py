@@ -1,9 +1,9 @@
 """Worker: runs the daily scan on a schedule. Lightweight for the N95."""
 import logging
 import sys
-import time
+from datetime import datetime, timedelta
 from apscheduler.schedulers.blocking import BlockingScheduler
-from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 # api package is mounted on PYTHONPATH via the image
 sys.path.insert(0, "/app/api")
@@ -17,22 +17,26 @@ log = logging.getLogger("recon.worker")
 
 
 def job():
-    log.info("daily scan starting")
+    log.info("scan starting")
     try:
         result = run_daily_scan()
-        log.info("daily scan done: %s", result["totals"])
+        log.info("scan done: %s", result["totals"])
     except Exception:
-        log.exception("daily scan failed")
+        log.exception("scan failed")
 
 
 def main():
     sched = BlockingScheduler(timezone=settings.tz)
-    sched.add_job(job, CronTrigger(hour=settings.scan_hour_local, minute=0),
-                  id="daily_scan", max_instances=1, coalesce=True)
-    log.info("worker up — daily scan scheduled for %02d:00 %s",
-             settings.scan_hour_local, settings.tz)
-    # give the API a moment on cold start
-    time.sleep(5)
+    hours = max(1, settings.scan_interval_hours)
+    # recurring scan every N hours
+    sched.add_job(job, IntervalTrigger(hours=hours, timezone=settings.tz),
+                  id="interval_scan", max_instances=1, coalesce=True)
+    # also kick one off shortly after startup (give the API a moment on cold start)
+    sched.add_job(job, "date",
+                  run_date=datetime.now() + timedelta(seconds=15),
+                  id="startup_scan", max_instances=1, coalesce=True)
+    log.info("worker up — scan scheduled every %d hour(s) (%s); first run ~15s after startup",
+             hours, settings.tz)
     sched.start()
 
 

@@ -47,8 +47,9 @@ def health():
 @app.get("/api/roles")
 def list_roles(tier: str | None = None, company: str | None = None,
                min_fit: float = 0.0, scored_only: bool = True,
-               track: str | None = None,
+               track: str | None = None, dedupe: bool = True,
                db: Session = Depends(get_db)):
+    import re as _re
     from scan.intern_filter import is_internship, is_ops_strategy
     q = select(Role).where(Role.status.in_(["open", "changed"]))
     if scored_only:
@@ -88,6 +89,22 @@ def list_roles(tier: str | None = None, company: str | None = None,
             "tc_estimate": r.tc_estimate,       # pay / stipend
             "is_product_pm": r.is_product_pm,
         })
+
+    if dedupe:
+        # Collapse near-duplicate reposts: same company + normalized title, keep
+        # the highest fit (then most recent posting).
+        def _norm(t: str) -> str:
+            t = (t or "").lower()
+            t = _re.sub(r"\b(senior|sr|staff|principal|lead|junior|jr|i{1,3}|\d+)\b", " ", t)
+            t = _re.sub(r"[^a-z0-9 ]+", " ", t)
+            return _re.sub(r"\s+", " ", t).strip()
+        best: dict[tuple, dict] = {}
+        for o in out:
+            key = ((o["company"] or "").lower(), _norm(o["title"]))
+            cur = best.get(key)
+            if cur is None or (o["fit_score"] or 0, o["posted_at"] or "") > (cur["fit_score"] or 0, cur["posted_at"] or ""):
+                best[key] = o
+        out = sorted(best.values(), key=lambda o: (o["fit_score"] or 0), reverse=True)
     return out
 
 
@@ -389,6 +406,15 @@ class ChatIn(BaseModel):
 def resume_chat(body: ChatIn, db: Session = Depends(get_db)):
     from resume.coach import coach_reply
     return coach_reply(db, [m.model_dump() for m in body.messages])
+
+
+@app.post("/api/roles/{role_id}/draft_outreach")
+def draft_outreach_endpoint(role_id: int, db: Session = Depends(get_db)):
+    role = db.get(Role, role_id)
+    if not role:
+        raise HTTPException(404, "role not found")
+    from resume.outreach import draft_outreach
+    return draft_outreach(db, role)
 
 
 # ─── static: master dashboard at / ──────────────────────────

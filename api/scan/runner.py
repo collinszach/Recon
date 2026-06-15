@@ -23,6 +23,7 @@ def run_daily_scan() -> dict:
     totals = {"new": 0, "changed": 0, "closed": 0, "companies": 0}
     errors: list[str] = []
     fresh_role_ids: list[int] = []
+    new_role_ids: list[int] = []          # genuinely new postings (for alerts)
     today = date.today()
 
     try:
@@ -41,6 +42,7 @@ def run_daily_scan() -> dict:
                 totals["closed"] += result["closed"]
                 totals["companies"] += 1
                 fresh_role_ids += result["new_ids"] + result["changed_ids"]
+                new_role_ids += result["new_ids"]
                 log.info("scanned %s: +%d ~%d -%d",
                          co.name, result["new"], result["changed"], result["closed"])
             except Exception as e:  # one company failing must not kill the run
@@ -82,6 +84,20 @@ def run_daily_scan() -> dict:
                      mode, totals.get("interns", 0), totals.get("fulltime", 0), totals.get("ops", 0), len(fresh))
             if to_score:
                 score_cost = score_roles(db, to_score)
+
+            # alert on NEW postings that scored high (skip pass/low). Channels
+            # no-op when disabled, so this is safe to always call.
+            new_set = set(new_role_ids)
+            alert_roles = [r for r in to_score
+                           if r.id in new_set
+                           and (r.fit_score or 0) >= settings.notify_min_fit
+                           and (r.score_tier or "").upper() != "PASS"]
+            if alert_roles:
+                try:
+                    from notify.deliver import deliver_alert
+                    log.info("new-role alert: %s", deliver_alert(alert_roles))
+                except Exception as e:
+                    log.warning("alert failed: %s: %s", type(e).__name__, e)
 
         # build + persist today's brief
         brief = build_brief(db, today, totals)

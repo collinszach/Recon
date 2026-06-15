@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     intern_only: bool = False
 
     scan_hour_local: int = 6
+    scan_interval_hours: int = 3        # how often the worker runs the scan
+    notify_min_fit: float = 7.0         # min fit_score for a new-role alert
     scan_min_delay_sec: float = 2.0
     scan_max_delay_sec: float = 5.0
     scan_user_agent: str = "ReconJobTracker/1.0"
