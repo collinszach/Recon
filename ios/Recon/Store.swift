@@ -13,7 +13,38 @@ final class Store: ObservableObject {
     @Published var loading = false
     @Published var error: String?
 
+    /// Offline support: show last-synced data when the API can't be reached.
+    @Published var isOffline = false
+    @Published var lastSynced: Date?
+
     private let api = ReconAPI.shared
+
+    init() {
+        // Hydrate from disk so the UI shows instantly, even offline.
+        roles = Cache.load([Role].self, "roles") ?? []
+        brief = Cache.load(Brief.self, "brief")
+        apps = Cache.load([AppItem].self, "apps") ?? []
+        companies = Cache.load([Company].self, "companies") ?? []
+        resume = Cache.load(ResumeData.self, "resume")
+        lastSynced = Cache.load(Date.self, "lastSynced")
+    }
+
+    private func markSynced() {
+        isOffline = false
+        lastSynced = Date()
+        Cache.save(lastSynced, "lastSynced")
+    }
+    /// Show cached data + an offline flag when a load fails but we have a cache.
+    private func handleLoadFailure(_ error: Error, hadCache: Bool) {
+        if hadCache { isOffline = true }
+        else { self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
+    }
+
+    var lastSyncedText: String? {
+        guard let d = lastSynced else { return nil }
+        let f = RelativeDateTimeFormatter(); f.unitsStyle = .short
+        return f.localizedString(for: d, relativeTo: Date())
+    }
 
     /// Roles worth surfacing: fit-sorted, pass-tier dropped (both tracks).
     var feed: [Role] {
@@ -27,6 +58,7 @@ final class Store: ObservableObject {
 
     func refresh() async {
         loading = true; error = nil
+        let hadCache = !roles.isEmpty
         do {
             async let r = api.roles()
             async let b = api.brief()
@@ -34,8 +66,10 @@ final class Store: ObservableObject {
             roles = try await r
             brief = try await b
             apps = try await a
+            Cache.save(roles, "roles"); Cache.save(brief, "brief"); Cache.save(apps, "apps")
+            markSynced()
         } catch {
-            self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            handleLoadFailure(error, hadCache: hadCache)
         }
         loading = false
     }
@@ -54,12 +88,12 @@ final class Store: ObservableObject {
 
     // ---- resume ----
     func loadResume() async {
-        do { resume = try await api.resume() }
-        catch { self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
+        do { resume = try await api.resume(); Cache.save(resume, "resume") }
+        catch { handleLoadFailure(error, hadCache: resume != nil) }
     }
     func loadCompanies() async {
-        do { companies = try await api.companies() }
-        catch { self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
+        do { companies = try await api.companies(); Cache.save(companies, "companies") }
+        catch { handleLoadFailure(error, hadCache: !companies.isEmpty) }
     }
     func saveProfile(_ p: ResumeProfile) async {
         do { try await api.saveProfile(p); resume?.profile = p }

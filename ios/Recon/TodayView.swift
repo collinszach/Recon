@@ -7,6 +7,14 @@ struct TodayView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if store.isOffline {
+                    Label("Offline — showing last synced\(store.lastSyncedText.map { " \($0)" } ?? "")",
+                          systemImage: "wifi.slash")
+                        .font(.caption).foregroundStyle(Theme.inkSoft)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(Theme.gold.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
+                }
                 if let err = store.error { ErrorBanner(message: err) }
 
                 // headline
