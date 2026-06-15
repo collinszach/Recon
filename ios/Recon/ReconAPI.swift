@@ -87,6 +87,13 @@ struct ReconAPI {
     func brief() async throws -> Brief { try await get("api/brief", as: Brief.self) }
     func applications() async throws -> [AppItem] { try await get("api/applications", as: [AppItem].self) }
     func companies() async throws -> [Company] { try await get("api/companies", as: [Company].self) }
+    func contacts() async throws -> [Contact] { try await get("api/contacts", as: [Contact].self) }
+    func addContact(_ c: Contact) async throws -> Contact {
+        try await send("POST", "api/contacts", body: c, as: Contact.self)
+    }
+    func updateContact(_ c: Contact) async throws -> Contact {
+        try await send("PATCH", "api/contacts/\(c.id ?? 0)", body: c, as: Contact.self)
+    }
 
     // ---- writes ----
     struct NewApp: Encodable { let role_id: Int; let stage: String }

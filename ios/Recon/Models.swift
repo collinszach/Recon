@@ -124,6 +124,22 @@ struct Company: Codable, Identifiable, Hashable {
     }
 }
 
+struct Contact: Codable, Identifiable, Hashable {
+    var id: Int? = nil
+    var companyId: Int? = nil
+    var name: String? = nil
+    var role: String? = nil
+    var email: String? = nil
+    var linkedin: String? = nil
+    var warmth: String? = nil
+    var notes: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, role, email, linkedin, warmth, notes
+        case companyId = "company_id"
+    }
+}
+
 enum Stage: String, CaseIterable, Identifiable {
     case watching, drafting, applied, screen, onsite, offer, closed
     var id: String { rawValue }

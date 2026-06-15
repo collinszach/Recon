@@ -9,6 +9,7 @@ final class Store: ObservableObject {
 
     @Published var resume: ResumeData?
     @Published var companies: [Company] = []
+    @Published var contacts: [Contact] = []
 
     @Published var loading = false
     @Published var error: String?
@@ -25,6 +26,7 @@ final class Store: ObservableObject {
         brief = Cache.load(Brief.self, "brief")
         apps = Cache.load([AppItem].self, "apps") ?? []
         companies = Cache.load([Company].self, "companies") ?? []
+        contacts = Cache.load([Contact].self, "contacts") ?? []
         resume = Cache.load(ResumeData.self, "resume")
         lastSynced = Cache.load(Date.self, "lastSynced")
     }
@@ -94,6 +96,18 @@ final class Store: ObservableObject {
     func loadCompanies() async {
         do { companies = try await api.companies(); Cache.save(companies, "companies") }
         catch { handleLoadFailure(error, hadCache: !companies.isEmpty) }
+    }
+    func loadContacts() async {
+        do { contacts = try await api.contacts(); Cache.save(contacts, "contacts") }
+        catch { handleLoadFailure(error, hadCache: !contacts.isEmpty) }
+    }
+    func saveContact(_ c: Contact) async {
+        do {
+            let saved = c.id == nil ? try await api.addContact(c) : try await api.updateContact(c)
+            if let i = contacts.firstIndex(where: { $0.id == saved.id }) { contacts[i] = saved }
+            else { contacts.insert(saved, at: 0) }
+            Cache.save(contacts, "contacts")
+        } catch { self.error = error.localizedDescription }
     }
     func saveProfile(_ p: ResumeProfile) async {
         do { try await api.saveProfile(p); resume?.profile = p }
