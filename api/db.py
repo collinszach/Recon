@@ -91,11 +91,16 @@ class Contact(Base):
     __tablename__ = "contacts"
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"))
+    company: Mapped[str | None] = mapped_column(String)          # free-text company name
     name: Mapped[str | None] = mapped_column(String)
     role: Mapped[str | None] = mapped_column(String)
     email: Mapped[str | None] = mapped_column(String)
     linkedin: Mapped[str | None] = mapped_column(String)
     warmth: Mapped[str | None] = mapped_column(String)
+    status: Mapped[str | None] = mapped_column(String, default="to_reach")  # to_reach|sent|replied|met
+    last_touch: Mapped[date | None] = mapped_column(Date)
+    next_touch: Mapped[date | None] = mapped_column(Date)
+    last_outreach: Mapped[str | None] = mapped_column(Text)      # last drafted/sent message
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

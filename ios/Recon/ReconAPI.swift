@@ -88,6 +88,10 @@ struct ReconAPI {
     func applications() async throws -> [AppItem] { try await get("api/applications", as: [AppItem].self) }
     func companies() async throws -> [Company] { try await get("api/companies", as: [Company].self) }
     func contacts() async throws -> [Contact] { try await get("api/contacts", as: [Contact].self) }
+    func contacts(company: String) async throws -> [Contact] {
+        let q = company.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? company
+        return try await get("api/contacts?company=\(q)", as: [Contact].self)
+    }
     func addContact(_ c: Contact) async throws -> Contact {
         try await send("POST", "api/contacts", body: c, as: Contact.self)
     }

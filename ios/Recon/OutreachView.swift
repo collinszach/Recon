@@ -9,6 +9,7 @@ struct OutreachView: View {
 
     @State private var result: Outreach?
     @State private var loading = true
+    @State private var saved = false
 
     var body: some View {
         NavigationStack {
@@ -36,6 +37,18 @@ struct OutreachView: View {
                                 Text(d).font(.callout).foregroundStyle(Theme.ink).textSelection(.enabled)
                             }.frame(maxWidth: .infinity, alignment: .leading).reconCard()
                         }
+                        Button {
+                            Task {
+                                await store.saveContact(Contact(
+                                    company: role.company, role: "Contact for \(role.title)",
+                                    status: "sent", lastOutreach: r.draft))
+                                saved = true
+                            }
+                        } label: {
+                            Label(saved ? "Saved to Contacts" : "Save draft to a \(role.company ?? "company") contact",
+                                  systemImage: saved ? "checkmark" : "person.badge.plus")
+                        }.buttonStyle(ReconButtonStyle(color: Theme.green, soft: true)).disabled(saved)
+
                         Text("Edit before sending — it's a starting point, not a final message.")
                             .font(.caption2).foregroundStyle(Theme.inkSoft)
                     }

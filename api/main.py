@@ -265,33 +265,36 @@ def _app_dict(a: Application) -> dict:
             "fit_score": a.role.fit_score if a.role else None}
 
 
-# ─── contacts ────────────────────────────────────────────────
+# ─── contacts (networking CRM) ──────────────────────────────
 class ContactCreate(BaseModel):
     company_id: int | None = None
+    company: str | None = None
     name: str | None = None
     role: str | None = None
     email: str | None = None
     linkedin: str | None = None
     warmth: str | None = None
+    status: str | None = None
+    last_touch: date | None = None
+    next_touch: date | None = None
+    last_outreach: str | None = None
     notes: str | None = None
 
 
-class ContactUpdate(BaseModel):
-    company_id: int | None = None
-    name: str | None = None
-    role: str | None = None
-    email: str | None = None
-    linkedin: str | None = None
-    warmth: str | None = None
-    notes: str | None = None
+class ContactUpdate(ContactCreate):
+    pass
 
 
 @app.get("/api/contacts")
-def list_contacts(company_id: int | None = None, db: Session = Depends(get_db)):
+def list_contacts(company_id: int | None = None, company: str | None = None,
+                  db: Session = Depends(get_db)):
     q = select(Contact)
     if company_id:
         q = q.where(Contact.company_id == company_id)
     rows = db.scalars(q.order_by(Contact.created_at.desc())).all()
+    if company:  # free-text "who do I know at X" — match company or role text
+        cl = company.lower()
+        rows = [c for c in rows if cl in ((c.company or "") + " " + (c.role or "")).lower()]
     return [_contact_dict(c) for c in rows]
 
 
@@ -315,9 +318,13 @@ def update_contact(contact_id: int, body: ContactUpdate, db: Session = Depends(g
 
 
 def _contact_dict(c: Contact) -> dict:
-    return {"id": c.id, "company_id": c.company_id, "name": c.name, "role": c.role,
+    return {"id": c.id, "company_id": c.company_id, "company": c.company,
+            "name": c.name, "role": c.role,
             "email": c.email, "linkedin": c.linkedin, "warmth": c.warmth,
-            "notes": c.notes,
+            "status": c.status or "to_reach",
+            "last_touch": c.last_touch.isoformat() if c.last_touch else None,
+            "next_touch": c.next_touch.isoformat() if c.next_touch else None,
+            "last_outreach": c.last_outreach, "notes": c.notes,
             "created_at": c.created_at.isoformat() if c.created_at else None}
 
 

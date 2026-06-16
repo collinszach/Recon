@@ -98,6 +98,7 @@ struct RoleDetailView: View {
     @State private var tracked = false
     @State private var showTailor = false
     @State private var showOutreach = false
+    @State private var companyContacts: [Contact] = []
 
     /// levels.fyi has no public API, so deep-link a search for the company.
     private var levelsURL: URL? {
@@ -125,6 +126,24 @@ struct RoleDetailView: View {
                 Section_("Why it fits", role.summary)
                 if let c = role.concerns, !c.isEmpty { Section_("Concerns", c, tint: Theme.rust) }
                 if let h = role.curriculumHook, !h.isEmpty { Section_("Curriculum hook", h) }
+
+                if !companyContacts.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("WHO YOU KNOW AT \((role.company ?? "").uppercased())")
+                            .font(.caption2.weight(.bold)).foregroundStyle(Theme.inkSoft)
+                        ForEach(companyContacts) { c in
+                            HStack(spacing: 6) {
+                                Image(systemName: "person.crop.circle").foregroundStyle(Theme.rust)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(c.name ?? "—").font(.caption.weight(.semibold)).foregroundStyle(Theme.ink)
+                                    if let r = c.role { Text(r).font(.caption2).foregroundStyle(Theme.inkSoft) }
+                                }
+                                Spacer()
+                                Pill(text: c.statusLabel, color: Theme.gold)
+                            }
+                        }
+                    }.frame(maxWidth: .infinity, alignment: .leading).reconCard()
+                }
 
                 Button { showTailor = true } label: {
                     Label("Tailor my résumé to this role", systemImage: "wand.and.stars")
@@ -163,6 +182,11 @@ struct RoleDetailView: View {
         .scrollContentBackground(.hidden)
         .sheet(isPresented: $showTailor) { TailorView(role: role).environmentObject(store) }
         .sheet(isPresented: $showOutreach) { OutreachView(role: role).environmentObject(store) }
+        .task {
+            if let co = role.company {
+                companyContacts = (try? await ReconAPI.shared.contacts(company: co)) ?? []
+            }
+        }
     }
 
     private var facts: some View {

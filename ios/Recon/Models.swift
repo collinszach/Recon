@@ -150,16 +150,40 @@ struct Company: Codable, Identifiable, Hashable {
 struct Contact: Codable, Identifiable, Hashable {
     var id: Int? = nil
     var companyId: Int? = nil
+    var company: String? = nil
     var name: String? = nil
     var role: String? = nil
     var email: String? = nil
     var linkedin: String? = nil
     var warmth: String? = nil
+    var status: String? = nil          // to_reach | sent | replied | met
+    var lastTouch: String? = nil       // yyyy-MM-dd
+    var nextTouch: String? = nil
+    var lastOutreach: String? = nil
     var notes: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, name, role, email, linkedin, warmth, notes
+        case id, company, name, role, email, linkedin, warmth, status, notes
         case companyId = "company_id"
+        case lastTouch = "last_touch"
+        case nextTouch = "next_touch"
+        case lastOutreach = "last_outreach"
+    }
+
+    static let statuses = ["to_reach", "sent", "replied", "met"]
+    var statusLabel: String {
+        switch status {
+        case "sent": return "Reached out"
+        case "replied": return "Replied"
+        case "met": return "Met"
+        default: return "To reach"
+        }
+    }
+    /// next-touch is due if on/before today
+    var nextTouchDue: Bool {
+        guard let s = nextTouch, let d = DateFormatter.ymd.date(from: String(s.prefix(10)))
+        else { return false }
+        return Calendar.current.startOfDay(for: d) <= Calendar.current.startOfDay(for: Date())
     }
 }
 
