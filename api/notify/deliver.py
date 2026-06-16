@@ -107,3 +107,41 @@ def deliver_alert(roles: list) -> dict:
 
     log.info("deliver_alert (%d roles): %s", len(roles), results)
     return results
+
+
+def deliver_reminders(due: list, stale: list) -> dict:
+    """Once-a-day pipeline reminders: follow-ups due + 'applied' gone stale.
+    `due`/`stale` are Application objects. No-ops when channels are disabled."""
+    if not due and not stale:
+        return {}
+    from config import settings
+
+    lines = []
+    for a in due:
+        lines.append(f"⏰ {a.company_name or '?'} — {a.role_title or '?'}: "
+                     f"{a.next_action or 'follow up'} (due {a.next_action_due})")
+    for a in stale:
+        when = a.applied_at.date() if a.applied_at else "?"
+        lines.append(f"🕓 {a.company_name or '?'} — {a.role_title or '?'}: "
+                     f"applied {when}, no movement")
+    title = f"Recon: {len(due) + len(stale)} pipeline item(s) need action"
+    body = title + "\n" + "\n".join(lines[:20])
+    results: dict[str, str] = {}
+
+    try:
+        if not settings.notify_push_enabled:
+            results["push"] = "skipped"
+        else:
+            send_push(title=title, body=title, url="/"); results["push"] = "ok"
+    except Exception as e:
+        results["push"] = "error"; log.warning("reminder push failed: %s", e)
+    try:
+        if not settings.notify_email_enabled:
+            results["email"] = "skipped"
+        else:
+            send_email(subject=title, markdown_body=body); results["email"] = "ok"
+    except Exception as e:
+        results["email"] = "error"; log.warning("reminder email failed: %s", e)
+
+    log.info("deliver_reminders (%d items): %s", len(due) + len(stale), results)
+    return results

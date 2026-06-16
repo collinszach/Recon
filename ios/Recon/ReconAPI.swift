@@ -104,6 +104,16 @@ struct ReconAPI {
     func move(appId: Int, to stage: String) async throws -> AppItem {
         try await send("PATCH", "api/applications/\(appId)", body: StageUpdate(stage: stage), as: AppItem.self)
     }
+    struct AppUpdate: Encodable {
+        var stage: String?
+        var next_action: String?
+        var next_action_due: String?
+        var notes: String?
+        var outcome: String?
+    }
+    func updateApp(id: Int, _ body: AppUpdate) async throws -> AppItem {
+        try await send("PATCH", "api/applications/\(id)", body: body, as: AppItem.self)
+    }
 
     // ---- resume ----
     func resume() async throws -> ResumeData { try await get("api/resume", as: ResumeData.self) }

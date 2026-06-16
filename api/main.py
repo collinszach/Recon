@@ -1,6 +1,6 @@
 """Recon API — REST endpoints + serves the dashboard and brief."""
 import logging
-from datetime import date
+from datetime import date, timedelta
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -145,6 +145,53 @@ class AppUpdate(BaseModel):
     next_action_due: date | None = None
     notes: str | None = None
     outcome: str | None = None
+
+
+STAGES = ["watching", "drafting", "applied", "screen", "onsite", "offer", "closed"]
+
+
+@app.get("/api/pipeline/stats")
+def pipeline_stats(stale_days: int = 10, db: Session = Depends(get_db)):
+    """Funnel counts + what needs action — powers the dashboard + reminders."""
+    apps = db.scalars(select(Application)).all()
+    today = date.today()
+    counts = {s: 0 for s in STAGES}
+    for a in apps:
+        counts[a.stage] = counts.get(a.stage, 0) + 1
+
+    due, stale = [], []
+    for a in apps:
+        if a.stage == "closed":
+            continue
+        if a.next_action_due and a.next_action_due <= today:
+            due.append(a)
+        elif a.stage == "applied" and a.applied_at and a.applied_at.date() <= today - timedelta(days=stale_days):
+            stale.append(a)
+
+    active = sum(counts[s] for s in STAGES if s != "closed")
+    applied_plus = sum(counts[s] for s in ("applied", "screen", "onsite", "offer"))
+    return {
+        "stages": counts,
+        "active": active,
+        "need_action": len(due) + len(stale),
+        "due": [_app_dict(a) for a in due],
+        "stale": [_app_dict(a) for a in stale],
+        "conversion": {
+            "applied_to_screen": _rate(counts, "screen", "applied"),
+            "screen_to_onsite": _rate(counts, "onsite", "screen"),
+            "onsite_to_offer": _rate(counts, "offer", "onsite"),
+            "applied_total": applied_plus,
+        },
+    }
+
+
+def _rate(counts: dict, num_from: str, denom_from: str) -> float | None:
+    # crude funnel: how many reached >= a stage vs the prior. Counts are current
+    # occupancy, so use cumulative "reached at least this stage".
+    order = STAGES
+    reached = lambda s: sum(counts[x] for x in order[order.index(s):] if x != "closed") + counts.get("closed", 0) * 0
+    d = reached(denom_from)
+    return round(reached(num_from) / d, 2) if d else None
 
 
 @app.get("/api/applications")

@@ -122,6 +122,7 @@ class DailyBrief(Base):
     markdown: Mapped[str | None] = mapped_column(Text)
     new_count: Mapped[int] = mapped_column(Integer, default=0)
     action_count: Mapped[int] = mapped_column(Integer, default=0)
+    reminders_sent: Mapped[bool] = mapped_column(Boolean, default=False)  # once/day gate
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -98,6 +98,29 @@ struct AppItem: Codable, Identifiable, Hashable {
         case nextActionDue = "next_action_due"
         case fitScore = "fit_score"
     }
+
+    enum DueState { case overdue, stale }
+    /// What needs attention on this card: a due follow-up or a stale "applied".
+    var dueState: DueState? {
+        if stage == "closed" { return nil }
+        let cal = Calendar.current
+        if let s = nextActionDue,
+           let d = DateFormatter.ymd.date(from: String(s.prefix(10))),
+           cal.startOfDay(for: d) <= cal.startOfDay(for: Date()) { return .overdue }
+        if stage == "applied", let s = appliedAt,
+           let d = ISO8601DateFormatter().date(from: s),
+           let cutoff = cal.date(byAdding: .day, value: -10, to: Date()), d <= cutoff { return .stale }
+        return nil
+    }
+    var dueDateValue: Date? {
+        nextActionDue.flatMap { DateFormatter.ymd.date(from: String($0.prefix(10))) }
+    }
+}
+
+extension DateFormatter {
+    static let ymd: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current; return f
+    }()
 }
 
 struct Company: Codable, Identifiable, Hashable {

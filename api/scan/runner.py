@@ -1,6 +1,6 @@
 """Full daily scan: fetch every active company, reconcile, score, brief."""
 import logging
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from config import settings
@@ -109,6 +109,22 @@ def run_daily_scan() -> dict:
             log.info("brief delivery: %s", delivery)
         except Exception as e:
             log.warning("brief delivery failed: %s: %s", type(e).__name__, e)
+
+        # once-a-day pipeline reminders (follow-ups due, applied gone stale)
+        try:
+            if not brief.reminders_sent:
+                from notify.deliver import deliver_reminders
+                from db import Application
+                apps = db.scalars(select(Application).where(Application.stage != "closed")).all()
+                due = [a for a in apps if a.next_action_due and a.next_action_due <= today]
+                stale = [a for a in apps if a.stage == "applied" and a.applied_at
+                         and a.applied_at.date() <= today - timedelta(days=10)]
+                if due or stale:
+                    log.info("reminders: %s", deliver_reminders(due, stale))
+                brief.reminders_sent = True
+                db.commit()
+        except Exception as e:
+            log.warning("reminders failed: %s: %s", type(e).__name__, e)
 
         run.finished_at = datetime.now(timezone.utc)
         run.companies_scanned = totals["companies"]

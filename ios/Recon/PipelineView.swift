@@ -17,10 +17,31 @@ struct PipelineView: View {
         }
     }
 
+    private var funnel: some View {
+        let counts = store.stageCounts
+        let order: [(String, String)] = [("watching","Watch"),("drafting","Draft"),
+            ("applied","Applied"),("screen","Screen"),("onsite","Onsite"),("offer","Offer")]
+        return VStack(alignment: .leading, spacing: 8) {
+            if store.needActionCount > 0 {
+                Label("\(store.needActionCount) need action", systemImage: "bell.badge")
+                    .font(.caption.weight(.semibold)).foregroundStyle(Theme.rust)
+            }
+            HStack(spacing: 6) {
+                ForEach(order, id: \.0) { key, label in
+                    VStack(spacing: 2) {
+                        Text("\(counts[key] ?? 0)").font(.headline).foregroundStyle(Theme.ink)
+                        Text(label).font(.caption2).foregroundStyle(Theme.inkSoft)
+                    }.frame(maxWidth: .infinity)
+                }
+            }
+        }.reconCard()
+    }
+
     private var applications: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let err = store.error { ErrorBanner(message: err) }
+                if !store.apps.isEmpty { funnel }
                 if store.apps.isEmpty {
                     Text("No applications yet. Find a role under Roles and tap Track to start a card here.")
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
@@ -133,11 +154,13 @@ private struct ContactEditor: View {
 struct AppCard: View {
     let app: AppItem
     @EnvironmentObject var store: Store
+    @State private var showEdit = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(app.companyName ?? "—").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                dueBadge
                 Spacer()
                 if let f = app.fitScore {
                     Text("fit \(String(format: "%.1f", f))").font(.caption.weight(.semibold))
@@ -146,13 +169,18 @@ struct AppCard: View {
             }
             Text(app.roleTitle ?? "—").font(.callout).foregroundStyle(Theme.ink).lineLimit(2)
             if let na = app.nextAction, !na.isEmpty {
-                Label(na, systemImage: "bell").font(.caption).foregroundStyle(Theme.rust)
+                Label("\(na)\(app.nextActionDue.map { " · due \($0.prefix(10))" } ?? "")", systemImage: "bell")
+                    .font(.caption).foregroundStyle(Theme.rust)
             }
             HStack {
                 if let u = app.roleUrl, let url = URL(string: u) {
                     Link("Posting", destination: url).font(.caption)
                 }
                 Spacer()
+                Button { showEdit = true } label: {
+                    Label("Edit", systemImage: "slider.horizontal.3")
+                        .font(.caption.weight(.semibold)).foregroundStyle(Theme.rust)
+                }
                 Menu {
                     ForEach(Stage.allCases) { s in
                         Button(s.label) { Task { await store.move(app, to: s) } }
@@ -164,5 +192,79 @@ struct AppCard: View {
             }
         }
         .reconCard()
+        .sheet(isPresented: $showEdit) { AppEditor(app: app).environmentObject(store) }
+    }
+
+    @ViewBuilder private var dueBadge: some View {
+        switch app.dueState {
+        case .overdue:
+            Text("DUE").font(.caption2.weight(.bold)).foregroundStyle(.white)
+                .padding(.horizontal, 6).padding(.vertical, 2).background(Theme.rust, in: Capsule())
+        case .stale:
+            Text("STALE").font(.caption2.weight(.bold)).foregroundStyle(.white)
+                .padding(.horizontal, 6).padding(.vertical, 2).background(Theme.gold, in: Capsule())
+        case nil: EmptyView()
+        }
+    }
+}
+
+private struct AppEditor: View {
+    let app: AppItem
+    @EnvironmentObject var store: Store
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var stage: String
+    @State private var nextAction: String
+    @State private var hasDue: Bool
+    @State private var due: Date
+    @State private var notes: String
+    @State private var outcome: String
+
+    init(app: AppItem) {
+        self.app = app
+        _stage = State(initialValue: app.stage)
+        _nextAction = State(initialValue: app.nextAction ?? "")
+        _hasDue = State(initialValue: app.dueDateValue != nil)
+        _due = State(initialValue: app.dueDateValue ?? Date())
+        _notes = State(initialValue: app.notes ?? "")
+        _outcome = State(initialValue: app.outcome ?? "")
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Stage") {
+                    Picker("Stage", selection: $stage) {
+                        ForEach(Stage.allCases) { Text($0.label).tag($0.rawValue) }
+                    }
+                }
+                Section("Next action") {
+                    TextField("e.g. Follow up with recruiter", text: $nextAction)
+                    Toggle("Has due date", isOn: $hasDue)
+                    if hasDue { DatePicker("Due", selection: $due, displayedComponents: .date) }
+                }
+                Section("Notes") { TextEditor(text: $notes).frame(minHeight: 80) }
+                if stage == "closed" {
+                    Section("Outcome") { TextField("won / lost / withdrawn", text: $outcome) }
+                }
+            }
+            .navigationTitle(app.companyName ?? "Application").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { Task { await save(); dismiss() } }
+                }
+            }
+        }
+    }
+
+    private func save() async {
+        let body = ReconAPI.AppUpdate(
+            stage: stage == app.stage ? nil : stage,
+            next_action: nextAction.isEmpty ? nil : nextAction,
+            next_action_due: hasDue ? DateFormatter.ymd.string(from: due) : nil,
+            notes: notes.isEmpty ? nil : notes,
+            outcome: outcome.isEmpty ? nil : outcome)
+        await store.updateApp(app, body)
     }
 }

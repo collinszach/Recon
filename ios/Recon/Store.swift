@@ -85,8 +85,22 @@ final class Store: ObservableObject {
         do {
             let updated = try await api.move(appId: app.id, to: stage.rawValue)
             if let i = apps.firstIndex(where: { $0.id == app.id }) { apps[i] = updated }
+            Cache.save(apps, "apps")
         } catch { self.error = error.localizedDescription }
     }
+    func updateApp(_ app: AppItem, _ body: ReconAPI.AppUpdate) async {
+        do {
+            let updated = try await api.updateApp(id: app.id, body)
+            if let i = apps.firstIndex(where: { $0.id == app.id }) { apps[i] = updated }
+            Cache.save(apps, "apps")
+        } catch { self.error = error.localizedDescription }
+    }
+
+    /// Client-side funnel (works offline).
+    var stageCounts: [String: Int] {
+        Dictionary(grouping: apps, by: { $0.stage }).mapValues(\.count)
+    }
+    var needActionCount: Int { apps.filter { $0.dueState != nil }.count }
 
     // ---- resume ----
     func loadResume() async {
