@@ -41,7 +41,7 @@ private struct NavTab<Content: View>: View {
         NavigationStack {
             content()
                 .environmentObject(store)
-                .background(Theme.paper.ignoresSafeArea())
+                .reconBackground()
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.large)
                 .toolbar {

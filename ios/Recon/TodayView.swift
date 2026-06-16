@@ -18,13 +18,9 @@ struct TodayView: View {
                 if let err = store.error { ErrorBanner(message: err) }
 
                 // headline
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Summer 2027 internships + full-time PM")
-                        .font(.subheadline).foregroundStyle(Theme.inkSoft)
-                    if let b = store.brief {
-                        Text(b.date).font(.caption).foregroundStyle(Theme.inkSoft)
-                    }
-                }
+                SectionHeader(title: "Recruiting today",
+                              eyebrow: "Summer 2027 + full-time",
+                              trailing: store.brief?.date)
 
                 // stat row
                 HStack(spacing: 10) {
@@ -33,8 +29,7 @@ struct TodayView: View {
                     Stat(num: "\(store.apps.count)", label: "pipeline", color: Theme.green)
                 }
 
-                // top matches
-                Text("Top matches").font(.headline).foregroundStyle(Theme.ink)
+                SectionHeader(title: "Top matches")
                 if store.feed.isEmpty {
                     Text("No high-fit internships open yet. Most Summer 2027 reqs post Aug 2026–Jan 2027 — Recon scans daily and will surface them here.")
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()

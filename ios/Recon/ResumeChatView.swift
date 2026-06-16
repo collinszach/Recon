@@ -34,7 +34,7 @@ struct ResumeChatView: View {
                 }
                 inputBar
             }
-            .background(Theme.paper.ignoresSafeArea())
+            .background(Theme.canvas.ignoresSafeArea())
             .navigationTitle("Résumé coach").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }

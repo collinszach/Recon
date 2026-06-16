@@ -128,19 +128,16 @@ struct RoleDetailView: View {
 
                 Button { showTailor = true } label: {
                     Label("Tailor my résumé to this role", systemImage: "wand.and.stars")
-                        .frame(maxWidth: .infinity)
-                }.buttonStyle(.borderedProminent).tint(Theme.gold)
+                }.buttonStyle(ReconButtonStyle(color: Theme.gold))
 
                 Button { showOutreach = true } label: {
                     Label("Draft outreach", systemImage: "envelope")
-                        .frame(maxWidth: .infinity)
-                }.buttonStyle(.bordered).tint(Theme.rust)
+                }.buttonStyle(ReconButtonStyle(color: Theme.rust, soft: true))
 
                 if let levels = levelsURL {
                     Link(destination: levels) {
                         Label("Check comp on levels.fyi", systemImage: "chart.bar")
-                            .frame(maxWidth: .infinity)
-                    }.buttonStyle(.bordered).tint(Theme.inkSoft)
+                    }.buttonStyle(ReconButtonStyle(color: Theme.inkSoft, soft: true))
                 }
 
                 HStack(spacing: 12) {
@@ -160,7 +157,7 @@ struct RoleDetailView: View {
             }
             .padding(16)
         }
-        .background(Theme.paper.ignoresSafeArea())
+        .background(Theme.canvas.ignoresSafeArea())
         .navigationTitle(role.company ?? "Role")
         .navigationBarTitleDisplayMode(.inline)
         .scrollContentBackground(.hidden)

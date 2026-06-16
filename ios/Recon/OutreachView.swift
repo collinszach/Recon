@@ -43,7 +43,7 @@ struct OutreachView: View {
                 .padding(16)
             }
             .scrollContentBackground(.hidden)
-            .background(Theme.paper.ignoresSafeArea())
+            .background(Theme.canvas.ignoresSafeArea())
             .navigationTitle("Draft outreach").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
