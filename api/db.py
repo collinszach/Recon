@@ -87,6 +87,19 @@ class ApplicationEvent(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class Interview(Base):
+    __tablename__ = "interviews"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    application_id: Mapped[int] = mapped_column(ForeignKey("applications.id", ondelete="CASCADE"))
+    kind: Mapped[str | None] = mapped_column(String)         # recruiter|phone|technical|behavioral|onsite|final
+    scheduled_at: Mapped[date | None] = mapped_column(Date)
+    interviewer: Mapped[str | None] = mapped_column(String)
+    notes: Mapped[str | None] = mapped_column(Text)
+    outcome: Mapped[str | None] = mapped_column(String)      # pending|passed|rejected
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    application: Mapped["Application"] = relationship()
+
+
 class Contact(Base):
     __tablename__ = "contacts"
     id: Mapped[int] = mapped_column(primary_key=True)

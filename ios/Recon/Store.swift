@@ -152,6 +152,12 @@ final class Store: ObservableObject {
         catch { return Outreach(subject: nil, draft: nil,
                                 error: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription) }
     }
+    func interviewPrep(roleId: Int) async -> InterviewPrep? {
+        do { return try await api.interviewPrep(roleId: roleId) }
+        catch { return InterviewPrep(likely_questions: nil, talking_points: nil, questions_to_ask: nil,
+                                     watch_outs: nil,
+                                     error: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription) }
+    }
     func resumeChat(_ turns: [ChatTurn]) async -> ChatResponse? {
         do { return try await api.resumeChat(turns) }
         catch { self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription; return nil }

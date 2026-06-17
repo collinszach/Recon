@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		08AC936BC598B07CE867B195 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E9375FB210A231D2C01F7E31 /* Assets.xcassets */; };
+		49FE789BAC065AF26C2076C2 /* InterviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7085DDB2C4B0F6836C7033EE /* InterviewView.swift */; };
 		4A18FAE4B2AFF4D151348099 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC32975C0C935275D4262C59 /* Theme.swift */; };
 		4E4756D57BBE77DE94D69266 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FADEC955C674FDAACD38807 /* Store.swift */; };
 		62AB7904EDBA3732B6698298 /* WebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F60F4B967298A00D69E514C /* WebView.swift */; };
@@ -39,6 +40,7 @@
 		5AD7953811F2AB3F092A7385 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		6A962BF4AC58831091B17184 /* CurriculumData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurriculumData.swift; sourceTree = "<group>"; };
 		6DDD42416FEDA27BE78FEC79 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		7085DDB2C4B0F6836C7033EE /* InterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewView.swift; sourceTree = "<group>"; };
 		76BA873DE6B0360D7C07241B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		8ADA461DA6E79A1B1FFEF1C0 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
 		90025B482BF866FEDC4EE6C7 /* OutreachView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutreachView.swift; sourceTree = "<group>"; };
@@ -73,6 +75,7 @@
 				76BA873DE6B0360D7C07241B /* ContentView.swift */,
 				6A962BF4AC58831091B17184 /* CurriculumData.swift */,
 				4206E9767DC519781176F669 /* Info.plist */,
+				7085DDB2C4B0F6836C7033EE /* InterviewView.swift */,
 				6DDD42416FEDA27BE78FEC79 /* Models.swift */,
 				90025B482BF866FEDC4EE6C7 /* OutreachView.swift */,
 				E1772CE16FE1EC11150F68CD /* PipelineView.swift */,
@@ -184,6 +187,7 @@
 				C7C29FC63C967D104B0557CD /* Config.swift in Sources */,
 				8931911BC248EF29396159E5 /* ContentView.swift in Sources */,
 				9DDEA06D0EB1E46DEF05CC3B /* CurriculumData.swift in Sources */,
+				49FE789BAC065AF26C2076C2 /* InterviewView.swift in Sources */,
 				FAD4614433E40A5174EB8709 /* Models.swift in Sources */,
 				C9E461B04F9A903CD6A62CCB /* OutreachView.swift in Sources */,
 				8C251550BAE93B2382F8C60A /* PipelineView.swift in Sources */,

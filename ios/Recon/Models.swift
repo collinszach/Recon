@@ -187,6 +187,33 @@ struct Contact: Codable, Identifiable, Hashable {
     }
 }
 
+struct Interview: Codable, Identifiable, Hashable {
+    var id: Int? = nil
+    var applicationId: Int? = nil
+    var kind: String? = nil
+    var scheduledAt: String? = nil     // yyyy-MM-dd
+    var interviewer: String? = nil
+    var notes: String? = nil
+    var outcome: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, interviewer, notes, outcome
+        case applicationId = "application_id"
+        case scheduledAt = "scheduled_at"
+    }
+    static let kinds = ["recruiter", "phone", "technical", "behavioral", "onsite", "final"]
+    var dateValue: Date? { scheduledAt.flatMap { DateFormatter.ymd.date(from: String($0.prefix(10))) } }
+}
+
+/// Result of POST /api/roles/{id}/interview_prep
+struct InterviewPrep: Codable {
+    let likely_questions: [String]?
+    let talking_points: [String]?
+    let questions_to_ask: [String]?
+    let watch_outs: [String]?
+    let error: String?
+}
+
 enum Stage: String, CaseIterable, Identifiable {
     case watching, drafting, applied, screen, onsite, offer, closed
     var id: String { rawValue }

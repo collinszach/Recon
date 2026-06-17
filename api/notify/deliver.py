@@ -109,14 +109,19 @@ def deliver_alert(roles: list) -> dict:
     return results
 
 
-def deliver_reminders(due: list, stale: list) -> dict:
-    """Once-a-day pipeline reminders: follow-ups due + 'applied' gone stale.
-    `due`/`stale` are Application objects. No-ops when channels are disabled."""
-    if not due and not stale:
+def deliver_reminders(due: list, stale: list, interviews: list | None = None) -> dict:
+    """Once-a-day pipeline reminders: follow-ups due, 'applied' gone stale, and
+    interviews coming up. No-ops when channels are disabled."""
+    interviews = interviews or []
+    if not due and not stale and not interviews:
         return {}
     from config import settings
 
     lines = []
+    for iv in interviews:
+        app = getattr(iv, "application", None)
+        co = getattr(app, "company_name", None) or "?"
+        lines.append(f"🎯 Interview {iv.scheduled_at}: {co} — {iv.kind or 'round'}")
     for a in due:
         lines.append(f"⏰ {a.company_name or '?'} — {a.role_title or '?'}: "
                      f"{a.next_action or 'follow up'} (due {a.next_action_due})")
@@ -124,7 +129,8 @@ def deliver_reminders(due: list, stale: list) -> dict:
         when = a.applied_at.date() if a.applied_at else "?"
         lines.append(f"🕓 {a.company_name or '?'} — {a.role_title or '?'}: "
                      f"applied {when}, no movement")
-    title = f"Recon: {len(due) + len(stale)} pipeline item(s) need action"
+    n = len(due) + len(stale) + len(interviews)
+    title = f"Recon: {n} pipeline item(s) need action"
     body = title + "\n" + "\n".join(lines[:20])
     results: dict[str, str] = {}
 

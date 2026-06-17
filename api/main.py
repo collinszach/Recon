@@ -11,6 +11,7 @@ from config import settings
 from db import (
     Base, engine, SessionLocal, Company, Role, Application, ApplicationEvent,
     Contact, DailyBrief, ScanRun, PushSubscription, Resume, ResumeExperience,
+    Interview,
 )
 from seed.companies import seed as seed_companies
 
@@ -315,6 +316,65 @@ def update_contact(contact_id: int, body: ContactUpdate, db: Session = Depends(g
         setattr(c, f, v)
     db.commit()
     return _contact_dict(c)
+
+
+# ─── interviews ─────────────────────────────────────────────
+class InterviewIn(BaseModel):
+    kind: str | None = None
+    scheduled_at: date | None = None
+    interviewer: str | None = None
+    notes: str | None = None
+    outcome: str | None = None
+
+
+def _iv_dict(i: Interview) -> dict:
+    return {"id": i.id, "application_id": i.application_id, "kind": i.kind,
+            "scheduled_at": i.scheduled_at.isoformat() if i.scheduled_at else None,
+            "interviewer": i.interviewer, "notes": i.notes, "outcome": i.outcome}
+
+
+@app.get("/api/applications/{app_id}/interviews")
+def list_interviews(app_id: int, db: Session = Depends(get_db)):
+    rows = db.scalars(select(Interview).where(Interview.application_id == app_id)
+                      .order_by(Interview.scheduled_at.nullslast())).all()
+    return [_iv_dict(i) for i in rows]
+
+
+@app.post("/api/applications/{app_id}/interviews")
+def add_interview(app_id: int, body: InterviewIn, db: Session = Depends(get_db)):
+    if not db.get(Application, app_id):
+        raise HTTPException(404, "application not found")
+    i = Interview(application_id=app_id, **body.model_dump(exclude_unset=True))
+    db.add(i); db.commit()
+    return _iv_dict(i)
+
+
+@app.patch("/api/interviews/{iv_id}")
+def update_interview(iv_id: int, body: InterviewIn, db: Session = Depends(get_db)):
+    i = db.get(Interview, iv_id)
+    if not i:
+        raise HTTPException(404, "interview not found")
+    for f, v in body.model_dump(exclude_unset=True).items():
+        setattr(i, f, v)
+    db.commit()
+    return _iv_dict(i)
+
+
+@app.delete("/api/interviews/{iv_id}")
+def delete_interview(iv_id: int, db: Session = Depends(get_db)):
+    i = db.get(Interview, iv_id)
+    if i:
+        db.delete(i); db.commit()
+    return {"status": "ok"}
+
+
+@app.post("/api/roles/{role_id}/interview_prep")
+def interview_prep_endpoint(role_id: int, db: Session = Depends(get_db)):
+    role = db.get(Role, role_id)
+    if not role:
+        raise HTTPException(404, "role not found")
+    from resume.interview import interview_prep
+    return interview_prep(db, role)
 
 
 def _contact_dict(c: Contact) -> dict:

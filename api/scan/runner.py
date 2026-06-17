@@ -114,13 +114,17 @@ def run_daily_scan() -> dict:
         try:
             if not brief.reminders_sent:
                 from notify.deliver import deliver_reminders
-                from db import Application
+                from db import Application, Interview
                 apps = db.scalars(select(Application).where(Application.stage != "closed")).all()
                 due = [a for a in apps if a.next_action_due and a.next_action_due <= today]
                 stale = [a for a in apps if a.stage == "applied" and a.applied_at
                          and a.applied_at.date() <= today - timedelta(days=10)]
-                if due or stale:
-                    log.info("reminders: %s", deliver_reminders(due, stale))
+                ivs = db.scalars(select(Interview).where(
+                    Interview.scheduled_at.isnot(None),
+                    Interview.scheduled_at >= today,
+                    Interview.scheduled_at <= today + timedelta(days=2))).all()
+                if due or stale or ivs:
+                    log.info("reminders: %s", deliver_reminders(due, stale, ivs))
                 brief.reminders_sent = True
                 db.commit()
         except Exception as e:

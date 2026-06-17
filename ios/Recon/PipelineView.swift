@@ -294,6 +294,13 @@ private struct AppEditor: View {
                     Toggle("Has due date", isOn: $hasDue)
                     if hasDue { DatePicker("Due", selection: $due, displayedComponents: .date) }
                 }
+                Section {
+                    NavigationLink {
+                        ScrollView { InterviewsCard(appId: app.id).padding(16) }
+                            .background(Theme.canvas.ignoresSafeArea())
+                            .navigationTitle("Interviews").navigationBarTitleDisplayMode(.inline)
+                    } label: { Label("Interview rounds", systemImage: "person.2.wave.2") }
+                }
                 Section("Notes") { TextEditor(text: $notes).frame(minHeight: 80) }
                 if stage == "closed" {
                     Section("Outcome") { TextField("won / lost / withdrawn", text: $outcome) }

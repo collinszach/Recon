@@ -142,6 +142,23 @@ struct ReconAPI {
     func draftOutreach(roleId: Int) async throws -> Outreach {
         try await send("POST", "api/roles/\(roleId)/draft_outreach", body: [String: String](), as: Outreach.self)
     }
+    func interviewPrep(roleId: Int) async throws -> InterviewPrep {
+        try await send("POST", "api/roles/\(roleId)/interview_prep", body: [String: String](), as: InterviewPrep.self)
+    }
+
+    // ---- interviews ----
+    func interviews(appId: Int) async throws -> [Interview] {
+        try await get("api/applications/\(appId)/interviews", as: [Interview].self)
+    }
+    func addInterview(appId: Int, _ iv: Interview) async throws -> Interview {
+        try await send("POST", "api/applications/\(appId)/interviews", body: iv, as: Interview.self)
+    }
+    func updateInterview(_ iv: Interview) async throws -> Interview {
+        try await send("PATCH", "api/interviews/\(iv.id ?? 0)", body: iv, as: Interview.self)
+    }
+    func deleteInterview(id: Int) async throws {
+        _ = try await execute("DELETE", "api/interviews/\(id)", body: nil)
+    }
 
     struct ChatReq: Encodable { let messages: [[String: String]] }
     func resumeChat(_ turns: [ChatTurn]) async throws -> ChatResponse {
