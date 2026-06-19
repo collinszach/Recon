@@ -32,9 +32,8 @@ struct CoverLetterView: View {
 
                         Button {
                             Task {
-                                await store.saveMaterial(Material(roleId: role.id, kind: "cover_letter",
+                                saved = await store.saveMaterial(Material(roleId: role.id, kind: "cover_letter",
                                     title: d.title ?? roleLabel, content: d.content))
-                                saved = true
                             }
                         } label: { Label(saved ? "Saved to vault" : "Save to vault",
                                          systemImage: saved ? "checkmark" : "tray.and.arrow.down") }
@@ -54,6 +53,7 @@ struct CoverLetterView: View {
 /// Saved materials for a role: list + view + delete.
 struct MaterialsCard: View {
     let role: Role
+    var refresh: Int = 0
     @State private var materials: [Material] = []
     @State private var viewing: Material?
 
@@ -75,7 +75,7 @@ struct MaterialsCard: View {
                 }.frame(maxWidth: .infinity, alignment: .leading).reconCard()
             }
         }
-        .task { await reload() }
+        .task(id: refresh) { await reload() }
         .sheet(item: $viewing) { m in MaterialViewer(material: m) { await reload() } }
     }
     func reload() async { materials = (try? await ReconAPI.shared.materials(roleId: role.id)) ?? [] }

@@ -100,6 +100,7 @@ struct RoleDetailView: View {
     @State private var showOutreach = false
     @State private var showPrep = false
     @State private var showCover = false
+    @State private var matRefresh = 0
     @State private var companyContacts: [Contact] = []
 
     /// levels.fyi has no public API, so deep-link a search for the company.
@@ -163,7 +164,7 @@ struct RoleDetailView: View {
                     Label("Cover letter", systemImage: "doc.text")
                 }.buttonStyle(ReconButtonStyle(color: Theme.gold, soft: true))
 
-                MaterialsCard(role: role)
+                MaterialsCard(role: role, refresh: matRefresh)
 
                 if let levels = levelsURL {
                     Link(destination: levels) {
@@ -192,10 +193,10 @@ struct RoleDetailView: View {
         .navigationTitle(role.company ?? "Role")
         .navigationBarTitleDisplayMode(.inline)
         .scrollContentBackground(.hidden)
-        .sheet(isPresented: $showTailor) { TailorView(role: role).environmentObject(store) }
-        .sheet(isPresented: $showOutreach) { OutreachView(role: role).environmentObject(store) }
+        .sheet(isPresented: $showTailor, onDismiss: { matRefresh += 1 }) { TailorView(role: role).environmentObject(store) }
+        .sheet(isPresented: $showOutreach, onDismiss: { matRefresh += 1 }) { OutreachView(role: role).environmentObject(store) }
         .sheet(isPresented: $showPrep) { InterviewPrepView(role: role).environmentObject(store) }
-        .sheet(isPresented: $showCover) { CoverLetterView(role: role).environmentObject(store) }
+        .sheet(isPresented: $showCover, onDismiss: { matRefresh += 1 }) { CoverLetterView(role: role).environmentObject(store) }
         .task {
             if let co = role.company {
                 companyContacts = (try? await ReconAPI.shared.contacts(company: co)) ?? []

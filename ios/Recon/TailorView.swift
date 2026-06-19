@@ -40,9 +40,8 @@ struct TailorView: View {
 
                         Button {
                             Task {
-                                await store.saveMaterial(Material(roleId: role.id, kind: "resume",
+                                saved = await store.saveMaterial(Material(roleId: role.id, kind: "resume",
                                     title: "\(role.company ?? "") — \(role.title)", content: vaultText(t)))
-                                saved = true
                             }
                         } label: { Label(saved ? "Saved to vault" : "Save to vault",
                                          systemImage: saved ? "checkmark" : "tray.and.arrow.down") }

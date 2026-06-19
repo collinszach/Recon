@@ -53,9 +53,8 @@ struct OutreachView: View {
                         Button {
                             Task {
                                 let body = [r.subject, r.draft].compactMap { $0 }.joined(separator: "\n\n")
-                                await store.saveMaterial(Material(roleId: role.id, kind: "outreach",
+                                savedVault = await store.saveMaterial(Material(roleId: role.id, kind: "outreach",
                                     title: "\(role.company ?? "") — \(role.title)", content: body))
-                                savedVault = true
                             }
                         } label: { Label(savedVault ? "Saved to vault" : "Save to vault",
                                          systemImage: savedVault ? "checkmark" : "tray.and.arrow.down") }

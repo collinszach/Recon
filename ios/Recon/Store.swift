@@ -163,8 +163,10 @@ final class Store: ObservableObject {
         catch { return GenDoc(title: nil, content: nil,
                               error: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription) }
     }
-    func saveMaterial(_ m: Material) async {
-        do { try await api.saveMaterial(m) } catch { self.error = error.localizedDescription }
+    @discardableResult
+    func saveMaterial(_ m: Material) async -> Bool {
+        do { try await api.saveMaterial(m); return true }
+        catch { self.error = error.localizedDescription; return false }
     }
     func resumeChat(_ turns: [ChatTurn]) async -> ChatResponse? {
         do { return try await api.resumeChat(turns) }
