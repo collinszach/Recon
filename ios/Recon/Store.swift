@@ -158,6 +158,11 @@ final class Store: ObservableObject {
                                      watch_outs: nil,
                                      error: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription) }
     }
+    func networking(roleId: Int) async -> NetworkingPlan {
+        do { return try await api.networking(roleId: roleId) }
+        catch { return NetworkingPlan(summary: nil, targets: nil,
+                                      error: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription) }
+    }
     func coverLetter(roleId: Int) async -> GenDoc? {
         do { return try await api.coverLetter(roleId: roleId) }
         catch { return GenDoc(title: nil, content: nil,

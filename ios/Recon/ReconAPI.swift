@@ -148,6 +148,9 @@ struct ReconAPI {
     func coverLetter(roleId: Int) async throws -> GenDoc {
         try await send("POST", "api/roles/\(roleId)/cover_letter", body: [String: String](), as: GenDoc.self)
     }
+    func networking(roleId: Int) async throws -> NetworkingPlan {
+        try await send("POST", "api/roles/\(roleId)/networking", body: [String: String](), as: NetworkingPlan.self)
+    }
 
     // ---- materials vault ----
     func materials(roleId: Int) async throws -> [Material] {

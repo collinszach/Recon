@@ -100,6 +100,7 @@ struct RoleDetailView: View {
     @State private var showOutreach = false
     @State private var showPrep = false
     @State private var showCover = false
+    @State private var showNetwork = false
     @State private var matRefresh = 0
     @State private var companyContacts: [Contact] = []
 
@@ -152,6 +153,10 @@ struct RoleDetailView: View {
                     Label("Tailor my résumé to this role", systemImage: "wand.and.stars")
                 }.buttonStyle(ReconButtonStyle(color: Theme.gold))
 
+                Button { showNetwork = true } label: {
+                    Label("Who to reach out to", systemImage: "person.2.badge.gearshape")
+                }.buttonStyle(ReconButtonStyle(color: Theme.rust))
+
                 Button { showOutreach = true } label: {
                     Label("Draft outreach", systemImage: "envelope")
                 }.buttonStyle(ReconButtonStyle(color: Theme.rust, soft: true))
@@ -197,6 +202,7 @@ struct RoleDetailView: View {
         .sheet(isPresented: $showOutreach, onDismiss: { matRefresh += 1 }) { OutreachView(role: role).environmentObject(store) }
         .sheet(isPresented: $showPrep) { InterviewPrepView(role: role).environmentObject(store) }
         .sheet(isPresented: $showCover, onDismiss: { matRefresh += 1 }) { CoverLetterView(role: role).environmentObject(store) }
+        .sheet(isPresented: $showNetwork) { NetworkingView(role: role).environmentObject(store) }
         .task {
             if let co = role.company {
                 companyContacts = (try? await ReconAPI.shared.contacts(company: co)) ?? []

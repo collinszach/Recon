@@ -220,6 +220,38 @@ struct GenDoc: Codable {
     let error: String?
 }
 
+/// One person-type worth reaching out to at a target company.
+struct ReachTarget: Codable, Identifiable, Hashable {
+    var id: String { persona + (opener ?? "") }
+    let persona: String
+    let warmth: String?
+    let why: String?
+    let findHint: String?
+    let opener: String?
+    let linkedinSearch: String?
+
+    enum CodingKeys: String, CodingKey {
+        case persona, warmth, why, opener
+        case findHint = "find_hint"
+        case linkedinSearch = "linkedin_search"
+    }
+    enum WarmthTone { case warm, medium, cold }
+    var warmthTone: WarmthTone {
+        switch (warmth ?? "").lowercased() {
+        case "warm": return .warm
+        case "medium": return .medium
+        default: return .cold
+        }
+    }
+}
+
+/// Researched networking plan for a role: who to reach out to and how.
+struct NetworkingPlan: Codable {
+    let summary: String?
+    let targets: [ReachTarget]?
+    let error: String?
+}
+
 struct Interview: Codable, Identifiable, Hashable {
     var id: Int? = nil
     var applicationId: Int? = nil

@@ -369,6 +369,15 @@ def cover_letter_endpoint(role_id: int, db: Session = Depends(get_db)):
     return cover_letter(db, role)
 
 
+@app.post("/api/roles/{role_id}/networking")
+def networking_endpoint(role_id: int, db: Session = Depends(get_db)):
+    role = db.get(Role, role_id)
+    if not role:
+        raise HTTPException(404, "role not found")
+    from resume.networking import who_to_reach
+    return who_to_reach(db, role)
+
+
 # ─── interviews ─────────────────────────────────────────────
 class InterviewIn(BaseModel):
     kind: str | None = None
