@@ -7,6 +7,7 @@ struct InterviewPrepView: View {
     let role: Role
     @State private var prep: InterviewPrep?
     @State private var loading = true
+    @State private var saved = false
 
     var body: some View {
         NavigationStack {
@@ -25,6 +26,15 @@ struct InterviewPrepView: View {
                         list("Talking points (from your resume)", p.talking_points, "star.fill", Theme.green)
                         list("Questions to ask them", p.questions_to_ask, "hand.raised.fill", Theme.gold)
                         list("Watch-outs", p.watch_outs, "exclamationmark.triangle.fill", Theme.rust)
+
+                        Button {
+                            Task {
+                                saved = await store.saveMaterial(Material(roleId: role.id, kind: "prep",
+                                    title: "\(role.company ?? "") — \(role.title)", content: vaultText(p)))
+                            }
+                        } label: { Label(saved ? "Saved to vault" : "Save to vault",
+                                         systemImage: saved ? "checkmark" : "tray.and.arrow.down") }
+                            .buttonStyle(ReconButtonStyle(color: Theme.green, soft: true)).disabled(saved)
                     }
                 }.padding(16)
             }
@@ -33,6 +43,17 @@ struct InterviewPrepView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
         .task { prep = await store.interviewPrep(roleId: role.id); loading = false }
+    }
+
+    private func vaultText(_ p: InterviewPrep) -> String {
+        func block(_ title: String, _ items: [String]?) -> String {
+            guard let items, !items.isEmpty else { return "" }
+            return "\(title)\n" + items.map { "• \($0)" }.joined(separator: "\n") + "\n\n"
+        }
+        return (block("LIKELY QUESTIONS", p.likely_questions)
+              + block("TALKING POINTS", p.talking_points)
+              + block("QUESTIONS TO ASK THEM", p.questions_to_ask)
+              + block("WATCH-OUTS", p.watch_outs)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func list(_ title: String, _ items: [String]?, _ symbol: String, _ tint: Color) -> some View {

@@ -200,7 +200,7 @@ struct RoleDetailView: View {
         .scrollContentBackground(.hidden)
         .sheet(isPresented: $showTailor, onDismiss: { matRefresh += 1 }) { TailorView(role: role).environmentObject(store) }
         .sheet(isPresented: $showOutreach, onDismiss: { matRefresh += 1 }) { OutreachView(role: role).environmentObject(store) }
-        .sheet(isPresented: $showPrep) { InterviewPrepView(role: role).environmentObject(store) }
+        .sheet(isPresented: $showPrep, onDismiss: { matRefresh += 1 }) { InterviewPrepView(role: role).environmentObject(store) }
         .sheet(isPresented: $showCover, onDismiss: { matRefresh += 1 }) { CoverLetterView(role: role).environmentObject(store) }
         .sheet(isPresented: $showNetwork) { NetworkingView(role: role).environmentObject(store) }
         .task {
