@@ -187,6 +187,39 @@ struct Contact: Codable, Identifiable, Hashable {
     }
 }
 
+struct Material: Codable, Identifiable, Hashable {
+    var id: Int? = nil
+    var roleId: Int? = nil
+    var applicationId: Int? = nil
+    var kind: String
+    var title: String? = nil
+    var content: String? = nil
+    var createdAt: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, title, content
+        case roleId = "role_id"
+        case applicationId = "application_id"
+        case createdAt = "created_at"
+    }
+    var kindLabel: String {
+        switch kind {
+        case "cover_letter": return "Cover letter"
+        case "outreach": return "Outreach"
+        case "resume": return "Tailored résumé"
+        case "prep": return "Interview prep"
+        default: return kind.capitalized
+        }
+    }
+}
+
+/// Generic generated document (cover letter, etc.)
+struct GenDoc: Codable {
+    let title: String?
+    let content: String?
+    let error: String?
+}
+
 struct Interview: Codable, Identifiable, Hashable {
     var id: Int? = nil
     var applicationId: Int? = nil

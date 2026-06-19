@@ -8,6 +8,7 @@ struct TailorView: View {
 
     @State private var result: Tailoring?
     @State private var loading = true
+    @State private var saved = false
 
     var body: some View {
         NavigationStack {
@@ -36,6 +37,16 @@ struct TailorView: View {
                         if let kw = t.keywords, !kw.isEmpty { keywords(kw) }
                         if let s = t.tailored_summary { copyBlock("Tailored summary", s) }
                         if let b = t.suggested_bullets, !b.isEmpty { bullets(b) }
+
+                        Button {
+                            Task {
+                                await store.saveMaterial(Material(roleId: role.id, kind: "resume",
+                                    title: "\(role.company ?? "") — \(role.title)", content: vaultText(t)))
+                                saved = true
+                            }
+                        } label: { Label(saved ? "Saved to vault" : "Save to vault",
+                                         systemImage: saved ? "checkmark" : "tray.and.arrow.down") }
+                            .buttonStyle(ReconButtonStyle(color: Theme.green, soft: true)).disabled(saved)
                     }
                 }
                 .padding(16)
@@ -49,6 +60,14 @@ struct TailorView: View {
             result = await store.tailor(roleId: role.id)
             loading = false
         }
+    }
+
+    private func vaultText(_ t: Tailoring) -> String {
+        var s = ""
+        if let v = t.tailored_summary { s += "SUMMARY\n\(v)\n\n" }
+        if let b = t.suggested_bullets, !b.isEmpty { s += "BULLETS\n" + b.map { "• \($0)" }.joined(separator: "\n") + "\n\n" }
+        if let k = t.keywords, !k.isEmpty { s += "KEYWORDS: " + k.joined(separator: ", ") }
+        return s
     }
 
     private func para(_ title: String, _ body: String) -> some View {

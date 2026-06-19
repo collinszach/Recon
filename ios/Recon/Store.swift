@@ -158,6 +158,14 @@ final class Store: ObservableObject {
                                      watch_outs: nil,
                                      error: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription) }
     }
+    func coverLetter(roleId: Int) async -> GenDoc? {
+        do { return try await api.coverLetter(roleId: roleId) }
+        catch { return GenDoc(title: nil, content: nil,
+                              error: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription) }
+    }
+    func saveMaterial(_ m: Material) async {
+        do { try await api.saveMaterial(m) } catch { self.error = error.localizedDescription }
+    }
     func resumeChat(_ turns: [ChatTurn]) async -> ChatResponse? {
         do { return try await api.resumeChat(turns) }
         catch { self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription; return nil }

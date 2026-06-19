@@ -11,7 +11,7 @@ from config import settings
 from db import (
     Base, engine, SessionLocal, Company, Role, Application, ApplicationEvent,
     Contact, DailyBrief, ScanRun, PushSubscription, Resume, ResumeExperience,
-    Interview,
+    Interview, Material,
 )
 from seed.companies import seed as seed_companies
 
@@ -316,6 +316,57 @@ def update_contact(contact_id: int, body: ContactUpdate, db: Session = Depends(g
         setattr(c, f, v)
     db.commit()
     return _contact_dict(c)
+
+
+# ─── materials vault ────────────────────────────────────────
+class MaterialIn(BaseModel):
+    role_id: int | None = None
+    application_id: int | None = None
+    kind: str
+    title: str | None = None
+    content: str | None = None
+
+
+def _mat_dict(m: Material) -> dict:
+    return {"id": m.id, "role_id": m.role_id, "application_id": m.application_id,
+            "kind": m.kind, "title": m.title, "content": m.content,
+            "created_at": m.created_at.isoformat() if m.created_at else None}
+
+
+@app.get("/api/materials")
+def list_materials(role_id: int | None = None, application_id: int | None = None,
+                   db: Session = Depends(get_db)):
+    q = select(Material)
+    if role_id is not None:
+        q = q.where(Material.role_id == role_id)
+    if application_id is not None:
+        q = q.where(Material.application_id == application_id)
+    rows = db.scalars(q.order_by(Material.created_at.desc())).all()
+    return [_mat_dict(m) for m in rows]
+
+
+@app.post("/api/materials")
+def create_material(body: MaterialIn, db: Session = Depends(get_db)):
+    m = Material(**body.model_dump())
+    db.add(m); db.commit()
+    return _mat_dict(m)
+
+
+@app.delete("/api/materials/{mat_id}")
+def delete_material(mat_id: int, db: Session = Depends(get_db)):
+    m = db.get(Material, mat_id)
+    if m:
+        db.delete(m); db.commit()
+    return {"status": "ok"}
+
+
+@app.post("/api/roles/{role_id}/cover_letter")
+def cover_letter_endpoint(role_id: int, db: Session = Depends(get_db)):
+    role = db.get(Role, role_id)
+    if not role:
+        raise HTTPException(404, "role not found")
+    from resume.cover import cover_letter
+    return cover_letter(db, role)
 
 
 # ─── interviews ─────────────────────────────────────────────

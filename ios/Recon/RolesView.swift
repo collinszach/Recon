@@ -99,6 +99,7 @@ struct RoleDetailView: View {
     @State private var showTailor = false
     @State private var showOutreach = false
     @State private var showPrep = false
+    @State private var showCover = false
     @State private var companyContacts: [Contact] = []
 
     /// levels.fyi has no public API, so deep-link a search for the company.
@@ -158,6 +159,12 @@ struct RoleDetailView: View {
                     Label("Interview prep", systemImage: "person.2.wave.2")
                 }.buttonStyle(ReconButtonStyle(color: Theme.green, soft: true))
 
+                Button { showCover = true } label: {
+                    Label("Cover letter", systemImage: "doc.text")
+                }.buttonStyle(ReconButtonStyle(color: Theme.gold, soft: true))
+
+                MaterialsCard(role: role)
+
                 if let levels = levelsURL {
                     Link(destination: levels) {
                         Label("Check comp on levels.fyi", systemImage: "chart.bar")
@@ -188,6 +195,7 @@ struct RoleDetailView: View {
         .sheet(isPresented: $showTailor) { TailorView(role: role).environmentObject(store) }
         .sheet(isPresented: $showOutreach) { OutreachView(role: role).environmentObject(store) }
         .sheet(isPresented: $showPrep) { InterviewPrepView(role: role).environmentObject(store) }
+        .sheet(isPresented: $showCover) { CoverLetterView(role: role).environmentObject(store) }
         .task {
             if let co = role.company {
                 companyContacts = (try? await ReconAPI.shared.contacts(company: co)) ?? []

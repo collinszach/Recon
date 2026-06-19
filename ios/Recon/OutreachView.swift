@@ -10,6 +10,7 @@ struct OutreachView: View {
     @State private var result: Outreach?
     @State private var loading = true
     @State private var saved = false
+    @State private var savedVault = false
 
     var body: some View {
         NavigationStack {
@@ -48,6 +49,17 @@ struct OutreachView: View {
                             Label(saved ? "Saved to Contacts" : "Save draft to a \(role.company ?? "company") contact",
                                   systemImage: saved ? "checkmark" : "person.badge.plus")
                         }.buttonStyle(ReconButtonStyle(color: Theme.green, soft: true)).disabled(saved)
+
+                        Button {
+                            Task {
+                                let body = [r.subject, r.draft].compactMap { $0 }.joined(separator: "\n\n")
+                                await store.saveMaterial(Material(roleId: role.id, kind: "outreach",
+                                    title: "\(role.company ?? "") — \(role.title)", content: body))
+                                savedVault = true
+                            }
+                        } label: { Label(savedVault ? "Saved to vault" : "Save to vault",
+                                         systemImage: savedVault ? "checkmark" : "tray.and.arrow.down") }
+                            .buttonStyle(ReconButtonStyle(color: Theme.gold, soft: true)).disabled(savedVault)
 
                         Text("Edit before sending — it's a starting point, not a final message.")
                             .font(.caption2).foregroundStyle(Theme.inkSoft)

@@ -145,6 +145,21 @@ struct ReconAPI {
     func interviewPrep(roleId: Int) async throws -> InterviewPrep {
         try await send("POST", "api/roles/\(roleId)/interview_prep", body: [String: String](), as: InterviewPrep.self)
     }
+    func coverLetter(roleId: Int) async throws -> GenDoc {
+        try await send("POST", "api/roles/\(roleId)/cover_letter", body: [String: String](), as: GenDoc.self)
+    }
+
+    // ---- materials vault ----
+    func materials(roleId: Int) async throws -> [Material] {
+        try await get("api/materials?role_id=\(roleId)", as: [Material].self)
+    }
+    @discardableResult
+    func saveMaterial(_ m: Material) async throws -> Material {
+        try await send("POST", "api/materials", body: m, as: Material.self)
+    }
+    func deleteMaterial(id: Int) async throws {
+        _ = try await execute("DELETE", "api/materials/\(id)", body: nil)
+    }
 
     // ---- interviews ----
     func interviews(appId: Int) async throws -> [Interview] {

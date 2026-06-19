@@ -23,6 +23,7 @@
 		98F70B57F3A526D3E8766684 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ADA461DA6E79A1B1FFEF1C0 /* TodayView.swift */; };
 		9CD0E9FAF72E8591772EB2DB /* Cache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 977EA2656415D2003F53FABA /* Cache.swift */; };
 		9DDEA06D0EB1E46DEF05CC3B /* CurriculumData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A962BF4AC58831091B17184 /* CurriculumData.swift */; };
+		A219082A8BFDB1DBA1E98DF9 /* MaterialsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6821D598F84C4FEF25F86BC5 /* MaterialsView.swift */; };
 		C7C29FC63C967D104B0557CD /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = CECF1C27E840019FA2318A80 /* Config.swift */; };
 		C9E461B04F9A903CD6A62CCB /* OutreachView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90025B482BF866FEDC4EE6C7 /* OutreachView.swift */; };
 		E9C52D468CB0219C5EBA10DC /* RolesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8087971EA041AC04E15E2BD /* RolesView.swift */; };
@@ -38,6 +39,7 @@
 		4206E9767DC519781176F669 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		4FADEC955C674FDAACD38807 /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
 		5AD7953811F2AB3F092A7385 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		6821D598F84C4FEF25F86BC5 /* MaterialsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialsView.swift; sourceTree = "<group>"; };
 		6A962BF4AC58831091B17184 /* CurriculumData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurriculumData.swift; sourceTree = "<group>"; };
 		6DDD42416FEDA27BE78FEC79 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		7085DDB2C4B0F6836C7033EE /* InterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewView.swift; sourceTree = "<group>"; };
@@ -76,6 +78,7 @@
 				6A962BF4AC58831091B17184 /* CurriculumData.swift */,
 				4206E9767DC519781176F669 /* Info.plist */,
 				7085DDB2C4B0F6836C7033EE /* InterviewView.swift */,
+				6821D598F84C4FEF25F86BC5 /* MaterialsView.swift */,
 				6DDD42416FEDA27BE78FEC79 /* Models.swift */,
 				90025B482BF866FEDC4EE6C7 /* OutreachView.swift */,
 				E1772CE16FE1EC11150F68CD /* PipelineView.swift */,
@@ -188,6 +191,7 @@
 				8931911BC248EF29396159E5 /* ContentView.swift in Sources */,
 				9DDEA06D0EB1E46DEF05CC3B /* CurriculumData.swift in Sources */,
 				49FE789BAC065AF26C2076C2 /* InterviewView.swift in Sources */,
+				A219082A8BFDB1DBA1E98DF9 /* MaterialsView.swift in Sources */,
 				FAD4614433E40A5174EB8709 /* Models.swift in Sources */,
 				C9E461B04F9A903CD6A62CCB /* OutreachView.swift in Sources */,
 				8C251550BAE93B2382F8C60A /* PipelineView.swift in Sources */,

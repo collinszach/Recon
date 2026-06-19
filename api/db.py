@@ -87,6 +87,19 @@ class ApplicationEvent(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class Material(Base):
+    """A saved application material — tailored resume, cover letter, outreach, prep.
+    role_id/application_id are SET NULL on delete so materials survive re-scans."""
+    __tablename__ = "materials"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    role_id: Mapped[int | None] = mapped_column(ForeignKey("roles.id", ondelete="SET NULL"))
+    application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"))
+    kind: Mapped[str] = mapped_column(String)               # resume | cover_letter | outreach | prep | note
+    title: Mapped[str | None] = mapped_column(String)       # e.g. "Anduril — Software PM, Air Defense"
+    content: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Interview(Base):
     __tablename__ = "interviews"
     id: Mapped[int] = mapped_column(primary_key=True)
