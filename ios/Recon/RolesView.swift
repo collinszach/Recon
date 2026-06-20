@@ -4,30 +4,51 @@ import SwiftUI
 struct RoleRow: View {
     let role: Role
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                TierChip(tier: role.tier)
-                Text(role.company ?? "—").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
-                Spacer()
-                Label(role.fitText, systemImage: "target")
-                    .font(.caption.weight(.semibold)).foregroundStyle(Theme.fit(role.fitScore))
-            }
-            Text(role.title).font(.callout).foregroundStyle(Theme.ink).lineLimit(2)
-            HStack(spacing: 10) {
-                Label(role.pay, systemImage: "dollarsign.circle")
-                    .font(.caption).foregroundStyle(Theme.green).lineLimit(1)
-                if let loc = role.location, !loc.isEmpty {
-                    Label(loc, systemImage: "mappin.and.ellipse")
-                        .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+        HStack(spacing: 0) {
+            // tier-colored editorial accent edge
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(Theme.tier(role.tier))
+                .frame(width: 4)
+                .padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    TierChip(tier: role.tier)
+                    Text(role.company ?? "—").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                    Spacer()
+                    FitBadge(score: role.fitScore, text: role.fitText)
                 }
-                if let posted = role.postedText {
-                    Label(posted, systemImage: "clock")
-                        .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                Text(role.title).font(.callout).foregroundStyle(Theme.ink).lineLimit(2)
+                HStack(spacing: 10) {
+                    Label(role.pay, systemImage: "dollarsign.circle")
+                        .font(.caption).foregroundStyle(Theme.green).lineLimit(1)
+                    if let loc = role.location, !loc.isEmpty {
+                        Label(loc, systemImage: "mappin.and.ellipse")
+                            .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                    }
+                    if let posted = role.postedText {
+                        Label(posted, systemImage: "clock")
+                            .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                    }
                 }
+                Text(role.summary).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(2)
             }
-            Text(role.summary).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(2)
+            .padding(.leading, 12)
         }
         .reconCard()
+    }
+}
+
+/// Fit score as a soft, color-coded capsule — stronger scan signal than plain text.
+struct FitBadge: View {
+    let score: Double?
+    let text: String
+    var body: some View {
+        let color = Theme.fit(score)
+        return Label("fit \(text)", systemImage: "target")
+            .font(.caption2.weight(.bold)).foregroundStyle(color)
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(color.opacity(0.13), in: Capsule())
     }
 }
 
@@ -119,8 +140,7 @@ struct RoleDetailView: View {
                     HStack { TierChip(tier: role.tier)
                         Text(role.company ?? "—").font(.headline).foregroundStyle(Theme.ink)
                         Spacer()
-                        Text("fit \(role.fitText)").font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Theme.fit(role.fitScore))
+                        FitBadge(score: role.fitScore, text: role.fitText)
                     }
                     Text(role.title).font(.title3.weight(.semibold)).foregroundStyle(Theme.ink)
                 }

@@ -34,9 +34,14 @@ behind a Cloudflare Tunnel. See `SPEC.md` for the full spec.
 - **Heads-up:** zacharyjcollins.com says Zach targets "AI, **defense**, and platform products,"
   but the scorer rubric is commercial-first and downgrades exclusively-government/defense (and
   Anduril was excluded). If defense is genuinely in-scope, revisit the rubric + that exclusion.
-- **Next up:** stand up the Cloudflare Tunnel → `recon.zacharyjcollins.com`; set
-  `ANTHROPIC_API_KEY` and flip `SCORING_MODE=live`; wire Microsoft/Apple/Google/Meta/Rivian
-  (proprietary/iCIMS — Playwright or manual add); populate pgvector embeddings.
+- **Next up:** stand up the Cloudflare Tunnel → `recon.zacharyjcollins.com`; wire
+  Microsoft/Apple/Google/Meta/Rivian (proprietary/iCIMS — Playwright or manual add); populate
+  pgvector embeddings. (`SCORING_MODE=live` + `ANTHROPIC_API_KEY` already set on the NUC.)
+- **Materials & networking (iOS):** per-role vault saves tailored résumé / outreach / cover
+  letter / interview prep; "Who to reach out to" researches target personas (warm-path first,
+  never invented names) with openers + LinkedIn search + one-tap add-to-CRM; PDF export of any
+  saved material via the system share sheet. Backend: `resume/{cover,networking}.py`, `Material`
+  model, `/api/materials`, `/api/roles/{id}/{cover_letter,networking}`.
 
 ## Architecture Decisions
 1. **No local LLM.** The N95 can't host one. All synthesis → Claude API. `SCORING_MODE=stub`
@@ -103,7 +108,8 @@ web/dashboard.html       master plan + live "Recon Feed" tab
 - [x] Workday parser — built; NVIDIA/Procore/Sonos/Boston Dynamics wired. (Microsoft/Apple/
       Google/Meta run proprietary in-house ATS with no public board — still `manual`.)
 - [ ] Cloudflare Tunnel → `recon.zacharyjcollins.com` in front of the NUC (port 8010).
-- [ ] Flip `SCORING_MODE=live` once `ANTHROPIC_API_KEY` is set in `~/recon/.env` on the NUC.
+- [x] Flip `SCORING_MODE=live` — done; NUC runs live (`/health` reports `scoring_mode: live`),
+      daily scans score against the API (~$0.01/run). Cover-letter + networking AI features are live.
 - [ ] Web-push for the daily brief (PWA service worker; VAPID keys in `.env`).
 - [ ] pgvector embeddings for dedupe + semantic search (column exists, not yet populated).
 - [ ] Optional connectors: brief → Google Doc, follow-ups → Calendar (behind a flag).
