@@ -38,6 +38,8 @@ struct CoverLetterView: View {
                         } label: { Label(saved ? "Saved to vault" : "Save to vault",
                                          systemImage: saved ? "checkmark" : "tray.and.arrow.down") }
                             .buttonStyle(ReconButtonStyle(color: Theme.green, soft: true)).disabled(saved)
+
+                        ExportPDFButton(title: d.title ?? roleLabel, body: d.content ?? "")
                     }
                 }.padding(16)
             }
@@ -89,8 +91,11 @@ private struct MaterialViewer: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                Text(material.content ?? "").font(.callout).foregroundStyle(Theme.ink)
-                    .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(16)
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(material.content ?? "").font(.callout).foregroundStyle(Theme.ink)
+                        .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                    ExportPDFButton(title: material.title ?? material.kindLabel, body: material.content ?? "")
+                }.padding(16)
             }
             .background(Theme.canvas.ignoresSafeArea())
             .navigationTitle(material.kindLabel).navigationBarTitleDisplayMode(.inline)
