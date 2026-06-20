@@ -62,7 +62,7 @@ struct ShareSheet: UIViewControllerRepresentable {
 /// Drop-in "Export PDF" button: renders `title`/`body` to a PDF and opens the share sheet.
 struct ExportPDFButton: View {
     let title: String
-    let body: String
+    let text: String
     var label: String = "Export PDF"
     var soft: Bool = true
     @State private var shareURL: URL?
@@ -70,7 +70,7 @@ struct ExportPDFButton: View {
 
     var body: some View {
         Button {
-            if let url = PDFExport.render(title: title, body: body) {
+            if let url = PDFExport.render(title: title, body: text) {
                 shareURL = url; showShare = true
             }
         } label: { Label(label, systemImage: "square.and.arrow.up") }

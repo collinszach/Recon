@@ -39,7 +39,7 @@ struct CoverLetterView: View {
                                          systemImage: saved ? "checkmark" : "tray.and.arrow.down") }
                             .buttonStyle(ReconButtonStyle(color: Theme.green, soft: true)).disabled(saved)
 
-                        ExportPDFButton(title: d.title ?? roleLabel, body: d.content ?? "")
+                        ExportPDFButton(title: d.title ?? roleLabel, text: d.content ?? "")
                     }
                 }.padding(16)
             }
@@ -94,7 +94,7 @@ private struct MaterialViewer: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Text(material.content ?? "").font(.callout).foregroundStyle(Theme.ink)
                         .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
-                    ExportPDFButton(title: material.title ?? material.kindLabel, body: material.content ?? "")
+                    ExportPDFButton(title: material.title ?? material.kindLabel, text: material.content ?? "")
                 }.padding(16)
             }
             .background(Theme.canvas.ignoresSafeArea())
