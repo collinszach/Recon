@@ -34,9 +34,21 @@ behind a Cloudflare Tunnel. See `SPEC.md` for the full spec.
 - **Heads-up:** zacharyjcollins.com says Zach targets "AI, **defense**, and platform products,"
   but the scorer rubric is commercial-first and downgrades exclusively-government/defense (and
   Anduril was excluded). If defense is genuinely in-scope, revisit the rubric + that exclusion.
-- **Next up:** stand up the Cloudflare Tunnel → `recon.zacharyjcollins.com`; wire
-  Microsoft/Apple/Google/Meta/Rivian (proprietary/iCIMS — Playwright or manual add); populate
-  pgvector embeddings. (`SCORING_MODE=live` + `ANTHROPIC_API_KEY` already set on the NUC.)
+- **Access model (2026-06-24):** **Local/Tailscale-only.** The iOS app talks straight to
+  `http://100.91.198.28:8010` over Tailscale; the public Cloudflare Tunnel + Access + service
+  token were **removed** (the `cloudflared` sidecar is stripped from `docker-compose.prod.yml`,
+  which is now an empty overlay). Don't re-add a public tunnel unless off-Tailnet/shared access
+  is explicitly needed.
+- **Geo targeting (2026-06-24):** `api/scan/geo.py` tags each role with a target-metro slug
+  (Charleston / NYC / DC-NoVA-MD / SoCal / Boston / PA / Remote-US). `Role.metro` column (added
+  via idempotent startup `ALTER` + one-time backfill in `main.py`). `runner.py` has a **metro
+  lane** that scores target-metro roles in our tracks even past per-track caps
+  (`score_max_metro`). Scorer treats a `TARGET METRO` as a positive (relocation-friendly).
+  `/api/roles?metro=` filter + `/api/metros` facet; iOS Roles tab has a metro menu.
+- **Next up:** discovery round 3 — add employers concentrated in the target metros (Charleston/DC
+  gov-tech & defense, Boston robotics/biotech, NYC fintech, SoCal aero/hardware, PA health/
+  industrial), each with a **live-verified** ATS token. Also: wire Microsoft/Apple/Google/Meta/
+  Rivian (proprietary/iCIMS — Playwright or manual add); populate pgvector embeddings.
 - **Materials & networking (iOS):** per-role vault saves tailored résumé / outreach / cover
   letter / interview prep; "Who to reach out to" researches target personas (warm-path first,
   never invented names) with openers + LinkedIn search + one-tap add-to-CRM; PDF export of any
@@ -107,7 +119,7 @@ web/dashboard.html       master plan + live "Recon Feed" tab
 - [x] Verify every `ats_token` in the seed list — done 2026-06-12, all 60 hit live.
 - [x] Workday parser — built; NVIDIA/Procore/Sonos/Boston Dynamics wired. (Microsoft/Apple/
       Google/Meta run proprietary in-house ATS with no public board — still `manual`.)
-- [ ] Cloudflare Tunnel → `recon.zacharyjcollins.com` in front of the NUC (port 8010).
+- [x] ~~Cloudflare Tunnel → `recon.zacharyjcollins.com`~~ — dropped 2026-06-24; Local/Tailscale-only.
 - [x] Flip `SCORING_MODE=live` — done; NUC runs live (`/health` reports `scoring_mode: live`),
       daily scans score against the API (~$0.01/run). Cover-letter + networking AI features are live.
 - [ ] Web-push for the daily brief (PWA service worker; VAPID keys in `.env`).
