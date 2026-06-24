@@ -164,6 +164,46 @@ SEED = [
     ("Helsing",            "B", "greenhouse", "helsing",        "https://helsing.ai/jobs", "Defense/AI · AI for defense (Europe — location tradeoff)"),
     ("Primer",             "C", "ashby",      "primer",         "https://primer.ai/careers/", "Defense/AI&Data · NLP for national security"),
     ("Astranis",           "B", "greenhouse", "astranis",       "https://www.astranis.com/careers", "Aerospace/Space · GEO satellites — aerospace sector, ME/hardware fit"),
+
+    # ════════════════════════════════════════════════════════════════════
+    # DISCOVERY ROUND 3 — employers concentrated in Zach's TARGET METROS
+    # (Charleston / NYC / DC-NoVA-MD / SoCal / Boston / PA), surfaced &
+    # board-verified live 2026-06-24. Resume-fit sectors: supply chain,
+    # aerospace, defense, hardware/computer-parts, gaming, fintech/commerce.
+    # Metro tag in the note is advisory; api/scan/geo.py tags each ROLE by its
+    # actual posted location at scan time.
+    # ════════════════════════════════════════════════════════════════════
+    # ── Supply chain / manufacturing (core background) ──────────────────
+    ("Altana",             "B", "greenhouse", "altanaai",       "https://altana.ai/careers", "SCM&Twins/AI · supply-chain & value-chain intelligence — bullseye SCM fit (NYC)"),
+    ("Fictiv",             "B", "greenhouse", "fictiv",         "https://www.fictiv.com/careers", "SCM&Twins/Hardware · on-demand manufacturing marketplace — direct SCM+hardware fit (SoCal/SF)"),
+    ("Micron",             "B", "workday",    "micron:wd1:External", "https://careers.micron.com", "Hardware/SCM · memory & storage (computer parts) — semiconductor supply chain, core fit; ~3000 reqs, Workday caps 250/scan"),
+    ("Via",                "B", "greenhouse", "via",            "https://www.ridewithvia.com/careers", "SCM/Mobility · transit & logistics optimization (NYC)"),
+    # ── Aerospace / space / defense hardware ────────────────────────────
+    ("Relativity Space",   "B", "greenhouse", "relativity",     "https://www.relativityspace.com/careers", "Aerospace/Space · 3D-printed rockets — aero+hardware+ME fit (Long Beach, SoCal)"),
+    ("Vast",               "B", "greenhouse", "vast",           "https://www.vastspace.com/careers", "Aerospace/Space · commercial space stations (Long Beach, SoCal)"),
+    ("Impulse Space",      "C", "ashby",      "impulse",        "https://www.impulsespace.com/careers", "Aerospace/Space · in-space transportation (SoCal); small board"),
+    ("Saildrone",          "C", "greenhouse", "saildroneinc",   "https://www.saildrone.com/careers", "Defense/Hardware · autonomous maritime vehicles — ocean data + national security"),
+    ("Vannevar Labs",      "B", "greenhouse", "vannevarlabs",   "https://www.vannevarlabs.com/careers", "Defense/AI&Data · software for national security"),
+    ("ID.me",              "B", "greenhouse", "idme",           "https://www.id.me/careers", "Gov-tech/Platform · digital identity for gov + commercial (McLean, DC/NoVA) — federal fit"),
+    # ── Platform / data (NYC, Boston) ───────────────────────────────────
+    ("Datadog",            "B", "greenhouse", "datadog",        "https://careers.datadoghq.com", "Platform/AI&Data · observability; strong product org (NYC)"),
+    ("MongoDB",            "B", "greenhouse", "mongodb",        "https://www.mongodb.com/careers", "AI&Data/Platform · developer data platform (NYC)"),
+    ("Toast",              "B", "greenhouse", "toast",          "https://careers.toasttab.com", "Platform/Commerce · restaurant SaaS + hardware (Boston)"),
+    ("Klaviyo",            "C", "greenhouse", "klaviyo",        "https://www.klaviyo.com/careers", "AI&Data/Marketing · customer-data platform (Boston)"),
+    ("CarGurus",           "C", "greenhouse", "cargurus",       "https://careers.cargurus.com", "Platform/Marketplace · auto marketplace (Boston)"),
+    # ── Gaming (SoCal) ──────────────────────────────────────────────────
+    ("Riot Games",         "C", "greenhouse", "riotgames",      "https://www.riotgames.com/en/work-with-us", "Gaming · League of Legends (LA, SoCal) — passion/brand bet"),
+    ("Scopely",            "C", "greenhouse", "scopely",        "https://www.scopely.com/careers", "Gaming · mobile games (Culver City, SoCal)"),
+    # ── Fintech / commerce (NYC) ────────────────────────────────────────
+    ("Justworks",          "C", "greenhouse", "justworks",      "https://www.justworks.com/careers", "Finance/HR · PEO & payroll (NYC)"),
+    ("Betterment",         "C", "greenhouse", "betterment",     "https://www.betterment.com/careers", "Finance · robo-advisor (NYC)"),
+    ("Squarespace",        "C", "greenhouse", "squarespace",    "https://www.squarespace.com/careers", "Platform/Commerce · website & commerce builder (NYC)"),
+    ("Fanatics",           "C", "greenhouse", "fanaticsinc",    "https://careers.fanatics.com", "Commerce · sports merch + betting (NYC)"),
+    ("DoubleVerify",       "C", "greenhouse", "doubleverify",   "https://doubleverify.com/careers", "AdTech/Data · digital media measurement (NYC)"),
+    ("Alloy",              "C", "greenhouse", "alloy",          "https://www.alloy.com/careers", "Finance · identity & fraud infrastructure (NYC)"),
+    ("Capital Rx",         "C", "greenhouse", "capitalrx",      "https://www.cap-rx.com/careers", "Health/Finance · PBM platform (NYC)"),
+    # ── EdTech (PA) ─────────────────────────────────────────────────────
+    ("Duolingo",           "C", "greenhouse", "duolingo",       "https://careers.duolingo.com", "EdTech · language learning (Pittsburgh, PA)"),
 ]
 
 
