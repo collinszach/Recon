@@ -31,9 +31,12 @@ behind a Cloudflare Tunnel. See `SPEC.md` for the full spec.
   collinszach/resume). CRUD at `/api/resume`; `POST /api/roles/{id}/tailor` returns a Claude
   match analysis (score, strengths, gaps, keywords, tailored summary, bullets; suggestions only,
   ~$0.02/call). Résumé tab edits it; "Tailor my résumé to this role" sheet on role detail.
-- **Heads-up:** zacharyjcollins.com says Zach targets "AI, **defense**, and platform products,"
-  but the scorer rubric is commercial-first and downgrades exclusively-government/defense (and
-  Anduril was excluded). If defense is genuinely in-scope, revisit the rubric + that exclusion.
+- **Defense is in scope (settled 2026-06-24):** the scorer rubric explicitly ranks
+  defense/national-security PRODUCT roles on merit as a *strength* (federal supply chain, MBSE on
+  a defense Smart MRO, Collins/Raytheon) — NOT a downgrade. Anduril is seeded tier A and scores A
+  live. The earlier "downgrade defense / exclude Anduril" heads-up is obsolete; don't re-add it.
+  Reinforced by the target metros (Charleston, DC/NoVA) which lean defense/gov-tech. `domain`
+  enum includes both `Defense` and `Aerospace`.
 - **Access model (2026-06-24):** **Local/Tailscale-only.** The iOS app talks straight to
   `http://100.91.198.28:8010` over Tailscale; the public Cloudflare Tunnel + Access + service
   token were **removed** (the `cloudflared` sidecar is stripped from `docker-compose.prod.yml`,

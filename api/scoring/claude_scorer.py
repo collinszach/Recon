@@ -136,7 +136,7 @@ Score the role below. Respond with ONLY a JSON object, no prose, no markdown fen
 {
   "fit_score": <float 0-10>,
   "tier": "A" | "B" | "C" | "pass",
-  "domain": "AI&Data" | "SCM&Twins" | "Hardware" | "Venture" | "Finance" | "Platform" | "Defense" | "other",
+  "domain": "AI&Data" | "SCM&Twins" | "Hardware" | "Venture" | "Finance" | "Platform" | "Defense" | "Aerospace" | "other",
   "why_fit": "<= 2 sentences, specific to this JD",
   "concerns": "<= 1 sentence or null",
   "curriculum_hook": "which course(s) this role justifies, or null",
