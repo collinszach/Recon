@@ -217,6 +217,11 @@ SEED = [
     ("Muon Space",         "C", "greenhouse", "muonspace",      "https://www.muonspace.com/careers", "Aerospace/Space · Earth-observation satellites (US)"),
     ("ElevenLabs",         "C", "ashby",      "elevenlabs",     "https://elevenlabs.io/careers", "AI&Data · voice AI (NYC/London) — fast-growing, intl"),
     ("Monzo",              "C", "greenhouse", "monzo",          "https://monzo.com/careers", "Finance · digital bank (London) — intl fintech"),
+    # ── ATS pinned via careers-page detection (slug != name) ────────────
+    ("Applied Intuition",  "B", "ashby",      "applied",        "https://www.appliedintuition.com/careers", "Autonomy/AI&Data · AV + defense simulation/validation — autonomy & defense fit (Mountain View/SoCal)"),
+    ("Gecko Robotics",     "B", "ashby",      "gecko-robotics", "https://www.geckorobotics.com/careers", "Hardware/Robotics/AI · robots + AI for critical infrastructure (Pittsburgh, PA) — robotics+industrial fit"),
+    ("Hermeus",            "B", "lever",      "hermeus",        "https://www.hermeus.com/careers", "Aerospace/Defense · hypersonic aircraft (Atlanta) — aero+ME+defense fit"),
+    ("Mistral AI",         "C", "lever",      "mistral",        "https://mistral.ai/careers", "AI&Data · frontier LLM lab (France) — intl"),
 ]
 
 
