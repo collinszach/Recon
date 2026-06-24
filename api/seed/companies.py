@@ -204,6 +204,19 @@ SEED = [
     ("Capital Rx",         "C", "greenhouse", "capitalrx",      "https://www.cap-rx.com/careers", "Health/Finance · PBM platform (NYC)"),
     # ── EdTech (PA) ─────────────────────────────────────────────────────
     ("Duolingo",           "C", "greenhouse", "duolingo",       "https://careers.duolingo.com", "EdTech · language learning (Pittsburgh, PA)"),
+
+    # ════════════════════════════════════════════════════════════════════
+    # DISCOVERY ROUND 4 — international + earlier-stage, surfaced &
+    # board-verified live 2026-06-24. Zach is open to international and to
+    # roles regardless of pay floor, so these aren't comp-gated — ranked on
+    # domain fit (SCM, aerospace/space, defense, robotics, AI).
+    # ════════════════════════════════════════════════════════════════════
+    ("Dexory",             "B", "greenhouse", "dexory",         "https://www.dexory.com/careers", "SCM&Twins/Hardware · warehouse inventory robots + digital twin (UK) — bullseye SCM+robotics fit"),
+    ("Isar Aerospace",     "B", "greenhouse", "isaraerospace",  "https://www.isaraerospace.com/careers", "Aerospace/Space · orbital launch vehicles (Germany) — aero+ME fit"),
+    ("Ursa Major",         "B", "greenhouse", "ursamajor",      "https://www.ursamajor.com/careers", "Defense/Space · rocket propulsion (Colorado) — defense+hardware+ME fit"),
+    ("Muon Space",         "C", "greenhouse", "muonspace",      "https://www.muonspace.com/careers", "Aerospace/Space · Earth-observation satellites (US)"),
+    ("ElevenLabs",         "C", "ashby",      "elevenlabs",     "https://elevenlabs.io/careers", "AI&Data · voice AI (NYC/London) — fast-growing, intl"),
+    ("Monzo",              "C", "greenhouse", "monzo",          "https://monzo.com/careers", "Finance · digital bank (London) — intl fintech"),
 ]
 
 
