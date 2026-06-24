@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     score_max_intern: int = 200         # cost cap: max internships scored per scan
     score_max_fulltime: int = 200       # cost cap: max full-time PM roles scored per scan
     score_max_ops: int = 150            # cost cap: max ops/strategy roles scored per scan
+    score_max_metro: int = 150          # cost cap: max extra target-metro roles per scan
     # back-compat: if intern_only is set true it forces track_mode="intern"
     intern_only: bool = False
 

@@ -44,6 +44,13 @@ founder track — value broad scope, ownership/P&L, 0->1 building, and a clear r
 exec suite. He is also OPEN TO THE AVIATION / AEROSPACE sector where applicable (Collins Aerospace
 background + ME degree). Rank roles that build toward founder/CTO/COO higher than narrow IC tracks.
 
+LOCATION PREFERENCE: Zach will RELOCATE for the right role, and actively favors these metros:
+Charleston SC, New York City, the DC / Northern-Virginia / Maryland area, Southern California
+(LA / Orange County / San Diego / Irvine), Greater Boston, and Pennsylvania (Philadelphia /
+Pittsburgh) — plus US-remote. When the role blob includes a "TARGET METRO" line, treat the
+location as a positive (it's where he wants to be); do NOT downgrade it as "would require a move."
+A role in none of those is location-neutral, not a penalty — judge it on merit.
+
 PRIORITY DOMAINS (map each role to the closest one):
   AI&Data | SCM&Twins | Hardware | Venture | Finance | Platform | Defense | Aerospace | other
 """
@@ -141,9 +148,14 @@ Score the role below. Respond with ONLY a JSON object, no prose, no markdown fen
 
 def _role_blob(role: Role) -> str:
     co = role.company.name if role.company else "?"
-    return (f"COMPANY: {co} (tier {role.company.tier if role.company else '?'})\n"
-            f"TITLE: {role.title}\nLOCATION: {role.location}\n"
-            f"DEPARTMENT: {role.department}\nURL: {role.url}")
+    blob = (f"COMPANY: {co} (tier {role.company.tier if role.company else '?'})\n"
+            f"TITLE: {role.title}\nLOCATION: {role.location}\n")
+    if role.metro:
+        from scan.geo import METROS
+        label = dict(METROS).get(role.metro, role.metro)
+        blob += f"TARGET METRO: {label} (a metro Zach is targeting)\n"
+    blob += f"DEPARTMENT: {role.department}\nURL: {role.url}"
+    return blob
 
 
 def score_roles(db: Session, roles: list[Role]) -> dict:

@@ -29,9 +29,40 @@ def get_db():
         db.close()
 
 
+def _ensure_schema():
+    """Additive, idempotent column adds for existing DBs (create_all only makes
+    new *tables*, not new columns). Non-destructive — safe to run every boot."""
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS metro VARCHAR"))
+
+
+def _backfill_metro():
+    """One-time backfill of roles.metro for rows that predate the column.
+    Only touches rows where metro IS NULL, so it's a no-op after the first pass."""
+    from scan.geo import metro_of
+    db = SessionLocal()
+    try:
+        rows = db.scalars(select(Role).where(Role.metro.is_(None),
+                                             Role.location.isnot(None))).all()
+        n = 0
+        for r in rows:
+            m = metro_of(r.location)
+            if m:
+                r.metro = m
+                n += 1
+        if n:
+            db.commit()
+        log.info("startup: backfilled metro on %d/%d roles", n, len(rows))
+    finally:
+        db.close()
+
+
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(engine)   # safety net; creates new tables (e.g. resume) too
+    _ensure_schema()
+    _backfill_metro()
     added = seed_companies()
     log.info("startup: seeded %d new companies", added)
     from resume.seed import seed as seed_resume
@@ -48,7 +79,8 @@ def health():
 @app.get("/api/roles")
 def list_roles(tier: str | None = None, company: str | None = None,
                min_fit: float = 0.0, scored_only: bool = True,
-               track: str | None = None, dedupe: bool = True,
+               track: str | None = None, metro: str | None = None,
+               dedupe: bool = True,
                db: Session = Depends(get_db)):
     import re as _re
     from scan.intern_filter import is_internship, is_ops_strategy
@@ -59,6 +91,8 @@ def list_roles(tier: str | None = None, company: str | None = None,
         q = q.where(Role.scored_at.isnot(None))
     if min_fit:
         q = q.where(Role.fit_score >= min_fit)
+    if metro:
+        q = q.where(Role.metro == metro)
     rows = db.scalars(q.order_by(Role.fit_score.desc().nullslast())).all()
     out = []
     for r in rows:
@@ -81,7 +115,7 @@ def list_roles(tier: str | None = None, company: str | None = None,
             "company_tier": co.tier if co else None,
             "tier": r.score_tier,               # fit tier (A/B/C/pass) from scoring
             "title": r.title,
-            "location": r.location, "url": r.url, "status": r.status,
+            "location": r.location, "metro": r.metro, "url": r.url, "status": r.status,
             "posted_at": r.posted_at.isoformat() if r.posted_at else None,
             "first_seen": r.first_seen.isoformat() if r.first_seen else None,
             "fit_score": r.fit_score, "domain": r.domain,
@@ -107,6 +141,19 @@ def list_roles(tier: str | None = None, company: str | None = None,
                 best[key] = o
         out = sorted(best.values(), key=lambda o: (o["fit_score"] or 0), reverse=True)
     return out
+
+
+# ─── metros (geo facet) ─────────────────────────────────────
+@app.get("/api/metros")
+def list_metros(scored_only: bool = True, db: Session = Depends(get_db)):
+    """Target metros with a count of currently-open roles, for the geo facet."""
+    from scan.geo import METROS
+    q = select(Role.metro, func.count(Role.id)).where(
+        Role.status.in_(["open", "changed"]), Role.metro.isnot(None))
+    if scored_only:
+        q = q.where(Role.scored_at.isnot(None))
+    counts = dict(db.execute(q.group_by(Role.metro)).all())
+    return [{"slug": s, "label": l, "count": counts.get(s, 0)} for s, l in METROS]
 
 
 # ─── companies (Plan breakdown) ─────────────────────────────

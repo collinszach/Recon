@@ -80,8 +80,30 @@ def run_daily_scan() -> dict:
                 to_score += ops
                 totals["ops"] = len(ops)
 
-            log.info("track filter (%s): %d internships + %d full-time PM + %d ops/strategy of %d new/changed",
-                     mode, totals.get("interns", 0), totals.get("fulltime", 0), totals.get("ops", 0), len(fresh))
+            # Metro lane: any fresh role in one of Zach's target metros that fits a
+            # track we score gets included even if a per-track cap would have cut it
+            # — geography is a first-class signal, so target-metro roles never get
+            # dropped for budget. Deduped against the track lanes above.
+            from scan.intern_filter import is_fulltime_pm, is_internship, is_ops_strategy
+            picked = {r.id for r in to_score}
+            def _in_a_track(r) -> bool:
+                if mode in ("intern", "both") and is_internship(r.title, r.department):
+                    return True
+                if mode in ("fulltime", "both") and is_fulltime_pm(r.title, r.department):
+                    return True
+                if mode in ("ops", "both") and is_ops_strategy(r.title, r.department):
+                    return True
+                return False
+            metro_roles = [r for r in fresh
+                           if r.metro and r.id not in picked and _in_a_track(r)]
+            metro_roles = metro_roles[: settings.score_max_metro]
+            to_score += metro_roles
+            totals["metro"] = len(metro_roles)
+
+            log.info("track filter (%s): %d internships + %d full-time PM + %d ops/strategy "
+                     "+ %d target-metro (uncapped) of %d new/changed",
+                     mode, totals.get("interns", 0), totals.get("fulltime", 0),
+                     totals.get("ops", 0), totals.get("metro", 0), len(fresh))
             if to_score:
                 score_cost = score_roles(db, to_score)
 

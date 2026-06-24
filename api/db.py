@@ -38,6 +38,7 @@ class Role(Base):
     ats_job_id: Mapped[str] = mapped_column(String)
     title: Mapped[str] = mapped_column(String)
     location: Mapped[str | None] = mapped_column(String)
+    metro: Mapped[str | None] = mapped_column(String)   # target-metro slug (scan.geo)
     remote_flag: Mapped[bool] = mapped_column(Boolean, default=False)
     department: Mapped[str | None] = mapped_column(String)
     url: Mapped[str | None] = mapped_column(String)
