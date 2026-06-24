@@ -9,6 +9,7 @@ struct Role: Codable, Identifiable, Hashable {
     let tier: String?          // fit tier A/B/C/pass
     let title: String
     let location: String?
+    let metro: String?         // target-metro slug, e.g. "nyc"
     let url: String?
     let status: String?
     let fitScore: Double?
@@ -22,7 +23,7 @@ struct Role: Codable, Identifiable, Hashable {
     let firstSeen: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, track, company, title, location, url, status, domain, tier, concerns
+        case id, track, company, title, location, metro, url, status, domain, tier, concerns
         case companyTier = "company_tier"
         case fitScore = "fit_score"
         case whyFit = "why_fit"

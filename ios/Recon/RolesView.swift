@@ -67,7 +67,14 @@ struct RolesView: View {
     @EnvironmentObject var store: Store
     @State private var track: String = "intern"
     @State private var filter: String = "All"
+    @State private var metro: String? = nil      // nil = all locations
     private let filters = ["All", "A", "B", "C"]
+    /// Target-metro slug -> display label (mirrors api/scan/geo.py METROS).
+    static let metroLabels: [(String, String)] = [
+        ("charleston", "Charleston"), ("nyc", "NYC"), ("dc_metro", "DC / NoVA / MD"),
+        ("socal", "SoCal"), ("boston", "Boston"), ("pennsylvania", "Pennsylvania"),
+        ("remote", "Remote (US)"),
+    ]
 
     var trackFeed: [Role] {
         switch track {
@@ -77,8 +84,14 @@ struct RolesView: View {
         }
     }
     var shown: [Role] {
-        filter == "All" ? trackFeed
-            : trackFeed.filter { ($0.tier ?? "").uppercased() == filter }
+        trackFeed.filter {
+            (filter == "All" || ($0.tier ?? "").uppercased() == filter)
+            && (metro == nil || $0.metro == metro)
+        }
+    }
+    private var metroLabel: String {
+        guard let m = metro else { return "All locations" }
+        return Self.metroLabels.first { $0.0 == m }?.1 ?? m
     }
 
     var body: some View {
@@ -94,10 +107,42 @@ struct RolesView: View {
                     ForEach(filters, id: \.self) { Text($0) }
                 }.pickerStyle(.segmented)
 
+                // Geo facet: filter the current track by a target metro. Counts
+                // are computed over the active track so they track the segment.
+                Menu {
+                    Button { metro = nil } label: {
+                        Label("All locations (\(trackFeed.count))",
+                              systemImage: metro == nil ? "checkmark" : "")
+                    }
+                    ForEach(Self.metroLabels, id: \.0) { slug, label in
+                        let n = trackFeed.filter { $0.metro == slug }.count
+                        Button { metro = slug } label: {
+                            Label("\(label) (\(n))", systemImage: metro == slug ? "checkmark" : "")
+                        }.disabled(n == 0)
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "mappin.and.ellipse")
+                        Text(metroLabel).font(.subheadline.weight(.medium))
+                        Image(systemName: "chevron.down").font(.caption2)
+                        Spacer()
+                        if metro != nil {
+                            Text("\(shown.count)").font(.caption.weight(.bold))
+                                .foregroundStyle(Theme.inkSoft)
+                        }
+                    }
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 12).padding(.vertical, 9)
+                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.hair))
+                }
+
                 if shown.isEmpty {
-                    Text(track == "intern"
-                         ? "No internships in this tier yet. Most Summer 2027 reqs post Aug 2026–Jan 2027."
-                         : "No full-time product roles in this tier right now.")
+                    Text(metro != nil
+                         ? "No \(track == "intern" ? "internships" : "roles") in \(metroLabel) at this tier yet."
+                         : (track == "intern"
+                            ? "No internships in this tier yet. Most Summer 2027 reqs post Aug 2026–Jan 2027."
+                            : "No full-time product roles in this tier right now."))
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 } else {
                     ForEach(shown) { role in
@@ -237,6 +282,11 @@ struct RoleDetailView: View {
             FactRow("Posted", role.postedText ?? "—")
             Divider().background(Theme.hair)
             FactRow("Location", role.location ?? "—")
+            if let m = role.metro {
+                Divider().background(Theme.hair)
+                let label = RolesView.metroLabels.first { $0.0 == m }?.1 ?? m
+                FactRow("Target metro", label, tint: Theme.green)
+            }
             Divider().background(Theme.hair)
             FactRow("Domain", role.domain ?? "—")
             Divider().background(Theme.hair)
