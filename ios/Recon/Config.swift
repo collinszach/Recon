@@ -55,7 +55,9 @@ final class AppConfig: ObservableObject {
     var lastWorking: URL?
 
     private init() {
-        let raw = UserDefaults.standard.string(forKey: dEndpoint) ?? Endpoint.auto.rawValue
+        // Default to Local: the NUC is reached privately over Tailscale, so the
+        // app needs no public tunnel / Cloudflare Access / service token.
+        let raw = UserDefaults.standard.string(forKey: dEndpoint) ?? Endpoint.local.rawValue
         endpoint = Endpoint(rawValue: raw) ?? .auto
         customURL = UserDefaults.standard.string(forKey: dCustom) ?? Self.localURL
         cfAccessId = UserDefaults.standard.string(forKey: dCfId) ?? ""

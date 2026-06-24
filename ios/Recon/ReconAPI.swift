@@ -7,22 +7,33 @@ struct ReconAPI {
     private let config = AppConfig.shared
 
     enum APIError: LocalizedError {
-        case badStatus(Int), decode(String), access
+        case badStatus(Int), decode(String)
+        /// Cloudflare Access intercepted us. `tokenConfigured` drives the fix hint:
+        /// no token set → tell the user to add one; token set but still blocked →
+        /// the token is wrong or not on the Access policy.
+        case access(tokenConfigured: Bool)
         var errorDescription: String? {
             switch self {
-            case .access, .badStatus(403):
-                return "Blocked by Cloudflare Access. Open Settings (gear) and add a service token, or switch to the Local endpoint while on Tailscale."
+            case .access(false), .badStatus(403):
+                return "Blocked by Cloudflare Access. Open Settings (gear) and add a service token (Zero Trust → Access → Service Auth), or use the Local endpoint while on Tailscale."
+            case .access(true):
+                return "Cloudflare Access rejected the service token. Check the Client-Id/Secret in Settings and confirm the token is added to the Recon Access policy."
             case .badStatus(let c): return "Server returned HTTP \(c)."
             case .decode(let m): return "Couldn't read the response: \(m)"
             }
         }
     }
 
-    /// True when Access intercepted the request (redirected us to the login page
-    /// or returned its HTML challenge instead of our JSON).
+    /// True when Access intercepted the request: redirected us to the login page,
+    /// returned its HTML challenge instead of our JSON, or answered with a
+    /// redirect/forbidden status (URLSession usually follows the 302 to the HTML
+    /// login, but guard the raw status too).
     private func isAccessChallenge(_ resp: URLResponse) -> Bool {
         if let host = resp.url?.host, host.contains("cloudflareaccess") { return true }
         if let mime = resp.mimeType, mime.contains("text/html") { return true }
+        if let http = resp as? HTTPURLResponse, http.statusCode == 302 || http.statusCode == 403 {
+            return true
+        }
         return false
     }
 
@@ -46,7 +57,11 @@ struct ReconAPI {
     /// and is remembered for the session. Throws the last error if all fail.
     private func execute(_ method: String, _ path: String, body: Data?) async throws -> Data {
         let bases = await orderedBases()
+        let hasToken = await MainActor.run {
+            !config.cfAccessId.isEmpty && !config.cfAccessSecret.isEmpty
+        }
         var lastError: Error = APIError.badStatus(-1)
+        var accessError: Error?   // prefer this over a plain timeout when all bases fail
         for base in bases {
             var req = URLRequest(url: makeURL(base, path))
             req.httpMethod = method
@@ -55,7 +70,10 @@ struct ReconAPI {
             await MainActor.run { config.authorize(&req) }
             do {
                 let (data, resp) = try await URLSession.shared.data(for: req)
-                if isAccessChallenge(resp) { lastError = APIError.access; continue }
+                if isAccessChallenge(resp) {
+                    let e = APIError.access(tokenConfigured: hasToken)
+                    accessError = e; lastError = e; continue
+                }
                 guard let http = resp as? HTTPURLResponse else { lastError = APIError.badStatus(-1); continue }
                 guard (200..<300).contains(http.statusCode) else { lastError = APIError.badStatus(http.statusCode); continue }
                 await MainActor.run { config.lastWorking = base }
@@ -64,7 +82,10 @@ struct ReconAPI {
                 lastError = error   // connection refused / timeout -> try next base
             }
         }
-        throw lastError
+        // If any candidate was Access-blocked, that's the actionable failure (the
+        // tunnel reached the server; only the token is missing/wrong). Surface it
+        // ahead of a Tailscale "couldn't connect" that just means we're off-net.
+        throw accessError ?? lastError
     }
 
     private func get<T: Decodable>(_ path: String, as type: T.Type) async throws -> T {
