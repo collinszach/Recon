@@ -7,7 +7,8 @@ from config import settings
 from db import SessionLocal, Company, Role, ScanRun
 from parsers import get_parser
 from scan.reconcile import reconcile_company
-from scan.intern_filter import filter_internships, filter_fulltime_pm, filter_ops_strategy
+from scan.intern_filter import (filter_internships, filter_fulltime_pm,
+                                 filter_ops_strategy, filter_fulltime_tech)
 from scoring.claude_scorer import score_roles
 from brief.generator import build_brief
 
@@ -104,6 +105,16 @@ def run_daily_scan() -> dict:
                 to_score += ops
                 totals["ops"] = len(ops)
 
+            if mode in ("fulltime", "both"):
+                # Adjacent technical roles (TPM / solutions / data / devex / SWE /
+                # autonomy). Dedupe against the PM + ops lanes already picked.
+                seen = {r.id for r in to_score}
+                tech = [r for r in filter_fulltime_tech(fresh) if r.id not in seen]
+                tech.sort(key=lambda r: tier_rank.get(r.company.tier if r.company else "C", 3))
+                tech = tech[: settings.score_max_tech]
+                to_score += tech
+                totals["tech"] = len(tech)
+
             # Metro lane: any fresh role in one of Zach's target metros gets scored
             # even if a per-track cap would have cut it — geography is a first-class
             # signal. Includes (a) ATS roles that fit a track, AND (b) ALL search-
@@ -111,12 +122,15 @@ def run_daily_scan() -> dict:
             # geo-filtered at ingest, and their titles (esp. federal) often don't
             # match the PM/intern/ops classifiers, so we score them on merit rather
             # than drop them. Deduped against the track lanes above.
-            from scan.intern_filter import is_fulltime_pm, is_internship, is_ops_strategy
+            from scan.intern_filter import (is_fulltime_pm, is_internship,
+                                             is_ops_strategy, is_fulltime_tech)
             picked = {r.id for r in to_score}
             def _in_a_track(r) -> bool:
                 if mode in ("intern", "both") and is_internship(r.title, r.department):
                     return True
-                if mode in ("fulltime", "both") and is_fulltime_pm(r.title, r.department):
+                if mode in ("fulltime", "both") and (
+                        is_fulltime_pm(r.title, r.department)
+                        or is_fulltime_tech(r.title, r.department)):
                     return True
                 if mode in ("ops", "both") and is_ops_strategy(r.title, r.department):
                     return True
@@ -129,9 +143,10 @@ def run_daily_scan() -> dict:
             totals["metro"] = len(metro_roles)
 
             log.info("track filter (%s): %d internships + %d full-time PM + %d ops/strategy "
-                     "+ %d target-metro (uncapped) of %d new/changed",
+                     "+ %d adjacent-tech + %d target-metro (uncapped) of %d new/changed",
                      mode, totals.get("interns", 0), totals.get("fulltime", 0),
-                     totals.get("ops", 0), totals.get("metro", 0), len(fresh))
+                     totals.get("ops", 0), totals.get("tech", 0),
+                     totals.get("metro", 0), len(fresh))
             if to_score:
                 score_cost = score_roles(db, to_score)
 

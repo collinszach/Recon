@@ -136,3 +136,58 @@ def is_ops_strategy(title: str | None, department: str | None = None) -> bool:
 def filter_ops_strategy(roles: list) -> list:
     return [r for r in roles if is_ops_strategy(getattr(r, "title", None),
                                                 getattr(r, "department", None))]
+
+
+# ── Adjacent technical IC / leadership roles (the loosened, background-fit-based
+# rubric scores these on merit, so the intake funnel must let them in too) ───
+# Families: technical program/project mgmt, solutions / forward-deployed,
+# data / analytics / platform engineering, developer experience / relations,
+# software / systems engineering, and autonomy / robotics. The scorer makes the
+# finer seniority + fit call (Zach is early-career, so it caps senior titles).
+_TECH_RE = re.compile(
+    r"\b("
+    # technical program / project management
+    r"technical\s+program\s+manager|technical\s+program\s+management|"
+    r"technical\s+project\s+manager|tpm|"
+    # solutions / forward-deployed / field-facing engineering
+    r"solutions?\s+(engineer|architect|consultant)|"
+    r"forward[\s-]?deployed(\s+(software\s+)?engineer)?|fde|"
+    r"sales\s+engineer|customer\s+engineer|partner\s+engineer|"
+    r"implementation\s+(engineer|consultant|specialist)|deployment\s+(engineer|strategist)|"
+    # developer experience / relations
+    r"developer\s+(experience|relations|advocate|advocacy)|devrel|"
+    # data / analytics / platform
+    r"analytics\s+(engineer|manager|lead)|data\s+(engineer|strateg(y|ist))|"
+    # software / systems / platform / ML engineering
+    r"((software|systems|platform|infrastructure|backend|back-end|full[\s-]?stack|"
+    r"ml|machine\s+learning|data)\s+engineer)|software\s+engineer(ing)?|"
+    # autonomy / robotics (AV)
+    r"autonom(y|ous)\s+(engineer|systems?|vehicles?)|robotics?\s+engineer|"
+    r"perception\s+engineer|self[\s-]?driving|motion\s+planning"
+    r")\b",
+    re.IGNORECASE,
+)
+# Non-software engineering disciplines Zach isn't targeting — drop to save cost
+# (the scorer would down-rank them anyway).
+_TECH_FALSE_RE = re.compile(
+    r"\b(civil|mechanical|electrical|chemical|structural|biomedical|environmental|"
+    r"petroleum|materials|hardware|firmware|manufacturing|process)\s+engineer\b",
+    re.IGNORECASE,
+)
+
+
+def is_fulltime_tech(title: str | None, department: str | None = None) -> bool:
+    """True for an adjacent technical full-time role (TPM / solutions / data /
+    devex / software / autonomy). Not an internship; PM and ops are their own
+    lanes, but overlaps are fine — the runner dedupes across lanes."""
+    hay = " ".join(p for p in (title, department) if p)
+    if not hay or is_internship(title, department):
+        return False
+    if _TECH_FALSE_RE.search(hay) and not _TECH_RE.search(_TECH_FALSE_RE.sub(" ", hay)):
+        return False
+    return bool(_TECH_RE.search(hay))
+
+
+def filter_fulltime_tech(roles: list) -> list:
+    return [r for r in roles if is_fulltime_tech(getattr(r, "title", None),
+                                                 getattr(r, "department", None))]
