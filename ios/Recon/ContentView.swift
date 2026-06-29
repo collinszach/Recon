@@ -53,6 +53,20 @@ private struct NavTab<Content: View>: View {
                     }
                 }
                 .refreshable { await store.refresh() }
+                .safeAreaInset(edge: .top) {
+                    if store.isOffline {
+                        ConnectionBanner(
+                            lastSynced: store.lastSyncedText,
+                            retrying: store.loading,
+                            onRetry: { Task { await store.refresh() } },
+                            onSettings: { showSettings = true }
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.top, 6)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
+                .animation(.easeOut(duration: 0.28), value: store.isOffline)
         }
     }
 }

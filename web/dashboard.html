@@ -223,6 +223,32 @@
     font-size: 12.5px; line-height: 1.6; color: var(--ink-soft); margin-bottom: 24px;
   }
   .curr-note strong { color: var(--gold-deep); }
+
+  /* OFFLINE BANNER (shared by feed + pipeline) */
+  .offline-banner {
+    background: #fbeee8; border: 1px solid var(--rule-strong); border-radius: 4px;
+    padding: 18px 20px; margin-bottom: 24px;
+  }
+  .offline-banner-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+  .offline-banner-tag {
+    font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--rust); font-weight: 600;
+  }
+  .offline-banner-title {
+    font-family: "Fraunces", serif; font-size: 16px; font-weight: 600; color: var(--ink);
+  }
+  .offline-banner-body { font-size: 12.5px; line-height: 1.6; color: var(--ink-soft); margin-bottom: 13px; }
+  .offline-banner-body strong { color: var(--rust); }
+  .offline-banner-foot { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .offline-banner-retry {
+    font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 7px 14px; border: 1px solid var(--rule-strong);
+    border-radius: 3px; background: var(--ink); color: var(--paper); cursor: pointer;
+  }
+  .offline-banner-retry:hover { background: var(--rust); }
+  .offline-banner-retry:disabled { opacity: 0.5; cursor: default; }
+  .offline-banner-sync { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink-light); }
+
   .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
   .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-light); }
   .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
@@ -769,9 +795,19 @@
 <div class="container">
   <div class="sh"><span class="sh-num">●</span><h2>Application Pipeline</h2><span class="sh-sub" id="pipeline-status">connecting…</span></div>
 
-  <div class="curr-note" id="pipeline-offline" style="display:none;">
-    <strong>API not reachable.</strong> This tab is live only when the Recon backend is running.
-    Start it with <code>docker compose up</code> on the NUC, then reload.
+  <div class="offline-banner" id="pipeline-offline" style="display:none;">
+    <div class="offline-banner-head">
+      <span class="offline-banner-tag">No connection</span>
+      <span class="offline-banner-title">Can't reach Recon</span>
+    </div>
+    <div class="offline-banner-body">
+      Recon runs on the NUC over Tailscale. <strong>Tailscale may be disconnected</strong> —
+      reopen it (or confirm the backend is up with <code>docker compose up</code>), then retry.
+    </div>
+    <div class="offline-banner-foot">
+      <button class="offline-banner-retry" onclick="loadPipeline(this)">↻ Retry</button>
+      <span class="offline-banner-sync" id="pipeline-sync"></span>
+    </div>
   </div>
 
   <div id="pipeline-live" style="display:none;">
@@ -815,10 +851,20 @@
 <div class="container">
   <div class="sh"><span class="sh-num">12</span><h2>Recon Feed — Live</h2><span class="sh-sub" id="feed-status">connecting…</span></div>
 
-  <div class="curr-note" id="feed-offline" style="display:none;">
-    <strong>API not reachable.</strong> This tab is live only when the Recon backend is running.
-    Start it with <code>docker compose up</code> on the NUC, then reload. Until then, the rest of
-    the dashboard works fully offline as a static page.
+  <div class="offline-banner" id="feed-offline" style="display:none;">
+    <div class="offline-banner-head">
+      <span class="offline-banner-tag">No connection</span>
+      <span class="offline-banner-title">Can't reach Recon</span>
+    </div>
+    <div class="offline-banner-body">
+      Recon runs on the NUC over Tailscale. <strong>Tailscale may be disconnected</strong> —
+      reopen it (or confirm the backend is up with <code>docker compose up</code>), then retry.
+      The rest of this dashboard works fully offline as a static page.
+    </div>
+    <div class="offline-banner-foot">
+      <button class="offline-banner-retry" onclick="loadFeed(this)">↻ Retry</button>
+      <span class="offline-banner-sync" id="feed-sync"></span>
+    </div>
   </div>
 
   <div id="feed-live" style="display:none;">
@@ -847,16 +893,45 @@
 <script>
   const API = (location.origin && location.origin.startsWith('http')) ? location.origin : 'http://localhost:8000';
 
-  async function loadFeed() {
+  // ── Connection state (shared by feed + pipeline) ──────────────────────────
+  const SYNC_KEY = 'recon.lastSync';
+  function relTime(ms) {
+    const s = Math.round((Date.now() - ms) / 1000);
+    if (s < 45) return 'just now';
+    const m = Math.round(s / 60); if (m < 60) return m + 'm ago';
+    const h = Math.round(m / 60); if (h < 24) return h + 'h ago';
+    return Math.round(h / 24) + 'd ago';
+  }
+  function markSynced() {
+    localStorage.setItem(SYNC_KEY, String(Date.now()));
+  }
+  function renderSync(elId) {
+    const raw = localStorage.getItem(SYNC_KEY);
+    document.getElementById(elId).textContent = raw ? 'Last synced ' + relTime(+raw) : 'No saved data yet';
+  }
+  // Toggle a tab's live/offline view. `online=null` means "retrying…".
+  function setConn(tab, online) {
+    const status = document.getElementById(tab + '-status');
+    const offline = document.getElementById(tab + '-offline');
+    const live = document.getElementById(tab + '-live');
+    const btn = offline.querySelector('.offline-banner-retry');
+    if (online === null) { if (btn) { btn.disabled = true; btn.textContent = '↻ Reconnecting…'; } return; }
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Retry'; }
+    offline.style.display = online ? 'none' : 'block';
+    live.style.display = online ? 'block' : 'none';
+    if (!online) renderSync(tab + '-sync');
+  }
+
+  async function loadFeed(btn) {
+    if (btn) setConn('feed', null);
     try {
       const h = await fetch(API + '/health').then(r => r.json());
       document.getElementById('feed-status').textContent = 'online · scoring=' + h.scoring_mode;
-      document.getElementById('feed-offline').style.display = 'none';
-      document.getElementById('feed-live').style.display = 'block';
+      setConn('feed', true);
+      markSynced();
     } catch (e) {
+      setConn('feed', false);
       document.getElementById('feed-status').textContent = 'offline';
-      document.getElementById('feed-offline').style.display = 'block';
-      document.getElementById('feed-live').style.display = 'none';
       return;
     }
     // brief
@@ -902,16 +977,16 @@
 <script>
   const PIPELINE_STAGES = ['watching','drafting','applied','screen','onsite','offer','closed'];
 
-  async function loadPipeline() {
+  async function loadPipeline(btn) {
+    if (btn) setConn('pipeline', null);
     try {
       const h = await fetch(API + '/health').then(r => r.json());
       document.getElementById('pipeline-status').textContent = 'online · scoring=' + h.scoring_mode;
-      document.getElementById('pipeline-offline').style.display = 'none';
-      document.getElementById('pipeline-live').style.display = 'block';
+      setConn('pipeline', true);
+      markSynced();
     } catch (e) {
       document.getElementById('pipeline-status').textContent = 'offline';
-      document.getElementById('pipeline-offline').style.display = 'block';
-      document.getElementById('pipeline-live').style.display = 'none';
+      setConn('pipeline', false);
       return;
     }
     try {
