@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     score_max_intern: int = 200         # cost cap: max internships scored per scan
     score_max_fulltime: int = 200       # cost cap: max full-time PM roles scored per scan
     score_max_ops: int = 150            # cost cap: max ops/strategy roles scored per scan
+    score_max_tech: int = 150           # cost cap: max adjacent-tech (TPM/solutions/SWE/data) per scan
     score_max_metro: int = 150          # cost cap: max extra target-metro roles per scan
     # back-compat: if intern_only is set true it forces track_mode="intern"
     intern_only: bool = False
@@ -40,7 +41,7 @@ class Settings(BaseSettings):
     search_enabled: bool = False
     search_interval_hours: int = 24          # run search at most this often (free-tier friendly)
     search_metros_only: bool = True          # keep only results in a target metro / US-remote
-    search_max_queries_per_run: int = 8      # hard cap on provider calls per run (quota guard)
+    search_max_queries_per_run: int = 12     # hard cap on provider calls per run (quota guard)
     search_max_pages: int = 1                # JSearch pages per term (10 results/page)
     search_date_posted: str = "week"         # JSearch: all|today|3days|week|month
     search_max_results_per_query: int = 50   # USAJobs ResultsPerPage cap

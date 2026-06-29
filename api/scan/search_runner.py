@@ -46,7 +46,9 @@ def run_search(db: Session) -> dict:
                 "new_companies": 0, "errors": []}
 
     terms = default_terms()
-    queries = [(p, t) for p in providers for t in terms][: settings.search_max_queries_per_run]
+    # Interleave term-first so the cap trims whole low-priority terms rather than
+    # starving the second provider (USAJobs) of every query.
+    queries = [(p, t) for t in terms for p in providers][: settings.search_max_queries_per_run]
 
     # company lookup cache, keyed by normalized name (case-insensitive)
     companies = {_norm_company(c.name).lower(): c for c in db.scalars(select(Company)).all()}
