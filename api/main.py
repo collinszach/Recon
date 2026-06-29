@@ -35,6 +35,9 @@ def _ensure_schema():
     from sqlalchemy import text
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS metro VARCHAR"))
+        # provenance: 'ats' (default) | 'jsearch' | 'usajobs' — Postgres backfills existing rows.
+        conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS source VARCHAR DEFAULT 'ats'"))
+        conn.execute(text("ALTER TABLE scan_runs ADD COLUMN IF NOT EXISTS searched BOOLEAN DEFAULT FALSE"))
 
 
 def _backfill_metro():
@@ -72,7 +75,10 @@ def startup():
 # ─── health ─────────────────────────────────────────────────
 @app.get("/health")
 def health():
-    return {"status": "ok", "scoring_mode": settings.scoring_mode}
+    model = (settings.local_llm_model if settings.llm_provider == "local"
+             else settings.claude_model)
+    return {"status": "ok", "scoring_mode": settings.scoring_mode,
+            "llm_provider": settings.llm_provider, "model": model}
 
 
 # ─── roles ──────────────────────────────────────────────────
@@ -113,6 +119,7 @@ def list_roles(tier: str | None = None, company: str | None = None,
             "track": role_track,
             "id": r.id, "company": co.name if co else None,
             "company_tier": co.tier if co else None,
+            "source": r.source or "ats",        # ats | jsearch | usajobs (provenance)
             "tier": r.score_tier,               # fit tier (A/B/C/pass) from scoring
             "title": r.title,
             "location": r.location, "metro": r.metro, "url": r.url, "status": r.status,

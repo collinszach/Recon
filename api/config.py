@@ -8,8 +8,16 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://recon:recon@db:5432/recon"
     redis_url: str = "redis://redis:6379/0"
 
+    # ─── LLM backend ────────────────────────────────────────
+    # "anthropic" -> Claude API (cloud)   "local" -> gs65, an Ollama host on the Tailnet
+    llm_provider: str = "anthropic"
     anthropic_api_key: str = ""
-    claude_model: str = "claude-sonnet-4-6"
+    claude_model: str = "claude-sonnet-4-6"      # résumé/cover/interview features (quality-sensitive, rare)
+    scoring_model: str = "claude-haiku-4-5"      # bulk daily role scoring (~3x cheaper than Sonnet)
+    # gs65: local LLM served by Ollama over Tailscale (OpenAI-compatible /v1 API).
+    local_llm_base_url: str = "http://100.119.105.2:11434/v1"
+    local_llm_model: str = "gs65"
+    local_llm_api_key: str = "ollama"   # Ollama ignores the value but the client needs one
     scoring_mode: str = "stub"          # "stub" | "live"
 
     # ─── Focus: which tracks to scan/score ──────────────────
@@ -23,6 +31,23 @@ class Settings(BaseSettings):
     score_max_metro: int = 150          # cost cap: max extra target-metro roles per scan
     # back-compat: if intern_only is set true it forces track_mode="intern"
     intern_only: bool = False
+
+    # ─── Search sources (third-party job aggregators) ───────
+    # JSearch (Google-for-Jobs via RapidAPI, incl. LinkedIn) + USAJobs (federal).
+    # Search is keyword+geo (cross-employer), so it runs OUTSIDE the per-company ATS
+    # loop, auto-creates a Company per employer, and is gated to once/day to respect
+    # the providers' free tiers. Roles are geo-filtered to the target metros.
+    search_enabled: bool = False
+    search_interval_hours: int = 24          # run search at most this often (free-tier friendly)
+    search_metros_only: bool = True          # keep only results in a target metro / US-remote
+    search_max_queries_per_run: int = 8      # hard cap on provider calls per run (quota guard)
+    search_max_pages: int = 1                # JSearch pages per term (10 results/page)
+    search_date_posted: str = "week"         # JSearch: all|today|3days|week|month
+    search_max_results_per_query: int = 50   # USAJobs ResultsPerPage cap
+    search_terms: str = ""                   # comma-separated override; blank -> derived from tracks
+    jsearch_api_key: str = ""                # RapidAPI key for jsearch.p.rapidapi.com
+    usajobs_api_key: str = ""                # data.usajobs.gov Authorization-Key
+    usajobs_email: str = ""                  # USAJobs requires a contact email as the User-Agent
 
     scan_hour_local: int = 6
     scan_interval_hours: int = 3        # how often the worker runs the scan

@@ -5,6 +5,7 @@ import json
 import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+import llm
 from config import settings
 from db import Resume, ResumeExperience, Role
 
@@ -65,19 +66,16 @@ def tailor_role(db: Session, role: Role) -> dict:
     resume = assemble_resume(db)
     if not resume:
         return {"error": "No resume yet — add one in the Resume tab."}
-    if settings.scoring_mode != "live" or not settings.anthropic_api_key:
-        return {"error": "Tailoring needs SCORING_MODE=live and an ANTHROPIC_API_KEY."}
+    if settings.scoring_mode != "live" or not llm.configured():
+        return {"error": "Tailoring needs SCORING_MODE=live and an LLM backend configured."}
 
-    from anthropic import Anthropic
-    client = Anthropic(api_key=settings.anthropic_api_key)
-    msg = client.messages.create(
-        model=settings.claude_model,
-        max_tokens=1500,
+    res = llm.complete(
         system=SYSTEM,
+        max_tokens=1500,
         messages=[{"role": "user",
                    "content": f"{INSTRUCTIONS}\n\n=== RESUME ===\n{resume}\n\n=== TARGET ROLE ===\n{_role_blob(role)}"}],
     )
-    text = "".join(b.text for b in msg.content if b.type == "text").strip()
+    text = res.text.strip()
     text = text.replace("```json", "").replace("```", "").strip()
     # Be forgiving: extract the outermost JSON object if the model added prose.
     if not text.startswith("{"):

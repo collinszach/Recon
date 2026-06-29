@@ -5,6 +5,7 @@ human applies. Never fabricates; keeps the resume to one page; keeps Zach's voic
 import json
 import logging
 from sqlalchemy.orm import Session
+import llm
 from config import settings
 from db import Role  # noqa: F401 (kept for parity / future role-aware coaching)
 from resume.tailor import assemble_resume
@@ -47,12 +48,9 @@ def coach_reply(db: Session, messages: list[dict]) -> dict:
     if not resume:
         return {"reply": "There's no resume loaded yet — add one in the Résumé tab and we can start.",
                 "proposed_update": None}
-    if settings.scoring_mode != "live" or not settings.anthropic_api_key:
-        return {"reply": "Coaching needs the live AI (SCORING_MODE=live + ANTHROPIC_API_KEY).",
+    if settings.scoring_mode != "live" or not llm.configured():
+        return {"reply": "Coaching needs the live AI (SCORING_MODE=live + an LLM backend configured).",
                 "proposed_update": None}
-
-    from anthropic import Anthropic
-    client = Anthropic(api_key=settings.anthropic_api_key)
 
     convo = [{"role": ("assistant" if m.get("role") == "assistant" else "user"),
               "content": m.get("content", "")} for m in messages if m.get("content")]
@@ -62,10 +60,8 @@ def coach_reply(db: Session, messages: list[dict]) -> dict:
     convo[0] = {"role": "user",
                 "content": f"=== MY CURRENT RESUME ===\n{resume}\n\n=== MESSAGE ===\n{convo[0]['content']}"}
 
-    msg = client.messages.create(
-        model=settings.claude_model, max_tokens=1200, system=SYSTEM, messages=convo,
-    )
-    text = "".join(b.text for b in msg.content if b.type == "text").strip()
+    res = llm.complete(system=SYSTEM, max_tokens=1200, messages=convo)
+    text = res.text.strip()
     text = text.replace("```json", "").replace("```", "").strip()
     if not text.startswith("{"):
         a, b = text.find("{"), text.rfind("}")

@@ -3,14 +3,18 @@ import json
 import logging
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
+import llm
 from config import settings
 from db import Role
 
 log = logging.getLogger("recon.scoring")
 
-# Sonnet pricing (approx, USD per token) — update if pricing changes.
-PRICE_IN = 3.0 / 1_000_000
-PRICE_OUT = 15.0 / 1_000_000
+# Approx Claude pricing, USD per (input, output) token — update if pricing changes.
+PRICING = {
+    "claude-haiku-4-5": (1.0 / 1_000_000, 5.0 / 1_000_000),
+    "claude-sonnet-4-6": (3.0 / 1_000_000, 15.0 / 1_000_000),
+    "claude-opus-4-8": (5.0 / 1_000_000, 25.0 / 1_000_000),
+}
 
 _CANDIDATE = """\
 CANDIDATE PROFILE — Zach Collins
@@ -28,21 +32,29 @@ CANDIDATE PROFILE — Zach Collins
   new product development (ME 290P).
 - Active surfer, trail runner, tennis player, car enthusiast — authentic user of outdoor/athlete tech.
 
-He can credibly OWN technical / data-platform / AI / cloud / API / infrastructure product
-areas and partner deeply with engineering. Weight technical-PM, data, AI, cloud, platform, and
-developer-facing roles UP; he is not a generalist non-technical PM.
+He can credibly own and add value across technical / data-platform / AI / cloud / API /
+infrastructure / hardware-adjacent work and partners deeply with engineering. He is a TECHNICAL
+operator, not a generalist non-technical PM.
 
-DEFENSE / NATIONAL SECURITY IS IN SCOPE and a genuine strength, not a penalty: his Deloitte work
-ran a mission-critical FEDERAL supply chain (SAP EWM/TM), he led an MBSE digital-twin initiative
-on a DEFENSE Smart MRO facility, and he interned at Collins Aerospace (Raytheon). Defense-tech
-PRODUCT roles (autonomy, defense data platforms, hardware, space) should be ranked on merit and
-treated as a priority domain — his cleared-adjacent, federal, and hardware background is an edge.
+SCORING STANCE — judge every role on how well it fits HIS BACKGROUND and trajectory, NOT on its
+industry or its exact title:
+- INDUSTRY-NEUTRAL: do not weight any sector up or down. Defense, commercial, aerospace, fintech,
+  health, robotics, climate, consumer, gov-tech — all equal; score purely on role fit. Still tag
+  the closest domain below, but that tag must NOT change the score or tier.
+- ROLE-TYPE-BROAD: score ANY role his background suits, on merit — product management AND adjacent
+  paths: technical PM / TPM, program / project (when technical), solutions / forward-deployed
+  engineering, developer relations, BizOps / Strategy & Ops / Chief of Staff, GM, and eng-adjacent
+  IC or lead roles. Do NOT downgrade a role just because it isn't "pure product."
+- TECHNOLOGY & INNOVATION ARE A POSITIVE SIGNAL: roles building genuinely interesting, cutting-edge,
+  or frontier technology (autonomy, AI/ML, robotics, space, advanced hardware, novel platforms) are
+  a PLUS in any sector — he's drawn to hard, innovative tech.
+His background spans a federal supply chain (SAP EWM/TM), an MBSE digital-twin on a defense Smart
+MRO, and a Collins Aerospace (Raytheon) internship, so defense / aerospace / hardware roles fit him
+well — but treat that as fit, not as an industry preference.
 
-CAREER TRAJECTORY: end goal is FOUNDER, CTO, or COO. He is OPEN TO OPERATIONS / STRATEGY roles
-(BizOps, Strategy & Ops, Chief of Staff, GM, corp dev) as a path to general management and the
-founder track — value broad scope, ownership/P&L, 0->1 building, and a clear runway to GM or the
-exec suite. He is also OPEN TO THE AVIATION / AEROSPACE sector where applicable (Collins Aerospace
-background + ME degree). Rank roles that build toward founder/CTO/COO higher than narrow IC tracks.
+CAREER TRAJECTORY: end goal is FOUNDER, CTO, or COO. Rank UP roles with broad scope, ownership /
+P&L, 0->1 building, real technical depth, and a clear runway toward GM or the exec suite; rank down
+narrow IC tracks with little growth.
 
 LOCATION PREFERENCE: Zach will RELOCATE for the right role, and actively favors these metros:
 Charleston SC, New York City, the DC / Northern-Virginia / Maryland area, Southern California
@@ -51,60 +63,62 @@ Pittsburgh) — plus US-remote. When the role blob includes a "TARGET METRO" lin
 location as a positive (it's where he wants to be); do NOT downgrade it as "would require a move."
 A role in none of those is location-neutral, not a penalty — judge it on merit.
 
-PRIORITY DOMAINS (map each role to the closest one):
+DOMAIN TAG — pick the closest (for filtering only; does NOT weight the score):
   AI&Data | SCM&Twins | Hardware | Venture | Finance | Platform | Defense | Aerospace | other
 """
 
 INTERN_PROFILE = _CANDIDATE + """
-CURRENT GOAL: land a SUMMER 2027 PRODUCT-MANAGEMENT / APM INTERNSHIP (the internship summer
-between the two program years; a return offer sets up full-time recruiting).
+CURRENT GOAL: land a SUMMER 2027 INTERNSHIP (the summer between the two program years; a return
+offer sets up full-time recruiting). Product/APM is the sweet spot, but any internship his
+technical/operator background fits is in scope.
 
 HARD RULES (internship lens):
-- Score how good a fit the posting is as a Summer 2027 internship.
+- Score how good a fit the posting is as a Summer 2027 internship for HIS background.
 - TERM: target is Summer 2027. A role explicitly tied to a DIFFERENT summer (e.g. "Summer 2025"
   or "Summer 2026" only, with no 2027 cohort) is off-cycle -> tier "pass", note the term. A role
   with no stated year, or an MBA/grad internship that recruits a year ahead, is fine — most
-  Summer 2027 reqs are not posted yet, so an unspecified-year internship at a target company is
+  Summer 2027 reqs are not posted yet, so an unspecified-year internship at a fitting company is
   a strong WATCH.
-- "PM" must mean PRODUCT management, not program/project management. If program/project, set
-  is_product_pm=false and tier no higher than "C".
-- COMMERCIAL and DEFENSE/national-security product internships are both in scope and ranked on
-  merit — defense is a priority domain given his federal/MBSE/aerospace background, not a penalty.
+- ROLE TYPE IS BROAD: product / APM, but also TPM, technical program/project, strategy/ops,
+  solutions, and eng-adjacent internships all score on merit. is_product_pm is INFORMATIONAL
+  (true only for genuine product roles) and does NOT cap the tier. Interesting technology is a plus.
 - A FULL-TIME role that slipped through is NOT what this lens wants -> tier "pass".
 - Weight WLB positively; put the HOURLY or MONTHLY wage/stipend (not annual TC) in tc_estimate if
-  stated — do not invent a number.
+  stated — do not invent a number, and don't penalize on stipend.
 
 TIERS (internship):
-  A = strong Summer-2027-eligible PRODUCT/APM internship at a target-domain company, clear fit.
-  B = good internship fit with one tradeoff (domain stretch, WLB, off-priority team, or stage risk).
-  C = passion/lifestyle internship, below-priority domain, or program/project internship.
+  A = strong Summer-2027-eligible internship with a clear fit to his background and ideally
+      interesting technology.
+  B = good internship fit with one tradeoff (role-type stretch, WLB, off-fit team, or stage risk).
+  C = thin fit to his background, or a weak technical/innovation surface.
   pass = full-time role, off-cycle (non-2027) internship, or clear misfit.
 """
 
 FULLTIME_PROFILE = _CANDIDATE + """
-CURRENT GOAL: map the FULL-TIME PRODUCT-MANAGEMENT career market — roles Zach would target
-post-graduation (2028) or convert into from an internship. Score full-time product roles.
+CURRENT GOAL: map the FULL-TIME market — roles Zach would target post-graduation (2028) or convert
+into from an internship. Score any full-time role his background fits, not just product roles.
 
 HARD RULES (full-time lens):
-- "PM" must mean PRODUCT management, not program/project management. If program/project, set
-  is_product_pm=false and tier no higher than "C".
-- COMMERCIAL and DEFENSE/national-security product roles are both in scope and ranked on merit;
-  defense-tech (autonomy, defense data platforms, hardware, space) is a priority domain for him,
-  not a downgrade — his federal supply chain, MBSE-on-defense-MRO, and aerospace background fit.
-- $200K+ total comp is the floor; $300K+ is the target. Put the TC range in tc_estimate if
-  stated; do not invent a number. Clearly below-floor roles are tier C at best unless an
-  exceptional lifestyle/passion fit.
-- SENIORITY: Zach is early-career (incoming MBA/MEng, ~few yrs PM experience). Senior/Staff/
-  Principal/Director/VP/Head-of-Product roles likely out-reach his level — note it as a concern
-  and cap the tier, UNLESS the role is explicitly new-grad / early-career / APM / rotational.
-- Weight WLB positively; brutal-hours cultures are a downgrade.
+- ROLE TYPE IS BROAD: product management AND adjacent paths (technical PM/TPM, technical program/
+  project, solutions / forward-deployed, developer relations, BizOps / strategy, GM, eng-adjacent
+  IC or lead) all score on merit. is_product_pm is INFORMATIONAL (set true for genuine product
+  roles, false otherwise) and does NOT cap the tier.
+- COMP IS A SOFT PREFERENCE, NOT A GATE: ~$200K+ TC is the target and higher is better, but do NOT
+  cap the tier on comp alone. Put the TC range in tc_estimate if stated; never invent a number. A
+  strong-fit role with unknown or below-target comp can still be A or B.
+- SENIORITY: Zach is early-career (incoming MBA/MEng, ~few yrs experience). Senior/Staff/Principal/
+  Director/VP/Head roles likely out-reach his level — note it as a concern and cap the tier UNLESS
+  the role is explicitly new-grad / early-career / APM / rotational.
+- Weight WLB positively; brutal-hours cultures are a downgrade. Interesting / frontier technology
+  is a plus in any sector.
 - An INTERNSHIP is not what this lens wants -> tier "pass".
 
 TIERS (full-time):
-  A = strong commercial PRODUCT role, on-target comp, clear domain match, attainable seniority.
-  B = good fit with one tradeoff (comp ceiling, WLB, seniority stretch, or stage risk).
-  C = below-floor comp for passion/brand, domain stretch, or program/project role.
-  pass = internship, clear seniority mismatch, or misfit.
+  A = strong-fit role for his technical/operator background with real scope and attainable level;
+      target-or-above comp and cool technology are pluses, not requirements.
+  B = good fit with one tradeoff (level stretch, scope, comp, or stage risk).
+  C = thin fit to his background, big seniority mismatch, or weak technical/innovation surface.
+  pass = internship, or clear misfit (wrong background entirely).
 """
 
 OPS_PROFILE = _CANDIDATE + """
@@ -119,15 +133,16 @@ HARD RULES (ops/strategy lens):
   technical ops, data/analytics-driven strategy, supply-chain ops, and platform/GM roles.
 - FOUNDER/CTO/COO runway: rank UP roles with broad scope, ownership/P&L, 0->1 building, and a path
   to GM or the exec suite. Rank DOWN execution-only ops with no strategic surface.
-- $200K+ floor / $300K+ target; commercial, defense, and aerospace all in scope; WLB-weighted.
+- COMP is a soft preference (~$200K+ target, higher better), not a gate — don't cap the tier on
+  comp alone. All sectors are equal (industry-neutral); WLB-weighted; interesting tech is a plus.
 - Seniority: he's early-career — Director/VP/Head roles likely stretch; note it and cap the tier
   unless the role is explicitly open to his level.
-- is_product_pm should be FALSE for ops/strategy roles (they're not product management).
+- is_product_pm should be FALSE for ops/strategy roles (informational tag; doesn't cap the tier).
 
 TIERS (ops/strategy):
-  A = strong strategy/ops/GM role with founder-track scope, attainable level, clear domain fit.
-  B = good fit with one tradeoff (level stretch, narrow scope, comp ceiling, WLB).
-  C = execution-heavy or narrow ops, domain stretch, or below-floor for brand/passion.
+  A = strong strategy/ops/GM role with founder-track scope and attainable level.
+  B = good fit with one tradeoff (level stretch, narrow scope, comp, WLB).
+  C = execution-heavy or narrow ops, or thin fit to his background.
   pass = internship, pure product-PM, excluded technical/field ops, or clear misfit.
 """
 
@@ -159,19 +174,17 @@ def _role_blob(role: Role) -> str:
 
 
 def score_roles(db: Session, roles: list[Role]) -> dict:
-    if settings.scoring_mode != "live" or not settings.anthropic_api_key:
+    if settings.scoring_mode != "live" or not llm.configured():
         return _score_stub(db, roles)
     return _score_live(db, roles)
 
 
 def _apply(role: Role, data: dict) -> None:
     role.fit_score = float(data.get("fit_score") or 0)
-    tier = data.get("tier")
-    # Deterministic guardrail: "PM must mean PRODUCT". A non-product internship
-    # can't sit in the top tiers no matter how the model felt about the company.
-    if data.get("is_product_pm") is False and tier in ("A", "B"):
-        tier = "C"
-    role.score_tier = tier
+    # No product-only clamp: roles are scored on fit to Zach's background, and
+    # adjacent / non-product roles can sit in A/B on merit (rubric, 2026-06-28).
+    # is_product_pm is kept as an informational tag only.
+    role.score_tier = data.get("tier")
     role.domain = data.get("domain")
     role.why_fit = data.get("why_fit")
     role.concerns = data.get("concerns")
@@ -183,16 +196,20 @@ def _apply(role: Role, data: dict) -> None:
 
 def _score_stub(db: Session, roles: list[Role]) -> dict:
     """Heuristic scorer — lets the whole pipeline run with zero API spend.
-    Intern-aware: rewards product internships, downgrades program/project ones,
-    flags off-cycle summers it can read from the title."""
+    Background-fit-aware (not product-gated): rewards product/technical roles,
+    scores adjacent roles on merit, flags off-cycle summers from the title."""
     import re
     from scan.intern_filter import is_internship
     target = str(settings.intern_target_year)
     senior = re.compile(r"\b(senior|sr\.?|staff|principal|lead|director|vp|vice\s+president|head)\b", re.I)
+    # Title words that signal a role his technical/operator background fits.
+    techy = re.compile(r"\b(product|technical|platform|data|ai|ml|software|engineer|engineering|"
+                       r"solutions|strategy|operations|ops|program|project|analytics|cloud|"
+                       r"infrastructure|developer|hardware|robotics|autonomy)\b", re.I)
     for r in roles:
         t = (r.title or "").lower()
         is_product = "product" in t
-        is_program = ("program" in t or "project" in t) and not is_product
+        fits = bool(techy.search(t))          # adjacent/technical roles count, not just product
         intern = is_internship(r.title, r.department)
         years = re.findall(r"\b(20\d{2})\b", t)
         off_cycle = bool(years) and target not in years and intern
@@ -200,19 +217,15 @@ def _score_stub(db: Session, roles: list[Role]) -> dict:
         if intern:
             if off_cycle:
                 score, tier, concern = 2.0, "pass", f"Off-cycle: title names {','.join(years)}, not {target}."
-            elif is_program:
-                score, tier, concern = 3.5, "C", "Program/project internship, not product."
-            elif is_product:
+            elif fits:
                 score = 7.0 + (1.0 if r.company and r.company.tier == "A" else 0.0)
                 tier = "A" if score >= 8 else "B"
             else:
                 score, tier = 5.0, "C"
         else:  # full-time lens
-            if is_program:
-                score, tier, concern = 3.5, "C", "Program/project role, not product."
-            elif is_product and senior.search(t):
+            if fits and senior.search(t):
                 score, tier, concern = 6.0, "C", "Likely above an early-career seniority level."
-            elif is_product:
+            elif fits:
                 score = 7.0 + (1.0 if r.company and r.company.tier == "A" else 0.0)
                 tier = "A" if score >= 8 else "B"
             else:
@@ -225,7 +238,7 @@ def _score_stub(db: Session, roles: list[Role]) -> dict:
             "concerns": concern,
             "curriculum_hook": None,
             "tc_estimate": None,
-            "is_product_pm": bool(is_product and not is_program),
+            "is_product_pm": is_product,
         })
     db.commit()
     log.info("stub-scored %d roles", len(roles))
@@ -233,9 +246,7 @@ def _score_stub(db: Session, roles: list[Role]) -> dict:
 
 
 def _score_live(db: Session, roles: list[Role]) -> dict:
-    from anthropic import Anthropic
     from scan.intern_filter import is_internship, is_ops_strategy
-    client = Anthropic(api_key=settings.anthropic_api_key)
     tok_in = tok_out = 0
 
     for r in roles:
@@ -246,15 +257,15 @@ def _score_live(db: Session, roles: list[Role]) -> dict:
             profile = OPS_PROFILE
         else:
             profile = FULLTIME_PROFILE
-        msg = client.messages.create(
-            model=settings.claude_model,
-            max_tokens=400,
+        res = llm.complete(
             system=profile,
+            max_tokens=400,
+            model=settings.scoring_model,
             messages=[{"role": "user", "content": INSTRUCTIONS + "\n\nROLE:\n" + _role_blob(r)}],
         )
-        tok_in += msg.usage.input_tokens
-        tok_out += msg.usage.output_tokens
-        text = "".join(b.text for b in msg.content if b.type == "text").strip()
+        tok_in += res.tokens_in
+        tok_out += res.tokens_out
+        text = res.text.strip()
         text = text.replace("```json", "").replace("```", "").strip()
         try:
             _apply(r, json.loads(text))
@@ -262,6 +273,11 @@ def _score_live(db: Session, roles: list[Role]) -> dict:
             log.warning("could not parse score for role %s", r.id)
     db.commit()
 
-    usd = tok_in * PRICE_IN + tok_out * PRICE_OUT
+    # gs65 (local) is free; only the Claude API bills per token.
+    if settings.llm_provider == "anthropic":
+        price_in, price_out = PRICING.get(settings.scoring_model, PRICING["claude-haiku-4-5"])
+        usd = tok_in * price_in + tok_out * price_out
+    else:
+        usd = 0.0
     log.info("live-scored %d roles, $%.4f", len(roles), usd)
     return {"tokens_in": tok_in, "tokens_out": tok_out, "usd": round(usd, 4)}

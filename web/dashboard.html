@@ -868,8 +868,11 @@
     try {
       const roles = await fetch(API + '/api/roles?min_fit=0').then(r => r.json());
       document.getElementById('roles-count').textContent = roles.length + ' open';
+      const srcBadge = s => (s && s !== 'ats')
+        ? ` <span style="font-size:10px;padding:1px 6px;border-radius:8px;background:#e8eef7;color:#3a5a8c;margin-left:6px;vertical-align:middle;" title="found via ${s}">${s === 'usajobs' ? 'USAJobs' : 'JSearch'}</span>`
+        : '';
       document.getElementById('roles-body').innerHTML = roles.length ? roles.map(r => `
-        <tr><td><b>${r.company ?? ''}</b></td><td>${r.title ?? ''}</td>
+        <tr><td><b>${r.company ?? ''}</b>${srcBadge(r.source)}</td><td>${r.title ?? ''}</td>
         <td>${r.location ?? ''}</td>
         <td><span class="fit-score">${r.fit_score != null ? r.fit_score.toFixed(1) : '—'}</span></td>
         <td class="tc">${r.tc_estimate ?? '—'}</td>

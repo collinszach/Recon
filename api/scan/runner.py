@@ -1,7 +1,7 @@
 """Full daily scan: fetch every active company, reconcile, score, brief."""
 import logging
 from datetime import datetime, timezone, date, timedelta
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from config import settings
 from db import SessionLocal, Company, Role, ScanRun
@@ -49,6 +49,30 @@ def run_daily_scan() -> dict:
                 msg = f"{co.name}: {type(e).__name__}: {e}"
                 errors.append(msg)
                 log.warning("scan error %s", msg)
+
+        # ── third-party search sources (JSearch / USAJobs), gated to once/day ──
+        # Scans run every few hours; search providers have free-tier quotas, so we
+        # only hit them if no recent run already did. Search-found roles feed the
+        # same track/scoring path below.
+        if settings.search_enabled:
+            now = datetime.now(timezone.utc)
+            last = db.scalar(select(func.max(ScanRun.started_at)).where(ScanRun.searched.is_(True)))
+            due = last is None or (now - last) >= timedelta(hours=settings.search_interval_hours)
+            if due:
+                try:
+                    from scan.search_runner import run_search
+                    sres = run_search(db)
+                    fresh_role_ids += sres["new_ids"]
+                    new_role_ids += sres["new_ids"]
+                    totals["search_new"] = sres["new"]
+                    totals["search_companies"] = sres["new_companies"]
+                    errors += sres["errors"]
+                    run.searched = True
+                    db.commit()
+                    log.info("search ingest: +%d roles, +%d companies (%d results)",
+                             sres["new"], sres["new_companies"], sres["results"])
+                except Exception as e:  # search must never kill the ATS scan
+                    log.warning("search ingest failed: %s: %s", type(e).__name__, e)
 
         # score only the new + changed roles, narrowed to the tracks we care about
         # (internships and/or full-time product-management roles). Everything else

@@ -36,6 +36,7 @@ class Role(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"))
     ats_job_id: Mapped[str] = mapped_column(String)
+    source: Mapped[str] = mapped_column(String, default="ats")  # ats | jsearch | usajobs
     title: Mapped[str] = mapped_column(String)
     location: Mapped[str | None] = mapped_column(String)
     metro: Mapped[str | None] = mapped_column(String)   # target-metro slug (scan.geo)
@@ -141,6 +142,7 @@ class ScanRun(Base):
     new_count: Mapped[int] = mapped_column(Integer, default=0)
     changed_count: Mapped[int] = mapped_column(Integer, default=0)
     closed_count: Mapped[int] = mapped_column(Integer, default=0)
+    searched: Mapped[bool] = mapped_column(Boolean, default=False)  # did this run hit the search providers?
     claude_tokens_in: Mapped[int] = mapped_column(Integer, default=0)
     claude_tokens_out: Mapped[int] = mapped_column(Integer, default=0)
     est_cost_usd: Mapped[float] = mapped_column(Float, default=0.0)

@@ -6,6 +6,7 @@ pydantic==2.10.4
 pydantic-settings==2.7.1
 httpx==0.28.1
 anthropic==0.42.0
+openai==1.59.6                       # talks to gs65 (local Ollama, OpenAI-compatible /v1) when LLM_PROVIDER=local
 mcp==1.2.0
 python-dotenv==1.0.1
 

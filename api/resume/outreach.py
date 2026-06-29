@@ -3,6 +3,7 @@ only — he edits and sends. Never fabricates."""
 import json
 import logging
 from sqlalchemy.orm import Session
+import llm
 from config import settings
 from db import Role
 from resume.tailor import assemble_resume
@@ -30,22 +31,20 @@ def draft_outreach(db: Session, role: Role) -> dict:
     resume = assemble_resume(db)
     if not resume:
         return {"error": "No resume yet — add one in the Résumé tab first."}
-    if settings.scoring_mode != "live" or not settings.anthropic_api_key:
-        return {"error": "Outreach drafting needs SCORING_MODE=live and an ANTHROPIC_API_KEY."}
+    if settings.scoring_mode != "live" or not llm.configured():
+        return {"error": "Outreach drafting needs SCORING_MODE=live and an LLM backend configured."}
 
     co = role.company.name if role.company else "the company"
     role_blob = f"COMPANY: {co}\nROLE: {role.title}\nLOCATION: {role.location}\nDOMAIN: {role.domain}"
     if role.why_fit:
         role_blob += f"\nWHY IT FITS HIM: {role.why_fit}"
 
-    from anthropic import Anthropic
-    client = Anthropic(api_key=settings.anthropic_api_key)
-    msg = client.messages.create(
-        model=settings.claude_model, max_tokens=700, system=SYSTEM,
+    res = llm.complete(
+        system=SYSTEM, max_tokens=700,
         messages=[{"role": "user",
                    "content": f"=== RESUME ===\n{resume}\n\n=== TARGET ROLE ===\n{role_blob}"}],
     )
-    text = "".join(b.text for b in msg.content if b.type == "text").strip()
+    text = res.text.strip()
     text = text.replace("```json", "").replace("```", "").strip()
     if not text.startswith("{"):
         a, b = text.find("{"), text.rfind("}")
