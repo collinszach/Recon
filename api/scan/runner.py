@@ -104,10 +104,13 @@ def run_daily_scan() -> dict:
                 to_score += ops
                 totals["ops"] = len(ops)
 
-            # Metro lane: any fresh role in one of Zach's target metros that fits a
-            # track we score gets included even if a per-track cap would have cut it
-            # — geography is a first-class signal, so target-metro roles never get
-            # dropped for budget. Deduped against the track lanes above.
+            # Metro lane: any fresh role in one of Zach's target metros gets scored
+            # even if a per-track cap would have cut it — geography is a first-class
+            # signal. Includes (a) ATS roles that fit a track, AND (b) ALL search-
+            # sourced roles (JSearch/USAJobs): they're cross-employer and already
+            # geo-filtered at ingest, and their titles (esp. federal) often don't
+            # match the PM/intern/ops classifiers, so we score them on merit rather
+            # than drop them. Deduped against the track lanes above.
             from scan.intern_filter import is_fulltime_pm, is_internship, is_ops_strategy
             picked = {r.id for r in to_score}
             def _in_a_track(r) -> bool:
@@ -119,7 +122,8 @@ def run_daily_scan() -> dict:
                     return True
                 return False
             metro_roles = [r for r in fresh
-                           if r.metro and r.id not in picked and _in_a_track(r)]
+                           if r.metro and r.id not in picked
+                           and (_in_a_track(r) or (r.source or "ats") != "ats")]
             metro_roles = metro_roles[: settings.score_max_metro]
             to_score += metro_roles
             totals["metro"] = len(metro_roles)
