@@ -43,6 +43,7 @@ class Role(Base):
     remote_flag: Mapped[bool] = mapped_column(Boolean, default=False)
     department: Mapped[str | None] = mapped_column(String)
     url: Mapped[str | None] = mapped_column(String)
+    description: Mapped[str | None] = mapped_column(Text)  # full JD text (for scoring + display)
     description_hash: Mapped[str | None] = mapped_column(String)
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # from the ATS
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
