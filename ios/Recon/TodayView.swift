@@ -21,13 +21,14 @@ struct TodayView: View {
                     Stat(num: "\(store.apps.count)", label: "pipeline", color: Theme.green)
                 }
 
-                SectionHeader(title: "Top matches")
+                SectionHeader(title: "Top matches",
+                              trailing: store.newCount > 0 ? "\(store.newCount) new" : nil)
                 if store.feed.isEmpty {
                     Text("No high-fit internships open yet. Most Summer 2027 reqs post Aug 2026–Jan 2027 — Recon scans daily and will surface them here.")
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 } else {
                     ForEach(store.feed.prefix(5)) { role in
-                        NavigationLink(value: role) { RoleRow(role: role) }
+                        NavigationLink(value: role) { RoleRow(role: role, isNew: store.isNew(role)) }
                             .buttonStyle(.plain)
                     }
                 }

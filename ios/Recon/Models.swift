@@ -55,6 +55,24 @@ struct Role: Codable, Identifiable, Hashable {
         if let d = parse(firstSeen) { return "Seen \(Self.ago(d))" }
         return nil
     }
+
+    static func parseDate(_ s: String?) -> Date? {
+        guard let s else { return nil }
+        let iso = ISO8601DateFormatter(); iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso2 = ISO8601DateFormatter(); iso2.formatOptions = [.withInternetDateTime]
+        return iso.date(from: s) ?? iso2.date(from: s)
+    }
+    var firstSeenDate: Date? { Self.parseDate(firstSeen) }
+    /// Ingested after the given baseline → "new since you last looked".
+    func isNew(since: Date?) -> Bool {
+        guard let since, let d = firstSeenDate else { return false }
+        return d > since
+    }
+    /// ATS posting opened within the last ~5 days.
+    var isFresh: Bool {
+        guard let d = Self.parseDate(postedAt) else { return false }
+        return Date().timeIntervalSince(d) < 5 * 86400
+    }
     private static func ago(_ d: Date) -> String {
         let days = Int(Date().timeIntervalSince(d) / 86400)
         if days <= 0 { return "today" }
