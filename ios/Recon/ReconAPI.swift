@@ -125,6 +125,11 @@ struct ReconAPI {
     func track(roleId: Int, stage: String = "watching") async throws -> AppItem {
         try await send("POST", "api/applications", body: NewApp(role_id: roleId, stage: stage), as: AppItem.self)
     }
+    struct Feedback: Encodable { let value: String? }
+    func feedback(roleId: Int, value: String?) async throws {
+        _ = try await execute("POST", "api/roles/\(roleId)/feedback",
+                              body: try JSONEncoder().encode(Feedback(value: value)))
+    }
     struct StageUpdate: Encodable { let stage: String }
     func move(appId: Int, to stage: String) async throws -> AppItem {
         try await send("PATCH", "api/applications/\(appId)", body: StageUpdate(stage: stage), as: AppItem.self)

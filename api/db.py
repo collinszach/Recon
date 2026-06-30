@@ -59,6 +59,10 @@ class Role(Base):
     tc_estimate: Mapped[str | None] = mapped_column(String)
     is_product_pm: Mapped[bool | None] = mapped_column(Boolean)
     scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # user feedback: "up" (good fit) | "down" (not for me) | None — hides downs
+    # from the feed and calibrates future scoring toward Zach's actual taste.
+    interest: Mapped[str | None] = mapped_column(String)
+    interest_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     company: Mapped["Company"] = relationship(back_populates="roles")
 
 
