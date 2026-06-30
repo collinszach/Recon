@@ -22,6 +22,10 @@ final class Store: ObservableObject {
     @Published var hiddenRoleIds: Set<Int> = []
     @Published var likedRoleIds: Set<Int> = []
 
+    /// Baseline for "new since you last looked": the sync time *before* this one.
+    /// Roles first seen after it are flagged NEW until the next refresh advances it.
+    @Published var newSince: Date?
+
     private let api = ReconAPI.shared
 
     init() {
@@ -33,6 +37,7 @@ final class Store: ObservableObject {
         contacts = Cache.load([Contact].self, "contacts") ?? []
         resume = Cache.load(ResumeData.self, "resume")
         lastSynced = Cache.load(Date.self, "lastSynced")
+        newSince = Cache.load(Date.self, "newSince")
     }
 
     private func markSynced() {
@@ -51,6 +56,10 @@ final class Store: ObservableObject {
         let f = RelativeDateTimeFormatter(); f.unitsStyle = .short
         return f.localizedString(for: d, relativeTo: Date())
     }
+
+    func isNew(_ role: Role) -> Bool { role.isNew(since: newSince) }
+    /// Count of feed roles first seen since the last refresh.
+    var newCount: Int { feed.filter { $0.isNew(since: newSince) }.count }
 
     /// Roles worth surfacing: fit-sorted, pass-tier dropped (both tracks).
     var feed: [Role] {
@@ -82,6 +91,7 @@ final class Store: ObservableObject {
     func refresh() async {
         loading = true; error = nil
         let hadCache = !roles.isEmpty
+        let prevSync = lastSynced     // baseline for "new since you last looked"
         do {
             async let r = api.roles()
             async let b = api.brief()
@@ -91,6 +101,7 @@ final class Store: ObservableObject {
             apps = try await a
             Cache.save(roles, "roles"); Cache.save(brief, "brief"); Cache.save(apps, "apps")
             markSynced()
+            newSince = prevSync; Cache.save(newSince, "newSince")
         } catch {
             handleLoadFailure(error, hadCache: hadCache)
         }

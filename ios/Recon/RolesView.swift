@@ -3,6 +3,7 @@ import SwiftUI
 /// Compact internship card: company, tier, fit, PAY, and a one-line summary.
 struct RoleRow: View {
     let role: Role
+    var isNew: Bool = false
     var body: some View {
         HStack(spacing: 0) {
             // tier-colored editorial accent edge
@@ -14,6 +15,7 @@ struct RoleRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     TierChip(tier: role.tier)
+                    if isNew { Pill(text: "New", color: Theme.gold, filled: true) }
                     Text(role.company ?? "—").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                     Spacer()
                     FitBadge(score: role.fitScore, text: role.fitText)
@@ -146,7 +148,7 @@ struct RolesView: View {
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 } else {
                     ForEach(shown) { role in
-                        NavigationLink(value: role) { RoleRow(role: role) }.buttonStyle(.plain)
+                        NavigationLink(value: role) { RoleRow(role: role, isNew: store.isNew(role)) }.buttonStyle(.plain)
                     }
                 }
             }
