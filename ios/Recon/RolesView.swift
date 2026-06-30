@@ -195,6 +195,19 @@ struct RoleDetailView: View {
                 Section_("Why it fits", role.summary)
                 if let c = role.concerns, !c.isEmpty { Section_("Concerns", c, tint: Theme.rust) }
                 if let h = role.curriculumHook, !h.isEmpty { Section_("Curriculum hook", h) }
+                if let d = role.description, !d.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        DisclosureGroup {
+                            Text(d).font(.caption).foregroundStyle(Theme.inkSoft)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.top, 6)
+                        } label: {
+                            Text("Full job description").font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                        }
+                        .tint(Theme.rust)
+                    }.frame(maxWidth: .infinity, alignment: .leading).reconCard()
+                }
 
                 if !companyContacts.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {

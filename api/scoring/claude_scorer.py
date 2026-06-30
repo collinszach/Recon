@@ -170,6 +170,10 @@ def _role_blob(role: Role) -> str:
         label = dict(METROS).get(role.metro, role.metro)
         blob += f"TARGET METRO: {label} (a metro Zach is targeting)\n"
     blob += f"DEPARTMENT: {role.department}\nURL: {role.url}"
+    if role.description:
+        # The JD is the strongest fit signal; cap it so bulk scoring stays cheap.
+        jd = " ".join(role.description.split())[:2500]
+        blob += f"\n\nJOB DESCRIPTION:\n{jd}"
     return blob
 
 

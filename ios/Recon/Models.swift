@@ -21,9 +21,11 @@ struct Role: Codable, Identifiable, Hashable {
     let isProductPm: Bool?
     let postedAt: String?
     let firstSeen: String?
+    let description: String?
+    let remote: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case id, track, company, title, location, metro, url, status, domain, tier, concerns
+        case id, track, company, title, location, metro, url, status, domain, tier, concerns, description, remote
         case companyTier = "company_tier"
         case fitScore = "fit_score"
         case whyFit = "why_fit"

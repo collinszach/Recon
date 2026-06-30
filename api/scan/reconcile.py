@@ -30,6 +30,7 @@ def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole
                 remote_flag=f.remote_flag,
                 department=f.department,
                 url=f.url,
+                description=f.description or None,
                 description_hash=f.description_hash,
                 posted_at=f.posted_at,
                 status="open",
@@ -44,6 +45,7 @@ def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole
                 row.metro = metro_of(f.location)
                 row.department = f.department
                 row.url = f.url
+                row.description = f.description or None
                 row.description_hash = f.description_hash
                 if f.posted_at:
                     row.posted_at = f.posted_at
@@ -51,6 +53,11 @@ def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole
                 row.scored_at = None          # force re-score
                 changed_ids.append(row.id)
             else:
+                # Opportunistic backfill: rows created before we stored the JD
+                # have description=NULL. Fill it on an unchanged re-fetch without
+                # forcing a re-score (the hash, hence the scoring inputs, matched).
+                if not row.description and f.description:
+                    row.description = f.description
                 row.status = "open"
             row.last_seen = now
 

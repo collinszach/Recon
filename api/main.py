@@ -37,6 +37,8 @@ def _ensure_schema():
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS metro VARCHAR"))
         # provenance: 'ats' (default) | 'jsearch' | 'usajobs' — Postgres backfills existing rows.
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS source VARCHAR DEFAULT 'ats'"))
+        # full JD text — previously only the hash was kept, so the scorer graded blind to the JD.
+        conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS description TEXT"))
         conn.execute(text("ALTER TABLE scan_runs ADD COLUMN IF NOT EXISTS searched BOOLEAN DEFAULT FALSE"))
 
 
@@ -123,6 +125,8 @@ def list_roles(tier: str | None = None, company: str | None = None,
             "tier": r.score_tier,               # fit tier (A/B/C/pass) from scoring
             "title": r.title,
             "location": r.location, "metro": r.metro, "url": r.url, "status": r.status,
+            "description": (r.description or "")[:4000] or None,
+            "remote": r.remote_flag,
             "posted_at": r.posted_at.isoformat() if r.posted_at else None,
             "first_seen": r.first_seen.isoformat() if r.first_seen else None,
             "fit_score": r.fit_score, "domain": r.domain,
