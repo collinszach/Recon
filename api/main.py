@@ -1,6 +1,6 @@
 """Recon API — REST endpoints + serves the dashboard and brief."""
 import logging
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -39,6 +39,9 @@ def _ensure_schema():
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS source VARCHAR DEFAULT 'ats'"))
         # full JD text — previously only the hash was kept, so the scorer graded blind to the JD.
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS description TEXT"))
+        # user feedback (up/down) for feed filtering + scoring calibration.
+        conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS interest VARCHAR"))
+        conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS interest_at TIMESTAMPTZ"))
         conn.execute(text("ALTER TABLE scan_runs ADD COLUMN IF NOT EXISTS searched BOOLEAN DEFAULT FALSE"))
 
 
@@ -88,11 +91,14 @@ def health():
 def list_roles(tier: str | None = None, company: str | None = None,
                min_fit: float = 0.0, scored_only: bool = True,
                track: str | None = None, metro: str | None = None,
-               dedupe: bool = True,
+               dedupe: bool = True, include_hidden: bool = False,
                db: Session = Depends(get_db)):
     import re as _re
     from scan.intern_filter import is_internship, is_ops_strategy
     q = select(Role).where(Role.status.in_(["open", "changed"]))
+    if not include_hidden:
+        # Hide roles Zach marked "not for me".
+        q = q.where((Role.interest.is_(None)) | (Role.interest != "down"))
     if scored_only:
         # Only scored roles are surfaced (internships + full-time PM roles are
         # what gets scored). Pass scored_only=false to browse the raw set.
@@ -134,6 +140,7 @@ def list_roles(tier: str | None = None, company: str | None = None,
             "curriculum_hook": r.curriculum_hook,
             "tc_estimate": r.tc_estimate,       # pay / stipend
             "is_product_pm": r.is_product_pm,
+            "interest": r.interest,             # "up" | "down" | None
         })
 
     if dedupe:
@@ -416,6 +423,22 @@ def delete_material(mat_id: int, db: Session = Depends(get_db)):
     if m:
         db.delete(m); db.commit()
     return {"status": "ok"}
+
+
+@app.post("/api/roles/{role_id}/feedback")
+def role_feedback(role_id: int, body: dict, db: Session = Depends(get_db)):
+    """Record Zach's interest in a role: {"value": "up" | "down" | null}.
+    "down" hides it from the feed; both signals calibrate future scoring."""
+    role = db.get(Role, role_id)
+    if not role:
+        raise HTTPException(404, "role not found")
+    value = body.get("value")
+    if value not in ("up", "down", None):
+        raise HTTPException(422, "value must be 'up', 'down', or null")
+    role.interest = value
+    role.interest_at = datetime.now(timezone.utc) if value else None
+    db.commit()
+    return {"status": "ok", "interest": role.interest}
 
 
 @app.post("/api/roles/{role_id}/cover_letter")

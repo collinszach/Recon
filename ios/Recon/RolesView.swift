@@ -158,6 +158,36 @@ struct RolesView: View {
 }
 
 /// Full detail for one internship.
+/// 👍 Good fit / 👎 Not for me. Optimistic; down-votes leave the feed and both
+/// signals calibrate future scoring.
+struct InterestControl: View {
+    let role: Role
+    @EnvironmentObject var store: Store
+    var body: some View {
+        let cur = store.interest(of: role)
+        HStack(spacing: 10) {
+            Button { Task { await store.setInterest(role, cur == "up" ? nil : "up") } } label: {
+                Label("Good fit", systemImage: cur == "up" ? "hand.thumbsup.fill" : "hand.thumbsup")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity).padding(.vertical, 10)
+                    .foregroundStyle(cur == "up" ? .white : Theme.green)
+                    .background(cur == "up" ? Theme.green : Theme.green.opacity(0.12),
+                                in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            Button { Task { await store.setInterest(role, cur == "down" ? nil : "down") } } label: {
+                Label("Not for me", systemImage: cur == "down" ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity).padding(.vertical, 10)
+                    .foregroundStyle(cur == "down" ? .white : Theme.inkSoft)
+                    .background(cur == "down" ? Theme.rust : Theme.rust.opacity(0.10),
+                                in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.15), value: cur)
+    }
+}
+
 struct RoleDetailView: View {
     let role: Role
     @EnvironmentObject var store: Store
@@ -189,6 +219,8 @@ struct RoleDetailView: View {
                     }
                     Text(role.title).font(.title3.weight(.semibold)).foregroundStyle(Theme.ink)
                 }
+
+                InterestControl(role: role)
 
                 facts
 

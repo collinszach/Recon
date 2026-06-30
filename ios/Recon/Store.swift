@@ -18,6 +18,10 @@ final class Store: ObservableObject {
     @Published var isOffline = false
     @Published var lastSynced: Date?
 
+    /// Optimistic feedback overrides (bridge UI until the next server refresh).
+    @Published var hiddenRoleIds: Set<Int> = []
+    @Published var likedRoleIds: Set<Int> = []
+
     private let api = ReconAPI.shared
 
     init() {
@@ -50,8 +54,25 @@ final class Store: ObservableObject {
 
     /// Roles worth surfacing: fit-sorted, pass-tier dropped (both tracks).
     var feed: [Role] {
-        roles.filter { ($0.tier ?? "pass").uppercased() != "PASS" }
+        roles.filter { ($0.tier ?? "pass").uppercased() != "PASS"
+                       && !hiddenRoleIds.contains($0.id) }
              .sorted { ($0.fitScore ?? 0) > ($1.fitScore ?? 0) }
+    }
+
+    /// Effective interest for a role, honoring optimistic overrides.
+    func interest(of role: Role) -> String? {
+        if likedRoleIds.contains(role.id) { return "up" }
+        if hiddenRoleIds.contains(role.id) { return "down" }
+        return role.interest
+    }
+
+    /// Record 👍/👎 (or clear). Down-voted roles drop out of the feed at once.
+    func setInterest(_ role: Role, _ value: String?) async {
+        likedRoleIds.remove(role.id); hiddenRoleIds.remove(role.id)
+        if value == "up" { likedRoleIds.insert(role.id) }
+        if value == "down" { hiddenRoleIds.insert(role.id) }
+        do { try await api.feedback(roleId: role.id, value: value) }
+        catch { self.error = error.localizedDescription }
     }
     var internFeed: [Role]   { feed.filter { ($0.track ?? "intern") == "intern" } }
     var fulltimeFeed: [Role] { feed.filter { $0.track == "fulltime" } }

@@ -177,6 +177,31 @@ def _role_blob(role: Role) -> str:
     return blob
 
 
+def _taste_block(db: Session) -> str:
+    """Few-shot calibration from Zach's recent up/down feedback so scoring drifts
+    toward his actual taste, not just the static rubric. Empty until he votes."""
+    from sqlalchemy import select
+    rows = db.scalars(
+        select(Role).where(Role.interest.in_(("up", "down")))
+        .order_by(Role.interest_at.desc().nullslast()).limit(24)
+    ).all()
+    if not rows:
+        return ""
+    def label(r: Role) -> str:
+        co = r.company.name if r.company else "?"
+        return f"- {r.title} @ {co}"
+    ups = [label(r) for r in rows if r.interest == "up"][:12]
+    downs = [label(r) for r in rows if r.interest == "down"][:12]
+    if not ups and not downs:
+        return ""
+    block = "\n\nTASTE CALIBRATION — Zach's own feedback (weight similar roles accordingly):\n"
+    if ups:
+        block += "Roles he marked a GOOD fit:\n" + "\n".join(ups) + "\n"
+    if downs:
+        block += "Roles he marked NOT a fit:\n" + "\n".join(downs) + "\n"
+    return block
+
+
 def score_roles(db: Session, roles: list[Role]) -> dict:
     if settings.scoring_mode != "live" or not llm.configured():
         return _score_stub(db, roles)
@@ -252,6 +277,7 @@ def _score_stub(db: Session, roles: list[Role]) -> dict:
 def _score_live(db: Session, roles: list[Role]) -> dict:
     from scan.intern_filter import is_internship, is_ops_strategy
     tok_in = tok_out = 0
+    taste = _taste_block(db)   # computed once; appended to every lens
 
     for r in roles:
         # Pick the lens that matches the role: internship, ops/strategy, or product.
@@ -262,7 +288,7 @@ def _score_live(db: Session, roles: list[Role]) -> dict:
         else:
             profile = FULLTIME_PROFILE
         res = llm.complete(
-            system=profile,
+            system=profile + taste,
             max_tokens=400,
             model=settings.scoring_model,
             messages=[{"role": "user", "content": INSTRUCTIONS + "\n\nROLE:\n" + _role_blob(r)}],
