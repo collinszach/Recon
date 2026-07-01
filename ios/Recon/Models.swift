@@ -207,6 +207,17 @@ struct Contact: Codable, Identifiable, Hashable {
         else { return false }
         return Calendar.current.startOfDay(for: d) <= Calendar.current.startOfDay(for: Date())
     }
+    /// Worth a nudge: a planned follow-up is due, or you reached out and it's
+    /// gone quiet (no reply) for ~5+ days.
+    var needsFollowUp: Bool {
+        if nextTouchDue { return true }
+        if status == "sent" {
+            guard let s = lastTouch, let d = DateFormatter.ymd.date(from: String(s.prefix(10)))
+            else { return true }
+            return Date().timeIntervalSince(d) > 5 * 86400
+        }
+        return false
+    }
 }
 
 struct Material: Codable, Identifiable, Hashable {

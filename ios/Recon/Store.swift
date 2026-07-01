@@ -134,6 +134,11 @@ final class Store: ObservableObject {
     }
     var needActionCount: Int { apps.filter { $0.dueState != nil }.count }
 
+    /// Contacts worth nudging: next touch due or reached out with no reply for 5+ days.
+    var followUpContacts: [Contact] { contacts.filter { $0.needsFollowUp } }
+    /// Total items needing attention across pipeline apps and networking contacts.
+    var totalNudgeCount: Int { needActionCount + followUpContacts.count }
+
     // ---- resume ----
     func loadResume() async {
         do { resume = try await api.resume(); Cache.save(resume, "resume") }

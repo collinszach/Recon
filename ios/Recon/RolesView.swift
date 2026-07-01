@@ -201,6 +201,7 @@ struct RoleDetailView: View {
     @State private var showNetwork = false
     @State private var matRefresh = 0
     @State private var companyContacts: [Contact] = []
+    @State private var editingContact: Contact?
 
     /// levels.fyi has no public API, so deep-link a search for the company.
     private var levelsURL: URL? {
@@ -248,15 +249,25 @@ struct RoleDetailView: View {
                         Text("WHO YOU KNOW AT \((role.company ?? "").uppercased())")
                             .font(.caption2.weight(.bold)).foregroundStyle(Theme.inkSoft)
                         ForEach(companyContacts) { c in
-                            HStack(spacing: 6) {
-                                Image(systemName: "person.crop.circle").foregroundStyle(Theme.rust)
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(c.name ?? "—").font(.caption.weight(.semibold)).foregroundStyle(Theme.ink)
-                                    if let r = c.role { Text(r).font(.caption2).foregroundStyle(Theme.inkSoft) }
+                            Button { editingContact = c } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "person.crop.circle")
+                                        .foregroundStyle(c.needsFollowUp ? Theme.rust : Theme.gold)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(c.name ?? "—").font(.caption.weight(.semibold)).foregroundStyle(Theme.ink)
+                                        if let r = c.role { Text(r).font(.caption2).foregroundStyle(Theme.inkSoft) }
+                                        else if let co = c.company { Text(co).font(.caption2).foregroundStyle(Theme.inkSoft) }
+                                    }
+                                    Spacer()
+                                    if c.needsFollowUp {
+                                        Pill(text: c.nextTouchDue ? "Touch due" : "No reply · 5d+",
+                                             color: Theme.rust, filled: true)
+                                    } else {
+                                        Pill(text: c.statusLabel, color: Theme.gold)
+                                    }
                                 }
-                                Spacer()
-                                Pill(text: c.statusLabel, color: Theme.gold)
                             }
+                            .buttonStyle(.plain)
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading).reconCard()
                 }
@@ -315,6 +326,17 @@ struct RoleDetailView: View {
         .sheet(isPresented: $showPrep, onDismiss: { matRefresh += 1 }) { InterviewPrepView(role: role).environmentObject(store) }
         .sheet(isPresented: $showCover, onDismiss: { matRefresh += 1 }) { CoverLetterView(role: role).environmentObject(store) }
         .sheet(isPresented: $showNetwork) { NetworkingView(role: role).environmentObject(store) }
+        .sheet(item: $editingContact) { c in
+            ContactEditor(contact: c)
+                .environmentObject(store)
+                .onDisappear {
+                    Task {
+                        if let co = role.company {
+                            companyContacts = (try? await ReconAPI.shared.contacts(company: co)) ?? []
+                        }
+                    }
+                }
+        }
         .task {
             if let co = role.company {
                 companyContacts = (try? await ReconAPI.shared.contacts(company: co)) ?? []

@@ -21,6 +21,10 @@ struct TodayView: View {
                     Stat(num: "\(store.apps.count)", label: "pipeline", color: Theme.green)
                 }
 
+                if store.totalNudgeCount > 0 {
+                    FollowUpsSection()
+                }
+
                 SectionHeader(title: "Top matches",
                               trailing: store.newCount > 0 ? "\(store.newCount) new" : nil)
                 if store.feed.isEmpty {
@@ -37,6 +41,54 @@ struct TodayView: View {
         }
         .navigationDestination(for: Role.self) { RoleDetailView(role: $0) }
         .scrollContentBackground(.hidden)
+    }
+}
+
+/// Unified "things needing attention" section: overdue pipeline + contacts to nudge.
+struct FollowUpsSection: View {
+    @EnvironmentObject var store: Store
+
+    /// Merge apps needing action and contacts needing follow-up, capped at 6 total.
+    private var items: [(label: String, sub: String, reason: String, urgency: Int)] {
+        var out: [(String, String, String, Int)] = []
+        for app in store.apps where app.dueState != nil {
+            let reason = app.dueState == .overdue ? "Action due" : "No update in 10d"
+            let urgency = app.dueState == .overdue ? 0 : 2
+            out.append((app.companyName ?? "—", app.roleTitle ?? "—", reason, urgency))
+        }
+        for c in store.followUpContacts {
+            let reason = c.nextTouchDue ? "Touch due" : "No reply · 5d+"
+            out.append((c.name ?? "—", c.company ?? "—", reason, 1))
+        }
+        return out.sorted { $0.3 < $1.3 }.prefix(6).map { $0 }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionHeader(title: "Follow-ups",
+                          trailing: "\(store.totalNudgeCount)")
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                HStack(spacing: 0) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(item.urgency == 0 ? Theme.rust : Theme.gold)
+                        .frame(width: 4)
+                        .padding(.vertical, 2)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(item.label)
+                                .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                            Spacer()
+                            Pill(text: item.reason,
+                                 color: item.urgency == 0 ? Theme.rust : Theme.gold,
+                                 filled: item.urgency == 0)
+                        }
+                        Text(item.sub).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                    }
+                    .padding(.leading, 12)
+                }
+                .reconCard()
+            }
+        }
     }
 }
 

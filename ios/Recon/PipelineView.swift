@@ -22,9 +22,20 @@ struct PipelineView: View {
         let order: [(String, String)] = [("watching","Watch"),("drafting","Draft"),
             ("applied","Applied"),("screen","Screen"),("onsite","Onsite"),("offer","Offer")]
         return VStack(alignment: .leading, spacing: 8) {
-            if store.needActionCount > 0 {
-                Label("\(store.needActionCount) need action", systemImage: "bell.badge")
-                    .font(.caption.weight(.semibold)).foregroundStyle(Theme.rust)
+            let contactNudges = store.followUpContacts.count
+            if store.needActionCount > 0 || contactNudges > 0 {
+                HStack(spacing: 12) {
+                    if store.needActionCount > 0 {
+                        Label("\(store.needActionCount) app\(store.needActionCount == 1 ? "" : "s") need action",
+                              systemImage: "bell.badge")
+                            .font(.caption.weight(.semibold)).foregroundStyle(Theme.rust)
+                    }
+                    if contactNudges > 0 {
+                        Label("\(contactNudges) contact\(contactNudges == 1 ? "" : "s") to nudge",
+                              systemImage: "person.crop.circle.badge.clock")
+                            .font(.caption.weight(.semibold)).foregroundStyle(Theme.gold)
+                    }
+                }
             }
             HStack(spacing: 6) {
                 ForEach(order, id: \.0) { key, label in
@@ -137,7 +148,7 @@ struct ContactsView: View {
     }
 }
 
-private struct ContactEditor: View {
+struct ContactEditor: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     @State var contact: Contact
