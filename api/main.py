@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from sqlalchemy.orm import Session
 from config import settings
 from db import (
@@ -32,7 +32,6 @@ def get_db():
 def _ensure_schema():
     """Additive, idempotent column adds for existing DBs (create_all only makes
     new *tables*, not new columns). Non-destructive — safe to run every boot."""
-    from sqlalchemy import text
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS metro VARCHAR"))
         # provenance: 'ats' (default) | 'jsearch' | 'usajobs' — Postgres backfills existing rows.
