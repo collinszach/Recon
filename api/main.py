@@ -51,7 +51,7 @@ def _ensure_schema():
                     SELECT 1 FROM pg_attribute
                     WHERE  attrelid = 'roles'::regclass
                       AND  attname  = 'embedding'
-                      AND  atttypmod <> 1028
+                      AND  atttypmod <> 1024
                 ) THEN
                     ALTER TABLE roles
                         ALTER COLUMN embedding
