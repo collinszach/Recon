@@ -50,6 +50,18 @@ class Settings(BaseSettings):
     usajobs_api_key: str = ""                # data.usajobs.gov Authorization-Key
     usajobs_email: str = ""                  # USAJobs requires a contact email as the User-Agent
 
+    # ─── Semantic embeddings (pgvector dedup + search) ─────
+    # Calls the Ollama OpenAI-compat /v1/embeddings on gs65 with mxbai-embed-large.
+    # embed_enabled=False skips all embedding work (safe to disable for local dev).
+    embed_enabled: bool = True
+    embed_model: str = "mxbai-embed-large:latest"
+    embed_base_url: str = "http://100.119.105.2:11434/v1"
+    embed_dim: int = 1024
+    embed_batch_size: int = 32
+    # Cosine similarity above this threshold marks a JSearch/USAJobs role as a
+    # near-duplicate of an ATS role at the same company (ATS is always canonical).
+    embed_dedup_threshold: float = 0.93
+
     scan_hour_local: int = 6
     scan_interval_hours: int = 3        # how often the worker runs the scan
     notify_min_fit: float = 7.0         # min fit_score for a new-role alert

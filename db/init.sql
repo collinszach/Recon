@@ -39,12 +39,17 @@ CREATE TABLE IF NOT EXISTS roles (
     tc_estimate       TEXT,
     is_product_pm     BOOLEAN,
     scored_at         TIMESTAMPTZ,
-    embedding         vector(1536),
+    embedding         vector(1024),   -- mxbai-embed-large on gs65 Ollama
+    is_duplicate      BOOLEAN DEFAULT FALSE,
     UNIQUE (company_id, ats_job_id)
 );
 CREATE INDEX IF NOT EXISTS idx_roles_status   ON roles(status);
 CREATE INDEX IF NOT EXISTS idx_roles_fit       ON roles(fit_score DESC);
 CREATE INDEX IF NOT EXISTS idx_roles_last_seen ON roles(last_seen);
+CREATE INDEX IF NOT EXISTS roles_emb_hnsw ON roles
+    USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64)
+    WHERE embedding IS NOT NULL;
 
 -- ─── applications (the pipeline) ────────────────────────────
 CREATE TABLE IF NOT EXISTS applications (

@@ -43,6 +43,35 @@ def _ensure_schema():
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS interest VARCHAR"))
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS interest_at TIMESTAMPTZ"))
         conn.execute(text("ALTER TABLE scan_runs ADD COLUMN IF NOT EXISTS searched BOOLEAN DEFAULT FALSE"))
+        # Semantic embeddings: resize column from 1536 → 1024 (mxbai-embed-large).
+        # Safe because the column is all-NULL at this point — the USING clause
+        # just produces NULL for every row (no data loss).
+        conn.execute(text("""
+            DO $$ BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM pg_attribute
+                    WHERE  attrelid = 'roles'::regclass
+                      AND  attname  = 'embedding'
+                      AND  atttypmod <> 1028
+                ) THEN
+                    ALTER TABLE roles
+                        ALTER COLUMN embedding
+                        TYPE vector(1024)
+                        USING NULL::vector(1024);
+                END IF;
+            END $$;
+        """))
+        conn.execute(text(
+            "ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_duplicate BOOLEAN DEFAULT FALSE"
+        ))
+        # Partial HNSW index: only covers rows that actually have an embedding,
+        # so incremental backfill doesn't force a full index rebuild each scan.
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS roles_emb_hnsw
+            ON roles USING hnsw (embedding vector_cosine_ops)
+            WITH (m = 16, ef_construction = 64)
+            WHERE embedding IS NOT NULL
+        """))
 
 
 def _backfill_metro():
@@ -97,8 +126,9 @@ def list_roles(tier: str | None = None, company: str | None = None,
     from scan.intern_filter import is_internship, is_ops_strategy
     q = select(Role).where(Role.status.in_(["open", "changed"]))
     if not include_hidden:
-        # Hide roles Zach marked "not for me".
+        # Hide roles Zach marked "not for me" and cross-source near-duplicates.
         q = q.where((Role.interest.is_(None)) | (Role.interest != "down"))
+        q = q.where(Role.is_duplicate == False)  # noqa: E712
     if scored_only:
         # Only scored roles are surfaced (internships + full-time PM roles are
         # what gets scored). Pass scored_only=false to browse the raw set.
@@ -159,6 +189,67 @@ def list_roles(tier: str | None = None, company: str | None = None,
                 best[key] = o
         out = sorted(best.values(), key=lambda o: (o["fit_score"] or 0), reverse=True)
     return out
+
+
+# ─── semantic role search ───────────────────────────────────
+@app.get("/api/roles/search")
+def search_roles(q: str, limit: int = 20, db: Session = Depends(get_db)):
+    """Semantic nearest-neighbour search over embedded roles.
+
+    Embeds the query string with the same model used for roles and returns
+    the most similar open, scored, non-duplicate roles by cosine similarity.
+    Falls back to an empty list when embeddings are not yet populated.
+    """
+    from embed import _embed_texts
+    from config import settings as cfg
+    if not cfg.embed_enabled:
+        return []
+    vecs = _embed_texts([q])
+    if not vecs or vecs[0] is None:
+        return []
+    emb_str = "[" + ",".join(f"{v:.8f}" for v in vecs[0]) + "]"
+    rows = db.execute(
+        text("""
+            SELECT r.id, 1 - (r.embedding <=> CAST(:emb AS vector)) AS sim
+            FROM   roles r
+            WHERE  r.status IN ('open', 'changed')
+              AND  r.scored_at IS NOT NULL
+              AND  r.embedding IS NOT NULL
+              AND  r.is_duplicate = FALSE
+              AND  (r.interest IS NULL OR r.interest <> 'down')
+            ORDER  BY sim DESC
+            LIMIT  :lim
+        """),
+        {"emb": emb_str, "lim": limit},
+    ).fetchall()
+    role_ids = {row.id: row.sim for row in rows}
+    if not role_ids:
+        return []
+    roles = db.scalars(select(Role).where(Role.id.in_(role_ids))).all()
+    result = []
+    for r in sorted(roles, key=lambda x: role_ids.get(x.id, 0), reverse=True):
+        co = r.company
+        result.append({
+            "id": r.id, "company": co.name if co else None,
+            "title": r.title, "location": r.location,
+            "fit_score": r.fit_score, "tier": r.score_tier,
+            "why_fit": r.why_fit, "url": r.url,
+            "similarity": round(role_ids[r.id], 3),
+        })
+    return result
+
+
+# ─── embedding backfill (admin) ──────────────────────────────
+@app.post("/api/admin/backfill-embeddings")
+def backfill_embeddings(limit: int = 200, db: Session = Depends(get_db)):
+    """Populate embeddings for open roles that don't have them yet.
+
+    Processes `limit` roles per call (highest fit-score first).
+    Call repeatedly until remaining=0.  Each call takes ~30–120s depending
+    on gs65 load; safe to interrupt — progress is committed after each batch.
+    """
+    from embed import backfill as do_backfill
+    return do_backfill(db, limit=limit)
 
 
 # ─── metros (geo facet) ─────────────────────────────────────

@@ -150,6 +150,14 @@ def run_daily_scan() -> dict:
             if to_score:
                 score_cost = score_roles(db, to_score)
 
+            # embed scored roles (and mark near-dups) — non-fatal if gs65 is down
+            try:
+                from embed import embed_and_dedup
+                emb = embed_and_dedup(db, to_score)
+                log.info("embed: %d embedded, %d duplicates marked", emb["embedded"], emb["duplicates"])
+            except Exception as e:
+                log.warning("embed failed (non-fatal): %s: %s", type(e).__name__, e)
+
             # alert on NEW postings that scored high (skip pass/low). Channels
             # no-op when disabled, so this is safe to always call.
             new_set = set(new_role_ids)

@@ -11,6 +11,7 @@ mcp==1.2.0
 python-dotenv==1.0.1
 
 # ─── Notification channels (optional; channels no-op if unconfigured) ───
+pgvector==0.3.6                      # pgvector SQLAlchemy type + psycopg adapter
 pywebpush==2.0.3                    # web push (VAPID)
 # email channel uses stdlib smtplib + a minimal built-in markdown->HTML converter
 google-api-python-client==2.154.0   # Google Doc delivery

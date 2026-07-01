@@ -7,6 +7,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import (
     DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker,
 )
+from pgvector.sqlalchemy import Vector
 from config import settings
 
 engine = create_engine(settings.database_url, pool_pre_ping=True, future=True)
@@ -63,6 +64,11 @@ class Role(Base):
     # from the feed and calibrates future scoring toward Zach's actual taste.
     interest: Mapped[str | None] = mapped_column(String)
     interest_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # semantic embedding (mxbai-embed-large 1024-dim via gs65 Ollama).
+    # is_duplicate: non-ATS role whose embedding is too close to an ATS role
+    # at the same company — filtered out of the feed to cut noise.
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024))
+    is_duplicate: Mapped[bool] = mapped_column(Boolean, default=False)
     company: Mapped["Company"] = relationship(back_populates="roles")
 
 
