@@ -175,11 +175,12 @@ def run_daily_scan() -> dict:
         except Exception as e:
             log.warning("brief delivery failed: %s: %s", type(e).__name__, e)
 
-        # once-a-day pipeline reminders (follow-ups due, applied gone stale)
+        # once-a-day pipeline reminders (follow-ups due, applied gone stale,
+        # contacts needing a nudge)
         try:
             if not brief.reminders_sent:
                 from notify.deliver import deliver_reminders
-                from db import Application, Interview
+                from db import Application, Interview, Contact as ContactModel
                 apps = db.scalars(select(Application).where(Application.stage != "closed")).all()
                 due = [a for a in apps if a.next_action_due and a.next_action_due <= today]
                 stale = [a for a in apps if a.stage == "applied" and a.applied_at
@@ -188,8 +189,22 @@ def run_daily_scan() -> dict:
                     Interview.scheduled_at.isnot(None),
                     Interview.scheduled_at >= today,
                     Interview.scheduled_at <= today + timedelta(days=2))).all()
-                if due or stale or ivs:
-                    log.info("reminders: %s", deliver_reminders(due, stale, ivs))
+                # contacts: next_touch due today-or-earlier, or "sent" with no
+                # update in 5+ days (mirrors Contact.needsFollowUp in the iOS app)
+                all_contacts = db.scalars(select(ContactModel)).all()
+                nudge_contacts = []
+                for c in all_contacts:
+                    if c.next_touch and c.next_touch <= today:
+                        c.next_touch_due = True
+                        nudge_contacts.append(c)
+                    elif c.status == "sent" and c.last_touch:
+                        days_since = (today - c.last_touch).days
+                        if days_since >= 5:
+                            c.next_touch_due = False
+                            nudge_contacts.append(c)
+                if due or stale or ivs or nudge_contacts:
+                    log.info("reminders: %s",
+                             deliver_reminders(due, stale, ivs, nudge_contacts))
                 brief.reminders_sent = True
                 db.commit()
         except Exception as e:
