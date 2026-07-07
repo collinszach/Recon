@@ -58,8 +58,9 @@ narrow IC tracks with little growth.
 
 LOCATION PREFERENCE: Zach will RELOCATE for the right role, and actively favors these metros:
 Charleston SC, New York City, the DC / Northern-Virginia / Maryland area, Southern California
-(LA / Orange County / San Diego / Irvine), Greater Boston, and Pennsylvania (Philadelphia /
-Pittsburgh) — plus US-remote. When the role blob includes a "TARGET METRO" line, treat the
+(LA / Orange County / San Diego / Irvine), Greater Boston, Pennsylvania (Philadelphia /
+Pittsburgh), Raleigh-Durham / RTP, and the SF Bay Area (San Francisco / Oakland / San Jose /
+Peninsula) — plus US-remote. When the role blob includes a "TARGET METRO" line, treat the
 location as a positive (it's where he wants to be); do NOT downgrade it as "would require a move."
 A role in none of those is location-neutral, not a penalty — judge it on merit.
 
@@ -103,6 +104,13 @@ HARD RULES (full-time lens):
   project, solutions / forward-deployed, developer relations, BizOps / strategy, GM, eng-adjacent
   IC or lead) all score on merit. is_product_pm is INFORMATIONAL (set true for genuine product
   roles, false otherwise) and does NOT cap the tier.
+- PURE SWE IC ROLES: a role whose PRIMARY job is writing production code (titles like "Software
+  Engineer", "Backend Engineer", "Frontend Engineer", "Full-Stack Engineer", "Staff SWE") is a
+  POOR FIT for Zach's PM/operator profile — cap at C or pass unless: (a) the JD explicitly blends
+  product ownership or strategy scope alongside coding, (b) it is a founding/seed-stage eng role
+  where PM-to-eng overlap is expected, or (c) it is a specialized frontier role (ML, autonomy,
+  robotics, systems) where his MEng is directly differentiating. TPM, Solutions Engineer, Forward-
+  Deployed Engineer, and Data Engineer are NOT in this category — score them on merit.
 - COMP IS A SOFT PREFERENCE, NOT A GATE: ~$200K+ TC is the target and higher is better, but do NOT
   cap the tier on comp alone. Put the TC range in tc_estimate if stated; never invent a number. A
   strong-fit role with unknown or below-target comp can still be A or B.

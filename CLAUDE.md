@@ -52,8 +52,12 @@ behind a Cloudflare Tunnel. See `SPEC.md` for the full spec.
   token were **removed** (the `cloudflared` sidecar is stripped from `docker-compose.prod.yml`,
   which is now an empty overlay). Don't re-add a public tunnel unless off-Tailnet/shared access
   is explicitly needed.
-- **Geo targeting (2026-06-24):** `api/scan/geo.py` tags each role with a target-metro slug
-  (Charleston / NYC / DC-NoVA-MD / SoCal / Boston / PA / Remote-US). `Role.metro` column (added
+- **Geo targeting (2026-06-24, expanded 2026-07-07):** `api/scan/geo.py` tags each role with a
+  target-metro slug (Charleston / NYC / DC-NoVA-MD / SoCal / Boston / PA / Raleigh-Durham-RTP /
+  SF-Bay-Area / Remote-US). RTP is scoped to the Raleigh-Durham-Chapel Hill-Cary corridor (not
+  statewide NC); the Bay Area metro is the full Bay (SF/Oakland/San Jose/Peninsula), not just SF
+  proper; VA/MD stay folded into the existing DC-NoVA-MD metro (no separate statewide VA/MD
+  metros). `Role.metro` column (added
   via idempotent startup `ALTER` + one-time backfill in `main.py`). `runner.py` has a **metro
   lane** that scores target-metro roles in our tracks even past per-track caps
   (`score_max_metro`). Scorer treats a `TARGET METRO` as a positive (relocation-friendly).

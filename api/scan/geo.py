@@ -53,6 +53,16 @@ _METROS: list[tuple[str, str, re.Pattern]] = [
         r"|\b(pa|pennsylvania)\b(?=.*\b(philadelphia|philly|pittsburgh|king\s+of\s+prussia|malvern)\b)"
         r"|\b(king\s+of\s+prussia|malvern|conshohocken)\b",
         re.IGNORECASE)),
+
+    ("rtp", "Raleigh-Durham / RTP", re.compile(
+        r"\b(raleigh|durham|chapel\s+hill|\bcary\b|research\s+triangle|\brtp\b)\b",
+        re.IGNORECASE)),
+
+    ("bay_area", "SF Bay Area", re.compile(
+        r"\b(san\s+francisco|\bsf\b|oakland|berkeley|san\s+jose|silicon\s+valley|"
+        r"palo\s+alto|mountain\s+view|redwood\s+city|menlo\s+park|sunnyvale|"
+        r"santa\s+clara|cupertino|fremont|south\s+bay|peninsula)\b",
+        re.IGNORECASE)),
 ]
 
 _REMOTE_RE = re.compile(

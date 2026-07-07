@@ -155,7 +155,7 @@ SEED = [
     # MBSE on a defense Smart MRO, Collins Aerospace/Raytheon). Ranked on merit.
     # ════════════════════════════════════════════════════════════════════
     ("Anduril",            "A", "greenhouse", "andurilindustries", "https://www.anduril.com/careers/", "Defense/Hardware/AI · autonomy + defense logistics — strong SCM+hardware+AI fit"),
-    ("Palantir",           "A", "lever",      "palantir",       "https://www.palantir.com/careers/", "Defense/AI&Data · data platforms for gov + commercial — direct federal/data fit"),
+    ("Palantir",           "A", "lever",      "palantir",       "https://www.palantir.com/careers/", "Defense/AI&Data · data platforms for gov + commercial — direct federal/data fit; caveat 2026-07-07: open roles skew software-dev/IC-heavy (fewer PM-shaped postings) and Zach's heard (unverified) WLB runs demanding — worth a closer look per-role rather than assuming"),
     ("Shield AI",          "B", "lever",      "shieldai",       "https://shield.ai/careers/", "Defense/AI · autonomous aircraft (Hivemind)"),
     ("Saronic",            "B", "ashby",      "saronic",        "https://www.saronic.com/careers", "Defense/Hardware · autonomous naval vessels"),
     ("Epirus",             "B", "greenhouse", "epirus",         "https://www.epirusinc.com/careers", "Defense/Hardware · directed-energy systems"),
@@ -222,6 +222,56 @@ SEED = [
     ("Gecko Robotics",     "B", "ashby",      "gecko-robotics", "https://www.geckorobotics.com/careers", "Hardware/Robotics/AI · robots + AI for critical infrastructure (Pittsburgh, PA) — robotics+industrial fit"),
     ("Hermeus",            "B", "lever",      "hermeus",        "https://www.hermeus.com/careers", "Aerospace/Defense · hypersonic aircraft (Atlanta) — aero+ME+defense fit"),
     ("Mistral AI",         "C", "lever",      "mistral",        "https://mistral.ai/careers", "AI&Data · frontier LLM lab (France) — intl"),
+
+    # ════════════════════════════════════════════════════════════════════
+    # DISCOVERY ROUND 5 — big-name/recognizable tech surfaced from Zach's
+    # own market-scan list 2026-07-07. Board-verified live (job counts
+    # spot-checked, not just endpoint shape). Most large enterprises here
+    # run proprietary/SSO-gated ATS -> manual. Tiers default to B pending
+    # a real fit pass; adjust as roles come in.
+    # ════════════════════════════════════════════════════════════════════
+    # ── Resolved: Greenhouse ─────────────────────────────────────────────
+    ("LinkedIn",           "B", "greenhouse", "linkedin",       "https://careers.linkedin.com", "Platform · professional network (Microsoft-owned)"),
+    ("Okta",               "B", "greenhouse", "okta",           "https://www.okta.com/company/careers/", "Cloud/Security · identity & access management"),
+    ("Cloudflare",         "B", "greenhouse", "cloudflare",     "https://www.cloudflare.com/careers/", "Cloud/Platform · CDN, edge network, security"),
+    ("CoStar Group",       "B", "greenhouse", "costar",         "https://www.costargroup.com/careers", "Data/Platform · commercial real estate data & analytics"),
+    ("Elastic",            "B", "greenhouse", "elastic",        "https://www.elastic.co/careers", "AI&Data · search/observability (Elasticsearch)"),
+    ("PagerDuty",          "B", "greenhouse", "pagerduty",      "https://www.pagerduty.com/careers/", "Platform · incident response/on-call ops"),
+    ("Adyen",              "B", "greenhouse", "adyen",          "https://www.adyen.com/careers", "Finance · global payments platform"),
+    ("DoorDash",           "B", "greenhouse", "doordashusa",    "https://careersatdoordash.com/", "SCM/Platform · delivery logistics"),
+    # ── Resolved: Ashby ──────────────────────────────────────────────────
+    ("Confluent",          "B", "ashby",      "confluent",      "https://careers.confluent.io", "AI&Data · Kafka/streaming data infra"),
+    ("Snowflake",          "B", "ashby",      "snowflake",      "https://careers.snowflake.com", "AI&Data · cloud data platform"),
+    ("Snyk",               "B", "ashby",      "snyk",           "https://snyk.io/careers/", "Security · dev-first application security (board thin as of 2026-07-07, endpoint live)"),
+    # ── Resolved: Lever ──────────────────────────────────────────────────
+    ("Spotify",            "B", "lever",      "spotify",        "https://www.lifeatspotify.com/", "Platform · audio streaming, product-craft brand"),
+    ("Atlassian",          "B", "lever",      "atlassian",      "https://www.atlassian.com/company/careers", "Platform · Jira/Confluence, dev collaboration tools (board thin as of 2026-07-07, endpoint live)"),
+    # ── Resolved: Workday ────────────────────────────────────────────────
+    ("Palo Alto Networks", "B", "workday",    "paloaltonetworks:wd5:panwexternalcareers", "https://jobs.paloaltonetworks.com/en", "Security · network/cloud security platform"),
+    ("Visa",               "B", "workday",    "visa:wd5:Visa",  "https://corporate.visa.com/en/careers.html", "Finance · global payments network"),
+    ("CrowdStrike",        "B", "workday",    "crowdstrike:wd5:crowdstrikecareers", "https://www.crowdstrike.com/en-us/careers/", "Security · cloud-native endpoint/threat protection"),
+    ("Capital One",        "B", "workday",    "capitalone:wd12:Capital_One", "https://www.capitalonecareers.com/", "Finance · consumer/commercial banking, tech-forward"),
+    ("Mastercard",         "B", "workday",    "mastercard:wd1:CorporateCareers", "https://careers.mastercard.com/", "Finance · global payments network"),
+    ("Autodesk",           "B", "workday",    "autodesk:wd1:Ext", "https://www.autodesk.com/careers", "SCM&Twins/Platform · design/engineering software (AutoCAD, Fusion)"),
+    ("Workday",            "B", "workday",    "workday:wd5:Workday", "https://www.workday.com/en-us/company/careers.html", "Platform · HR/finance enterprise SaaS (runs its own product for its own ATS)"),
+    # ── Manual (proprietary/SSO-gated, no public JSON board found) ──────
+    ("Amazon",             "B", "manual",     None,             "https://www.amazon.jobs/en/", "Cloud/SCM · AWS + fulfillment/logistics; proprietary in-house ATS (amazon.jobs)"),
+    ("ServiceNow",         "B", "manual",     None,             "https://www.servicenow.com/careers.html", "Platform · enterprise workflow/ITSM; bot-protected careers site, likely Workday behind SSO"),
+    ("Adobe",              "B", "manual",     None,             "https://www.adobe.com/careers.html", "Platform · Creative Cloud/Document Cloud; proprietary careers portal"),
+    ("Bloomberg",          "B", "manual",     None,             "https://careers.bloomberg.com/", "Finance/Data · financial data terminal & media; proprietary ATS"),
+    ("Intuit",             "B", "manual",     None,             "https://jobs.intuit.com/", "Finance/Platform · TurboTax/QuickBooks; proprietary careers portal"),
+    ("PayPal",             "B", "manual",     None,             "https://careers.pypl.com/", "Finance · online payments; bot-protected proprietary careers portal"),
+    ("Salesforce",         "B", "manual",     None,             "https://www.salesforce.com/company/careers/", "Platform · CRM/enterprise SaaS; proprietary careers portal"),
+    ("Oracle",             "B", "manual",     None,             "https://www.oracle.com/careers/", "Cloud/Platform · enterprise DB/ERP/cloud; runs its own HCM ATS"),
+    ("Uber",               "B", "manual",     None,             "https://www.uber.com/us/en/careers/", "Mobility/Platform · rideshare/delivery; proprietary careers portal"),
+    ("Cisco",              "B", "manual",     None,             "https://jobs.cisco.com", "Hardware/Platform · networking infra (also owns Splunk); proprietary careers portal"),
+    ("Shopify",            "B", "manual",     None,             "https://www.shopify.com/careers", "Platform · e-commerce infra; embeds an Ashby widget but no resolvable public posting-api slug found — worth another look"),
+    ("Qualcomm",           "B", "manual",     None,             "https://www.qualcomm.com/company/careers", "Hardware · mobile/wireless chipsets; likely Workday behind SSO, tenant not resolvable"),
+    ("IBM",                "B", "manual",     None,             "https://www.ibm.com/careers", "Cloud/AI · enterprise IT/consulting (owns HashiCorp); likely Workday behind SSO, tenant not resolvable"),
+    ("AMD",                "B", "manual",     None,             "https://careers.amd.com", "Hardware · CPU/GPU semiconductors; confirmed iCIMS ATS, no public JSON board"),
+    ("HashiCorp",          "B", "manual",     None,             "https://www.hashicorp.com/careers", "AI&Data/Platform · infra-as-code (Terraform/Vault), IBM-owned; bot-protected careers site"),
+    ("Splunk",             "B", "manual",     None,             "https://careers.cisco.com/global/en/splunk", "AI&Data · observability/SIEM, Cisco-owned; folded into Cisco's proprietary careers portal"),
+    ("Etsy",               "B", "manual",     None,             "https://careers.etsy.com/", "Platform · e-commerce marketplace; proprietary careers portal, no public board found"),
 ]
 
 
