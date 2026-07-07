@@ -11,13 +11,25 @@ offset >= total (capped to stay polite).
 colon-delimited string: "{tenant}:{dc}:{site}", e.g.
 "nvidia:wd5:NVIDIAExternalCareerSite" maps to
 https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite/jobs
+
+Large enterprise boards (Capital One ~1400 postings, Visa ~940, Palo Alto
+Networks ~1400+) blow past MAX_POSTINGS, and blind pagination only ever sees
+whatever Workday's default (unfiltered) order happens to put first -- the
+handful of PM/TPM/MBA-track roles Zach actually cares about can be buried past
+that cutoff and never get seen at all (2026-07-07: confirmed this on Capital
+One). So once a board is bigger than the cap, this backfills with targeted
+searchText queries (the same track term list the JSearch/USAJobs aggregator
+uses, plus mba/internship) so those roles get pulled in regardless of where
+they sit in the board. This step is about *recall* only -- scan.intern_filter's
+title classifiers still decide what's actually relevant to score.
 """
 from .base import ATSParser, NormalizedRole, client, polite_delay, parse_dt
 
 BASE = "https://{tenant}.{dc}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs"
 PUBLIC_URL = "https://{tenant}.{dc}.myworkdayjobs.com/{site}{path}"
 PAGE_SIZE = 20
-MAX_POSTINGS = 250  # politeness cap on the N95
+MAX_POSTINGS = 250       # politeness cap on the N95 for blind (unfiltered) pagination
+SUPPLEMENT_PAGES = 2     # extra pages (40 postings) per keyword, only when board > MAX_POSTINGS
 
 
 class WorkdayParser(ATSParser):
@@ -28,9 +40,17 @@ class WorkdayParser(ATSParser):
         url = BASE.format(tenant=tenant, dc=dc, site=site)
 
         roles: list[NormalizedRole] = []
-        offset = 0
-        total = None
+        seen_ids: set[str] = set()
+
+        def _add(job: dict) -> None:
+            role = _normalize(job, tenant, dc, site)
+            if role.ats_job_id not in seen_ids:
+                seen_ids.add(role.ats_job_id)
+                roles.append(role)
+
         with client() as c:
+            offset = 0
+            total = None
             while total is None or offset < min(total, MAX_POSTINGS):
                 resp = c.post(
                     url,
@@ -39,14 +59,44 @@ class WorkdayParser(ATSParser):
                 resp.raise_for_status()
                 data = resp.json()
                 total = data.get("total", 0)
-
                 for job in data.get("jobPostings", []):
-                    roles.append(_normalize(job, tenant, dc, site))
-
+                    _add(job)
                 offset += PAGE_SIZE
                 polite_delay()
 
+            if total and total > MAX_POSTINGS:
+                for term in _supplement_terms():
+                    s_offset = 0
+                    s_cap = SUPPLEMENT_PAGES * PAGE_SIZE
+                    while s_offset < s_cap:
+                        resp = c.post(
+                            url,
+                            json={"appliedFacets": {}, "limit": PAGE_SIZE, "offset": s_offset, "searchText": term},
+                        )
+                        resp.raise_for_status()
+                        data = resp.json()
+                        for job in data.get("jobPostings", []):
+                            _add(job)
+                        s_offset += PAGE_SIZE
+                        if s_offset >= data.get("total", 0):
+                            break
+                        polite_delay()
+
         return roles
+
+
+def _supplement_terms() -> list[str]:
+    """Track-relevant keywords to backfill a big board with, beyond blind
+    pagination. Reuses the aggregator's term list (search/__init__.py) plus
+    mba/internship, which the JSearch term list doesn't always cover (e.g.
+    "MBA Summer Associate" / "Management Internship Program" titles)."""
+    from search import default_terms
+    terms = list(default_terms())
+    lower = {t.lower() for t in terms}
+    for extra in ("mba", "internship"):
+        if extra not in lower:
+            terms.append(extra)
+    return terms
 
 
 def _parse_token(token: str) -> tuple[str, str, str]:
