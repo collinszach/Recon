@@ -22,7 +22,10 @@ def default_terms() -> list[str]:
         return [t.strip() for t in settings.search_terms.split(",") if t.strip()]
     mode = "intern" if settings.intern_only else settings.track_mode
     # Product plus the adjacent families the rubric scores on merit (TPM,
-    # solutions/forward-deployed, data/platform eng, devex, software, autonomy).
+    # solutions/forward-deployed, data/platform eng, devex, autonomy). Plain
+    # "software engineer" is deliberately excluded (2026-07-07, Zach's call) —
+    # scan.intern_filter.is_pure_swe() also hard-blocks it from every scoring
+    # lane regardless of how a role was sourced.
     # The per-run query cap (search_max_queries_per_run) bounds free-tier cost.
     terms = ["product manager", "technical product manager"]
     if mode in ("fulltime", "both"):
@@ -32,7 +35,6 @@ def default_terms() -> list[str]:
             "forward deployed engineer",
             "data engineer",
             "developer experience",
-            "software engineer",
             "autonomy engineer",
         ]
     if mode in ("intern", "both"):

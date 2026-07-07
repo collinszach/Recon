@@ -8,7 +8,7 @@ from db import SessionLocal, Company, Role, ScanRun
 from parsers import get_parser
 from scan.reconcile import reconcile_company
 from scan.intern_filter import (filter_internships, filter_fulltime_pm,
-                                 filter_ops_strategy, filter_fulltime_tech)
+                                 filter_ops_strategy, filter_fulltime_tech, is_pure_swe)
 from scoring.claude_scorer import score_roles
 from brief.generator import build_brief
 
@@ -81,6 +81,11 @@ def run_daily_scan() -> dict:
         score_cost = {"tokens_in": 0, "tokens_out": 0, "usd": 0.0}
         if fresh_role_ids:
             fresh = db.scalars(select(Role).where(Role.id.in_(fresh_role_ids))).all()
+            # Blanket exclude plain SWE IC titles before any lane runs — Zach
+            # doesn't want these scored at all, not even via the metro lane's
+            # normally-permissive "score search-sourced roles regardless of
+            # title" carve-out.
+            fresh = [r for r in fresh if not is_pure_swe(r.title, r.department)]
             mode = "intern" if settings.intern_only else settings.track_mode
             tier_rank = {"A": 0, "B": 1, "C": 2}
             to_score: list[Role] = []

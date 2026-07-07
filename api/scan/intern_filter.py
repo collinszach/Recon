@@ -158,9 +158,10 @@ _TECH_RE = re.compile(
     r"developer\s+(experience|relations|advocate|advocacy)|devrel|"
     # data / analytics / platform
     r"analytics\s+(engineer|manager|lead)|data\s+(engineer|strateg(y|ist))|"
-    # software / systems / platform / ML engineering
-    r"((software|systems|platform|infrastructure|backend|back-end|full[\s-]?stack|"
-    r"ml|machine\s+learning|data)\s+engineer)|software\s+engineer(ing)?|"
+    # software / systems / platform / ML engineering — only frontier/specialist variants
+    # bare "Software Engineer", "Backend Engineer", "Full-Stack Engineer" are excluded
+    # (pure SWE IC is a poor fit for a PM profile; scorer would cap at C/pass anyway)
+    r"((systems|platform|infrastructure|ml|machine\s+learning|data)\s+engineer)|"
     # autonomy / robotics (AV)
     r"autonom(y|ous)\s+(engineer|systems?|vehicles?)|robotics?\s+engineer|"
     r"perception\s+engineer|self[\s-]?driving|motion\s+planning"
@@ -174,6 +175,38 @@ _TECH_FALSE_RE = re.compile(
     r"petroleum|materials|hardware|firmware|manufacturing|process)\s+engineer\b",
     re.IGNORECASE,
 )
+
+
+# ── Pure software-engineering IC roles — hard exclude ───────────────────────
+# Zach isn't a software engineer and doesn't want plain SWE ICs in the feed at
+# all (not even scored as a low tier). This is a blanket exclusion the runner
+# applies before every lane (including the metro lane's normally-permissive
+# "score search-sourced roles regardless of title" carve-out), so a bare SWE
+# title can't sneak in through any path.
+_PURE_SWE_RE = re.compile(
+    r"\b(software\s+engineer(s|ing)?|swe|software\s+developer(s)?|"
+    r"backend\s+engineer|front[\s-]?end\s+engineer|full[\s-]?stack\s+(engineer|developer)|"
+    r"\bsde\b|application\s+engineer|mobile\s+engineer|ios\s+engineer|android\s+engineer|"
+    r"web\s+developer)\b",
+    re.IGNORECASE,
+)
+# Frontier/specialist variants that ARE still in scope (already positively
+# matched by _TECH_RE above) — don't let the blanket SWE exclusion eat these.
+_PURE_SWE_ALLOW_RE = re.compile(
+    r"\b((systems|platform|infrastructure|ml|machine\s+learning|data)\s+engineer|"
+    r"autonom(y|ous)\s+(engineer|systems?|vehicles?)|robotics?\s+engineer|"
+    r"perception\s+engineer)\b",
+    re.IGNORECASE,
+)
+
+
+def is_pure_swe(title: str | None, department: str | None = None) -> bool:
+    """True for a plain software-engineering IC title with no PM/TPM/solutions/
+    data/autonomy angle — excluded from scoring entirely, not just down-tiered."""
+    hay = " ".join(p for p in (title, department) if p)
+    if not hay or not _PURE_SWE_RE.search(hay):
+        return False
+    return not _PURE_SWE_ALLOW_RE.search(hay)
 
 
 def is_fulltime_tech(title: str | None, department: str | None = None) -> bool:
