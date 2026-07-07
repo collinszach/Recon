@@ -272,6 +272,18 @@ SEED = [
     ("HashiCorp",          "B", "manual",     None,             "https://www.hashicorp.com/careers", "AI&Data/Platform · infra-as-code (Terraform/Vault), IBM-owned; bot-protected careers site"),
     ("Splunk",             "B", "manual",     None,             "https://careers.cisco.com/global/en/splunk", "AI&Data · observability/SIEM, Cisco-owned; folded into Cisco's proprietary careers portal"),
     ("Etsy",               "B", "manual",     None,             "https://careers.etsy.com/", "Platform · e-commerce marketplace; proprietary careers portal, no public board found"),
+
+    # ════════════════════════════════════════════════════════════════════
+    # DISCOVERY ROUND 6 — fintech/credit-card majors, 2026-07-07 (Zach said
+    # he really likes this space). All major-bank ATS checked live; none had
+    # a resolvable public JSON board (expected for this sector) -> manual.
+    # ════════════════════════════════════════════════════════════════════
+    ("American Express",   "B", "manual",     None,             "https://www.americanexpress.com/en-us/careers/", "Finance · payments/card network + charge card issuer; proprietary careers portal, no public JSON board found"),
+    ("Chase",              "B", "manual",     None,             "https://jobs.chase.com", "Finance · JPMorgan Chase consumer/commercial banking; confirmed on Oracle Cloud HCM (jpmc.fa.oraclecloud.com), no public JSON board"),
+    ("Discover",           "B", "manual",     None,             "https://www.capitalonecareers.com/discover", "Finance · card network + direct bank, acquired by Capital One 2025 — careers now route through Capital One's Workday board (already seeded), no separate ATS token needed"),
+    ("Synchrony",          "B", "manual",     None,             "https://jobs.synchrony.com", "Finance · private-label/store credit cards; careers site blocked automated access, no public board found"),
+    ("Citi",               "B", "manual",     None,             "https://jobs.citi.com", "Finance · Citigroup consumer/commercial banking; confirmed on Workday (citi.wd5.myworkdayjobs.com) but couldn't resolve the exact career-site slug after several tries — worth another look"),
+    ("Wells Fargo",        "B", "manual",     None,             "https://www.wellsfargojobs.com", "Finance · consumer/commercial banking; bot-protected careers portal (403), no public board found"),
 ]
 
 
