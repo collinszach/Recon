@@ -2,15 +2,18 @@
 
 Every ats_token below was verified on 2026-06-12 by hitting the live public
 ATS endpoint and confirming a non-empty job board (see api/seed/_verify notes
-in git history). Companies whose careers site runs a proprietary / login-walled
-ATS with no public JSON board are left ats_name='manual' with a note — they are
-tracked for context and manual add, not auto-scanned.
+in git history). Companies whose careers site runs a proprietary / login-walled ATS with no
+public JSON board are set ats_name='jsearch_company': the per-company ATS loop
+skips them (no parser), and scan/search_runner.py's company sweep pulls their
+roles in via one employer-scoped JSearch query each (capped + round-robined by
+day). ats_name='manual' remains reserved for context-only, never-scanned rows.
 
 Token formats by ATS:
-  greenhouse : board slug                      -> boards-api.greenhouse.io/.../{slug}
-  ashby      : org slug                        -> api.ashbyhq.com/posting-api/job-board/{slug}
-  lever      : org slug                        -> api.lever.co/v0/postings/{slug}
-  workday    : "{tenant}:{dc}:{site}"          -> {tenant}.{dc}.myworkdayjobs.com/...
+  greenhouse      : board slug                 -> boards-api.greenhouse.io/.../{slug}
+  ashby           : org slug                   -> api.ashbyhq.com/posting-api/job-board/{slug}
+  lever           : org slug                   -> api.lever.co/v0/postings/{slug}
+  workday         : "{tenant}:{dc}:{site}"     -> {tenant}.{dc}.myworkdayjobs.com/...
+  jsearch_company : token unused (query uses the company name) -> JSearch sweep
 
 Tiering follows the dashboard rubric: commercial-first, $200K+ TC floor,
 product-not-program, WLB-weighted.
@@ -30,21 +33,21 @@ SEED = [
     # ── Tier A ───────────────────────────────────────────────
     ("Samsara",            "A", "greenhouse", "samsara",        "https://www.samsara.com/company/careers", "SCM&Twins/Hardware · fleet IoT · the anchor target"),
     ("Databricks",         "A", "greenhouse", "databricks",     "https://www.databricks.com/company/careers", "AI&Data · Berkeley-founded, strongest Haas pipeline"),
-    ("Rivian",             "A", "manual",     None,             "https://careers.rivian.com",
+    ("Rivian",             "A", "jsearch_company", None,             "https://careers.rivian.com",
         "Hardware/EV · Rivian uses iCIMS (no public Greenhouse/Lever/Ashby/Workday board); manual add."),
     ("NVIDIA",             "A", "workday",    "nvidia:wd5:NVIDIAExternalCareerSite", "https://www.nvidia.com/en-us/about-nvidia/careers/", "AI&Data · ~2000 reqs; Workday caps at 250/scan"),
-    ("Microsoft",          "A", "manual",     None,             "https://careers.microsoft.com",
+    ("Microsoft",          "A", "jsearch_company", None,             "https://careers.microsoft.com",
         "Cloud/SCM · proprietary career site, not public Workday/Greenhouse; manual add (Aspire MBA PM track)."),
-    ("Apple",              "A", "manual",     None,             "https://jobs.apple.com",
+    ("Apple",              "A", "jsearch_company", None,             "https://jobs.apple.com",
         "Hardware · proprietary in-house ATS, no public JSON board; manual add (EPM roles want ME degrees)."),
     # ── Tier B ───────────────────────────────────────────────
     ("Mercury",            "B", "greenhouse", "mercury",        "https://mercury.com/jobs", "Finance · CORRECTED 2026-06-12: was empty on Ashby, live on Greenhouse"),
     ("Celonis",            "B", "greenhouse", "celonis",        "https://www.celonis.com/careers/", "SCM&Twins · process mining over SAP data — your EWM/TM background is their GTM profile"),
     ("Procore",            "B", "workday",    "procore:wd12:Procore_External_Careers", "https://careers.procore.com", "Platform/SCM · construction tech"),
     ("Waymo",              "B", "greenhouse", "waymo",          "https://waymo.com/careers/", "Hardware/Mobility · AV"),
-    ("Google Cloud",       "B", "manual",     None,             "https://careers.google.com",
+    ("Google Cloud",       "B", "jsearch_company", None,             "https://careers.google.com",
         "Cloud/AI · proprietary in-house ATS, no public board; manual add."),
-    ("Meta Reality Labs",  "B", "manual",     None,             "https://www.metacareers.com",
+    ("Meta Reality Labs",  "B", "jsearch_company", None,             "https://www.metacareers.com",
         "Hardware/AR · proprietary in-house ATS, no public board; manual add."),
     # ── Tier C ───────────────────────────────────────────────
     ("onX Maps",           "C", "greenhouse", "onxmaps",        "https://www.onxmaps.com/careers", "Outdoor · you're the user (trail/offroad mapping)"),
@@ -254,36 +257,36 @@ SEED = [
     ("Mastercard",         "B", "workday",    "mastercard:wd1:CorporateCareers", "https://careers.mastercard.com/", "Finance · global payments network"),
     ("Autodesk",           "B", "workday",    "autodesk:wd1:Ext", "https://www.autodesk.com/careers", "SCM&Twins/Platform · design/engineering software (AutoCAD, Fusion)"),
     ("Workday",            "B", "workday",    "workday:wd5:Workday", "https://www.workday.com/en-us/company/careers.html", "Platform · HR/finance enterprise SaaS (runs its own product for its own ATS)"),
-    # ── Manual (proprietary/SSO-gated, no public JSON board found) ──────
-    ("Amazon",             "B", "manual",     None,             "https://www.amazon.jobs/en/", "Cloud/SCM · AWS + fulfillment/logistics; proprietary in-house ATS (amazon.jobs)"),
-    ("ServiceNow",         "B", "manual",     None,             "https://www.servicenow.com/careers.html", "Platform · enterprise workflow/ITSM; bot-protected careers site, likely Workday behind SSO"),
-    ("Adobe",              "B", "manual",     None,             "https://www.adobe.com/careers.html", "Platform · Creative Cloud/Document Cloud; proprietary careers portal"),
-    ("Bloomberg",          "B", "manual",     None,             "https://careers.bloomberg.com/", "Finance/Data · financial data terminal & media; proprietary ATS"),
-    ("Intuit",             "B", "manual",     None,             "https://jobs.intuit.com/", "Finance/Platform · TurboTax/QuickBooks; proprietary careers portal"),
-    ("PayPal",             "B", "manual",     None,             "https://careers.pypl.com/", "Finance · online payments; bot-protected proprietary careers portal"),
-    ("Salesforce",         "B", "manual",     None,             "https://www.salesforce.com/company/careers/", "Platform · CRM/enterprise SaaS; proprietary careers portal"),
-    ("Oracle",             "B", "manual",     None,             "https://www.oracle.com/careers/", "Cloud/Platform · enterprise DB/ERP/cloud; runs its own HCM ATS"),
-    ("Uber",               "B", "manual",     None,             "https://www.uber.com/us/en/careers/", "Mobility/Platform · rideshare/delivery; proprietary careers portal"),
-    ("Cisco",              "B", "manual",     None,             "https://jobs.cisco.com", "Hardware/Platform · networking infra (also owns Splunk); proprietary careers portal"),
-    ("Shopify",            "B", "manual",     None,             "https://www.shopify.com/careers", "Platform · e-commerce infra; embeds an Ashby widget but no resolvable public posting-api slug found — worth another look"),
-    ("Qualcomm",           "B", "manual",     None,             "https://www.qualcomm.com/company/careers", "Hardware · mobile/wireless chipsets; likely Workday behind SSO, tenant not resolvable"),
-    ("IBM",                "B", "manual",     None,             "https://www.ibm.com/careers", "Cloud/AI · enterprise IT/consulting (owns HashiCorp); likely Workday behind SSO, tenant not resolvable"),
-    ("AMD",                "B", "manual",     None,             "https://careers.amd.com", "Hardware · CPU/GPU semiconductors; confirmed iCIMS ATS, no public JSON board"),
-    ("HashiCorp",          "B", "manual",     None,             "https://www.hashicorp.com/careers", "AI&Data/Platform · infra-as-code (Terraform/Vault), IBM-owned; bot-protected careers site"),
-    ("Splunk",             "B", "manual",     None,             "https://careers.cisco.com/global/en/splunk", "AI&Data · observability/SIEM, Cisco-owned; folded into Cisco's proprietary careers portal"),
-    ("Etsy",               "B", "manual",     None,             "https://careers.etsy.com/", "Platform · e-commerce marketplace; proprietary careers portal, no public board found"),
+    # ── Company sweep (proprietary/SSO-gated, no public JSON board → JSearch) ──
+    ("Amazon",             "B", "jsearch_company", None,             "https://www.amazon.jobs/en/", "Cloud/SCM · AWS + fulfillment/logistics; proprietary in-house ATS (amazon.jobs)"),
+    ("ServiceNow",         "B", "jsearch_company", None,             "https://www.servicenow.com/careers.html", "Platform · enterprise workflow/ITSM; bot-protected careers site, likely Workday behind SSO"),
+    ("Adobe",              "B", "jsearch_company", None,             "https://www.adobe.com/careers.html", "Platform · Creative Cloud/Document Cloud; proprietary careers portal"),
+    ("Bloomberg",          "B", "jsearch_company", None,             "https://careers.bloomberg.com/", "Finance/Data · financial data terminal & media; proprietary ATS"),
+    ("Intuit",             "B", "jsearch_company", None,             "https://jobs.intuit.com/", "Finance/Platform · TurboTax/QuickBooks; proprietary careers portal"),
+    ("PayPal",             "B", "jsearch_company", None,             "https://careers.pypl.com/", "Finance · online payments; bot-protected proprietary careers portal"),
+    ("Salesforce",         "B", "jsearch_company", None,             "https://www.salesforce.com/company/careers/", "Platform · CRM/enterprise SaaS; proprietary careers portal"),
+    ("Oracle",             "B", "jsearch_company", None,             "https://www.oracle.com/careers/", "Cloud/Platform · enterprise DB/ERP/cloud; runs its own HCM ATS"),
+    ("Uber",               "B", "jsearch_company", None,             "https://www.uber.com/us/en/careers/", "Mobility/Platform · rideshare/delivery; proprietary careers portal"),
+    ("Cisco",              "B", "jsearch_company", None,             "https://jobs.cisco.com", "Hardware/Platform · networking infra (also owns Splunk); proprietary careers portal"),
+    ("Shopify",            "B", "jsearch_company", None,             "https://www.shopify.com/careers", "Platform · e-commerce infra; embeds an Ashby widget but no resolvable public posting-api slug found — worth another look"),
+    ("Qualcomm",           "B", "jsearch_company", None,             "https://www.qualcomm.com/company/careers", "Hardware · mobile/wireless chipsets; likely Workday behind SSO, tenant not resolvable"),
+    ("IBM",                "B", "jsearch_company", None,             "https://www.ibm.com/careers", "Cloud/AI · enterprise IT/consulting (owns HashiCorp); likely Workday behind SSO, tenant not resolvable"),
+    ("AMD",                "B", "jsearch_company", None,             "https://careers.amd.com", "Hardware · CPU/GPU semiconductors; confirmed iCIMS ATS, no public JSON board"),
+    ("HashiCorp",          "B", "jsearch_company", None,             "https://www.hashicorp.com/careers", "AI&Data/Platform · infra-as-code (Terraform/Vault), IBM-owned; bot-protected careers site"),
+    ("Splunk",             "B", "jsearch_company", None,             "https://careers.cisco.com/global/en/splunk", "AI&Data · observability/SIEM, Cisco-owned; folded into Cisco's proprietary careers portal"),
+    ("Etsy",               "B", "jsearch_company", None,             "https://careers.etsy.com/", "Platform · e-commerce marketplace; proprietary careers portal, no public board found"),
 
     # ════════════════════════════════════════════════════════════════════
     # DISCOVERY ROUND 6 — fintech/credit-card majors, 2026-07-07 (Zach said
     # he really likes this space). All major-bank ATS checked live; none had
     # a resolvable public JSON board (expected for this sector) -> manual.
     # ════════════════════════════════════════════════════════════════════
-    ("American Express",   "B", "manual",     None,             "https://www.americanexpress.com/en-us/careers/", "Finance · payments/card network + charge card issuer; proprietary careers portal, no public JSON board found"),
-    ("Chase",              "B", "manual",     None,             "https://jobs.chase.com", "Finance · JPMorgan Chase consumer/commercial banking; confirmed on Oracle Cloud HCM (jpmc.fa.oraclecloud.com), no public JSON board"),
-    ("Discover",           "B", "manual",     None,             "https://www.capitalonecareers.com/discover", "Finance · card network + direct bank, acquired by Capital One 2025 — careers now route through Capital One's Workday board (already seeded), no separate ATS token needed"),
-    ("Synchrony",          "B", "manual",     None,             "https://jobs.synchrony.com", "Finance · private-label/store credit cards; careers site blocked automated access, no public board found"),
-    ("Citi",               "B", "manual",     None,             "https://jobs.citi.com", "Finance · Citigroup consumer/commercial banking; confirmed on Workday (citi.wd5.myworkdayjobs.com) but couldn't resolve the exact career-site slug after several tries — worth another look"),
-    ("Wells Fargo",        "B", "manual",     None,             "https://www.wellsfargojobs.com", "Finance · consumer/commercial banking; bot-protected careers portal (403), no public board found"),
+    ("American Express",   "B", "jsearch_company", None,             "https://www.americanexpress.com/en-us/careers/", "Finance · payments/card network + charge card issuer; proprietary careers portal, no public JSON board found"),
+    ("Chase",              "B", "jsearch_company", None,             "https://jobs.chase.com", "Finance · JPMorgan Chase consumer/commercial banking; confirmed on Oracle Cloud HCM (jpmc.fa.oraclecloud.com), no public JSON board"),
+    ("Discover",           "B", "jsearch_company", None,             "https://www.capitalonecareers.com/discover", "Finance · card network + direct bank, acquired by Capital One 2025 — careers now route through Capital One's Workday board (already seeded), no separate ATS token needed"),
+    ("Synchrony",          "B", "jsearch_company", None,             "https://jobs.synchrony.com", "Finance · private-label/store credit cards; careers site blocked automated access, no public board found"),
+    ("Citi",               "B", "jsearch_company", None,             "https://jobs.citi.com", "Finance · Citigroup consumer/commercial banking; confirmed on Workday (citi.wd5.myworkdayjobs.com) but couldn't resolve the exact career-site slug after several tries — worth another look"),
+    ("Wells Fargo",        "B", "jsearch_company", None,             "https://www.wellsfargojobs.com", "Finance · consumer/commercial banking; bot-protected careers portal (403), no public board found"),
 ]
 
 

@@ -113,8 +113,59 @@ def run_search(db: Session) -> dict:
             seen.add(ntitle)
             new_ids.append(role.id)
 
+    # ── company sweep: proprietary/bot-walled employers with no public ATS board ──
+    # These are seeded ats_name='jsearch_company' and skipped by the per-company ATS
+    # loop (no parser). One employer-scoped JSearch query each pulls their roles in.
+    # Capped per run and round-robined by day so the whole set is covered across a
+    # cycle without blowing the free tier. Hits are pinned to the known Company.
+    swept = 0
+    js = next((p for p in providers if p.name == "jsearch"), None)
+    sweep_all = sorted((c for c in companies.values()
+                        if (c.ats_name or "") == "jsearch_company"), key=lambda c: c.id)
+    cap = settings.search_company_sweep_max
+    if js and sweep_all and cap > 0:
+        n = len(sweep_all)
+        start = (now.timetuple().tm_yday * cap) % n     # deterministic daily rotation
+        todays = [sweep_all[(start + i) % n] for i in range(min(cap, n))]
+        for co in todays:
+            swept += 1
+            try:
+                results = js.search_company(co.name)
+            except Exception as e:
+                msg = f"jsearch/company {co.name!r}: {type(e).__name__}: {e}"
+                errors.append(msg)
+                log.warning("search error %s", msg)
+                continue
+            ckey = _norm_company(co.name).lower()
+            for sr in results:
+                results_total += 1
+                r = sr.role
+                metro = metro_of(r.location)
+                if settings.search_metros_only and not metro:
+                    continue
+                ekey = _norm_company(sr.employer).lower()
+                if ckey not in ekey and ekey not in ckey:
+                    continue                   # employer-pin guard: not this company
+                ntitle = _norm_title(r.title)
+                seen = _open_titles(co.id)
+                if ntitle in seen:
+                    continue
+                role = Role(
+                    company_id=co.id, ats_job_id=r.ats_job_id, source="jsearch",
+                    title=r.title, location=r.location, metro=metro,
+                    remote_flag=r.remote_flag, department=r.department, url=r.url,
+                    description_hash=r.description_hash, posted_at=r.posted_at, status="open",
+                )
+                db.add(role)
+                db.flush()
+                seen.add(ntitle)
+                new_ids.append(role.id)
+
     db.commit()
-    log.info("search: %d providers x %d terms (%d queries), %d results -> +%d roles, +%d companies",
-             len(providers), len(terms), len(queries), results_total, len(new_ids), new_companies)
+    log.info("search: %d providers x %d terms (%d queries) + %d company sweeps, "
+             "%d results -> +%d roles, +%d companies",
+             len(providers), len(terms), len(queries), swept, results_total,
+             len(new_ids), new_companies)
     return {"new_ids": new_ids, "new": len(new_ids), "providers": len(providers),
-            "results": results_total, "new_companies": new_companies, "errors": errors}
+            "results": results_total, "new_companies": new_companies,
+            "swept": swept, "errors": errors}

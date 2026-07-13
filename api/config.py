@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     search_date_posted: str = "week"         # JSearch: all|today|3days|week|month
     search_max_results_per_query: int = 50   # USAJobs ResultsPerPage cap
     search_terms: str = ""                   # comma-separated override; blank -> derived from tracks
+    # Company sweep: proprietary/bot-walled employers (ats_name='jsearch_company') have no public
+    # ATS board, so instead of a per-site parser we run ONE employer-scoped JSearch query each and
+    # file the hits under that known company. Capped + round-robined by day to respect the free tier.
+    search_company_sweep_max: int = 6        # employer-scoped queries per run (rotates across days)
     jsearch_api_key: str = ""                # RapidAPI key for jsearch.p.rapidapi.com
     usajobs_api_key: str = ""                # data.usajobs.gov Authorization-Key
     usajobs_email: str = ""                  # USAJobs requires a contact email as the User-Agent

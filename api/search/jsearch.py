@@ -24,12 +24,22 @@ class JSearchProvider(SearchProvider):
         return bool(settings.jsearch_api_key)
 
     def search(self, term: str) -> list[SearchResult]:
+        """Nationwide keyword query across all employers (cross-employer discovery)."""
+        return self._query(f"{term} in United States", pages=max(1, settings.search_max_pages))
+
+    def search_company(self, company: str) -> list[SearchResult]:
+        """Employer-scoped query for one known company that has no public ATS board.
+        A single query surfaces that employer's product/TPM roles; the caller pins
+        the hits to the known Company (with a fuzzy-employer guard) and geo-filters."""
+        return self._query(f"{company} product manager technical program manager", pages=1)
+
+    def _query(self, query: str, pages: int) -> list[SearchResult]:
         headers = {"X-RapidAPI-Key": settings.jsearch_api_key, "X-RapidAPI-Host": _HOST}
         out: list[SearchResult] = []
         with httpx.Client(timeout=25.0, headers=headers) as cx:
-            for page in range(1, max(1, settings.search_max_pages) + 1):
+            for page in range(1, pages + 1):
                 r = cx.get(f"https://{_HOST}/search", params={
-                    "query": f"{term} in United States",
+                    "query": query,
                     "date_posted": settings.search_date_posted,
                     "country": "us",
                     "page": page,

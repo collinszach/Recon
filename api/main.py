@@ -375,6 +375,49 @@ def create_app(body: AppCreate, db: Session = Depends(get_db)):
     return _app_dict(a)
 
 
+class RoleCreate(BaseModel):
+    company: str                              # company name (created if unknown)
+    title: str
+    url: str | None = None
+    location: str | None = None
+    description: str | None = None
+    score: bool = True                        # score immediately so it surfaces
+
+
+@app.post("/api/roles")
+def add_role_manually(body: RoleCreate, db: Session = Depends(get_db)):
+    """Human/agent escape hatch: drop in a role found by hand on a proprietary
+    board that no parser or the JSearch sweep reached. Creates the company if
+    needed, geo-tags it, and (by default) scores it inline so it shows up now."""
+    from scan.geo import metro_of
+    from parsers.base import NormalizedRole
+    co = db.scalar(select(Company).where(func.lower(Company.name) == body.company.strip().lower()))
+    if co is None:
+        co = Company(name=body.company.strip(), tier="B", ats_name="manual",
+                     notes=f"auto-added via manual role entry {date.today()}")
+        db.add(co)
+        db.flush()
+    nr = NormalizedRole(ats_job_id=f"manual:{body.url or body.title}",
+                        title=body.title, location=body.location,
+                        description=body.description or "")
+    dup = db.scalar(select(Role).where(Role.company_id == co.id,
+                                       Role.ats_job_id == nr.ats_job_id))
+    if dup:
+        raise HTTPException(409, f"role already tracked (id={dup.id})")
+    role = Role(company_id=co.id, ats_job_id=nr.ats_job_id, source="manual",
+                title=nr.title, location=nr.location, metro=metro_of(nr.location),
+                remote_flag=nr.remote_flag, url=body.url, description=nr.description or None,
+                description_hash=nr.description_hash, status="open")
+    db.add(role)
+    db.flush()
+    if body.score:
+        from scoring.claude_scorer import score_roles
+        score_roles(db, [role])
+    db.commit()
+    return {"id": role.id, "company": co.name, "title": role.title,
+            "metro": role.metro, "fit_score": role.fit_score, "tier": role.score_tier}
+
+
 @app.patch("/api/applications/{app_id}")
 def update_app(app_id: int, body: AppUpdate, db: Session = Depends(get_db)):
     a = db.get(Application, app_id)

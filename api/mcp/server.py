@@ -6,7 +6,7 @@ Then add to your Claude Desktop / agent MCP config pointing at this process.
 
 Tools:
     list_open_roles, get_daily_brief, list_applications,
-    update_application, add_company, run_scan
+    update_application, add_company, add_role, run_scan
 """
 import json
 from datetime import date
@@ -104,6 +104,44 @@ def _register():
             db.add(Company(name=name, ats_name=ats_name, ats_token=ats_token, tier=tier))
             db.commit()
             return f"added {name} ({ats_name}:{ats_token})"
+        finally:
+            db.close()
+
+    @server.tool()
+    def add_role(company: str, title: str, url: str | None = None,
+                 location: str | None = None, description: str | None = None) -> str:
+        """Manually add a single role found on a proprietary board that no parser
+        or the JSearch sweep reached. Creates the company if unknown, geo-tags,
+        and scores it inline so it surfaces immediately."""
+        from datetime import date
+        from sqlalchemy import func
+        from db import Role
+        from scan.geo import metro_of
+        from parsers.base import NormalizedRole
+        from scoring.claude_scorer import score_roles
+        db = SessionLocal()
+        try:
+            co = db.scalar(select(Company).where(func.lower(Company.name) == company.strip().lower()))
+            if co is None:
+                co = Company(name=company.strip(), tier="B", ats_name="manual",
+                             notes=f"auto-added via MCP add_role {date.today()}")
+                db.add(co)
+                db.flush()
+            nr = NormalizedRole(ats_job_id=f"manual:{url or title}", title=title,
+                                location=location, description=description or "")
+            if db.scalar(select(Role).where(Role.company_id == co.id,
+                                            Role.ats_job_id == nr.ats_job_id)):
+                return f"role already tracked for {co.name}"
+            role = Role(company_id=co.id, ats_job_id=nr.ats_job_id, source="manual",
+                        title=nr.title, location=nr.location, metro=metro_of(nr.location),
+                        remote_flag=nr.remote_flag, url=url, description=nr.description or None,
+                        description_hash=nr.description_hash, status="open")
+            db.add(role)
+            db.flush()
+            score_roles(db, [role])
+            db.commit()
+            return (f"added {role.title} @ {co.name} "
+                    f"(metro={role.metro}, tier={role.score_tier}, fit={role.fit_score})")
         finally:
             db.close()
 
