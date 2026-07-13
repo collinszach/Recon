@@ -69,16 +69,24 @@ def run_search(db: Session) -> dict:
     errors: list[str] = []
     new_companies = 0
     results_total = 0
+    # per-provider tally so a whole provider silently failing (e.g. a lapsed
+    # RapidAPI subscription -> every JSearch call 404s) gets surfaced loudly
+    # below instead of hiding behind the per-query try/except.
+    prov_stats: dict[str, dict[str, int]] = {
+        p.name: {"queries": 0, "results": 0, "errors": 0} for p in providers}
 
     for provider, term in queries:
+        prov_stats[provider.name]["queries"] += 1
         try:
             results = provider.search(term)
         except Exception as e:  # one query failing must not kill the run
             msg = f"{provider.name}/{term!r}: {type(e).__name__}: {e}"
             errors.append(msg)
+            prov_stats[provider.name]["errors"] += 1
             log.warning("search error %s", msg)
             continue
 
+        prov_stats[provider.name]["results"] += len(results)
         for sr in results:
             results_total += 1
             r = sr.role
@@ -112,6 +120,15 @@ def run_search(db: Session) -> dict:
             db.flush()
             seen.add(ntitle)
             new_ids.append(role.id)
+
+    # Surface a provider that's wholly down (every query errored, zero results) —
+    # the usual signal is a lapsed/expired RapidAPI subscription. This is otherwise
+    # invisible because the per-query except only logs individual failures.
+    for pname, s in prov_stats.items():
+        if s["queries"] and s["results"] == 0 and s["errors"] == s["queries"]:
+            log.error("search provider %r returned nothing: all %d queries failed "
+                      "(check API key / subscription)", pname, s["queries"])
+            errors.append(f"{pname}: all {s['queries']} queries failed — provider likely down")
 
     # ── company sweep: proprietary/bot-walled employers with no public ATS board ──
     # These are seeded ats_name='jsearch_company' and skipped by the per-company ATS
