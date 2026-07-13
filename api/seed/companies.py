@@ -13,7 +13,9 @@ Token formats by ATS:
   ashby           : org slug                   -> api.ashbyhq.com/posting-api/job-board/{slug}
   lever           : org slug                   -> api.lever.co/v0/postings/{slug}
   workday         : "{tenant}:{dc}:{site}"     -> {tenant}.{dc}.myworkdayjobs.com/...
-  jsearch_company : token unused (query uses the company name) -> JSearch sweep
+  amazon          : token unused (single employer) -> amazon.jobs search.json
+  jsearch_company : token unused (query uses the company name) -> search_runner
+                    company sweep (The Muse company filter; JSearch fallback)
 
 Tiering follows the dashboard rubric: commercial-first, $200K+ TC floor,
 product-not-program, WLB-weighted.
@@ -258,7 +260,7 @@ SEED = [
     ("Autodesk",           "B", "workday",    "autodesk:wd1:Ext", "https://www.autodesk.com/careers", "SCM&Twins/Platform · design/engineering software (AutoCAD, Fusion)"),
     ("Workday",            "B", "workday",    "workday:wd5:Workday", "https://www.workday.com/en-us/company/careers.html", "Platform · HR/finance enterprise SaaS (runs its own product for its own ATS)"),
     # ── Company sweep (proprietary/SSO-gated, no public JSON board → JSearch) ──
-    ("Amazon",             "B", "jsearch_company", None,             "https://www.amazon.jobs/en/", "Cloud/SCM · AWS + fulfillment/logistics; proprietary in-house ATS (amazon.jobs)"),
+    ("Amazon",             "B", "amazon",     None,             "https://www.amazon.jobs/en/", "Cloud/SCM · AWS + fulfillment/logistics; first-party amazon.jobs search.json parser (keyword-sampled)"),
     ("ServiceNow",         "B", "jsearch_company", None,             "https://www.servicenow.com/careers.html", "Platform · enterprise workflow/ITSM; bot-protected careers site, likely Workday behind SSO"),
     ("Adobe",              "B", "jsearch_company", None,             "https://www.adobe.com/careers.html", "Platform · Creative Cloud/Document Cloud; proprietary careers portal"),
     ("Bloomberg",          "B", "jsearch_company", None,             "https://careers.bloomberg.com/", "Finance/Data · financial data terminal & media; proprietary ATS"),

@@ -7,8 +7,11 @@ from parsers import NormalizedRole
 from scan.geo import metro_of
 
 
-def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole]) -> dict:
-    """Returns counts and lists of new / changed role ids."""
+def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole],
+                      close_missing: bool = True) -> dict:
+    """Returns counts and lists of new / changed role ids. When close_missing is
+    False the caller's fetch is a sampled slice (not the full board), so roles
+    absent from `fetched` are left as-is rather than marked closed."""
     existing = {
         r.ats_job_id: r
         for r in db.scalars(select(Role).where(Role.company_id == company_id))
@@ -61,12 +64,14 @@ def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole
                 row.status = "open"
             row.last_seen = now
 
-    # anything in DB but no longer present = closed
+    # anything in DB but no longer present = closed (only for an authoritative
+    # full-board fetch; a sampled fetch must not close roles it merely omitted)
     closed = 0
-    for ats_id, row in existing.items():
-        if ats_id not in fetched_ids and row.status != "closed":
-            row.status = "closed"
-            closed += 1
+    if close_missing:
+        for ats_id, row in existing.items():
+            if ats_id not in fetched_ids and row.status != "closed":
+                row.status = "closed"
+                closed += 1
 
     db.commit()
     return {

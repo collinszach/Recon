@@ -62,6 +62,11 @@ def client() -> httpx.Client:
 class ATSParser:
     """Subclass and implement fetch()."""
     ats_name: str = "base"
+    # True: fetch() returns the company's full board, so roles absent from the
+    # result are genuinely gone and reconcile may close them. False: fetch()
+    # returns a sampled slice (e.g. targeted keyword queries against a huge
+    # board), so missing roles must NOT be closed — same rule as search results.
+    authoritative: bool = True
 
     def fetch(self, token: str) -> list[NormalizedRole]:
         raise NotImplementedError

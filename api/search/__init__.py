@@ -7,8 +7,9 @@ from config import settings
 from search.base import NormalizedRole, SearchProvider, SearchResult
 from search.jsearch import JSearchProvider
 from search.usajobs import USAJobsProvider
+from search.themuse import MuseProvider
 
-_PROVIDERS: list[SearchProvider] = [JSearchProvider(), USAJobsProvider()]
+_PROVIDERS: list[SearchProvider] = [JSearchProvider(), USAJobsProvider(), MuseProvider()]
 
 
 def enabled_providers() -> list[SearchProvider]:

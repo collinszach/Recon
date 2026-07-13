@@ -4,13 +4,16 @@ from .greenhouse import GreenhouseParser
 from .ashby import AshbyParser
 from .lever import LeverParser
 from .workday import WorkdayParser
+from .amazon import AmazonParser
 
 REGISTRY: dict[str, ATSParser] = {
     "greenhouse": GreenhouseParser(),
     "ashby": AshbyParser(),
     "lever": LeverParser(),
     "workday": WorkdayParser(),
-    # "manual":  handled out-of-band via add_role_manually
+    "amazon": AmazonParser(),
+    # "jsearch_company": no parser — handled by scan.search_runner's company sweep
+    # "manual":  context-only; drop one-off roles via POST /api/roles or MCP add_role
 }
 
 

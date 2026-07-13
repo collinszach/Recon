@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     # file the hits under that known company. Capped + round-robined by day to respect the free tier.
     search_company_sweep_max: int = 6        # employer-scoped queries per run (rotates across days)
     jsearch_api_key: str = ""                # RapidAPI key for jsearch.p.rapidapi.com
+    themuse_enabled: bool = True             # The Muse (themuse.com) — free, no key needed
+    themuse_api_key: str = ""                # optional free key to raise the 500/hr limit
     usajobs_api_key: str = ""                # data.usajobs.gov Authorization-Key
     usajobs_email: str = ""                  # USAJobs requires a contact email as the User-Agent
 

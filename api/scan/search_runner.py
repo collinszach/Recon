@@ -136,7 +136,11 @@ def run_search(db: Session) -> dict:
     # Capped per run and round-robined by day so the whole set is covered across a
     # cycle without blowing the free tier. Hits are pinned to the known Company.
     swept = 0
-    js = next((p for p in providers if p.name == "jsearch"), None)
+    # prefer a working company-search provider; Muse (free) over JSearch (which
+    # 404s /search on the current plan). Any provider exposing search_company works.
+    _order = {"themuse": 0, "jsearch": 1}
+    js = next((p for p in sorted(providers, key=lambda p: _order.get(p.name, 9))
+               if hasattr(p, "search_company")), None)
     sweep_all = sorted((c for c in companies.values()
                         if (c.ats_name or "") == "jsearch_company"), key=lambda c: c.id)
     cap = settings.search_company_sweep_max

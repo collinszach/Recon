@@ -37,7 +37,8 @@ def run_daily_scan() -> dict:
                 continue  # manual / workday handled elsewhere
             try:
                 fetched = parser.fetch(co.ats_token)
-                result = reconcile_company(db, co.id, fetched)
+                result = reconcile_company(db, co.id, fetched,
+                                           close_missing=parser.authoritative)
                 totals["new"] += result["new"]
                 totals["changed"] += result["changed"]
                 totals["closed"] += result["closed"]
