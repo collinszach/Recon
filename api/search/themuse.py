@@ -27,6 +27,12 @@ log = logging.getLogger("recon.search.themuse")
 _BASE = "https://www.themuse.com/api/public/jobs"
 _MAX_PAGES = 2
 
+# our seed company name -> Muse's exact stored company name (verified live)
+_COMPANY_ALIAS = {
+    "Chase": "JPMorgan Chase",
+    "Meta Reality Labs": "Meta",
+}
+
 # our track terms -> Muse's fixed category enum
 _CATEGORY_MAP = {
     "product manager": "Product Management",
@@ -53,7 +59,8 @@ class MuseProvider(SearchProvider):
         return self._fetch({"category": cat})
 
     def search_company(self, company: str) -> list[SearchResult]:
-        return self._fetch({"company": company})
+        # Muse filters on its own exact company name; map ours where they differ.
+        return self._fetch({"company": _COMPANY_ALIAS.get(company, company)})
 
     def _fetch(self, params: dict) -> list[SearchResult]:
         out: list[SearchResult] = []

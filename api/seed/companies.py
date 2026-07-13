@@ -262,7 +262,7 @@ SEED = [
     # ── Company sweep (proprietary/SSO-gated, no public JSON board → JSearch) ──
     ("Amazon",             "B", "amazon",     None,             "https://www.amazon.jobs/en/", "Cloud/SCM · AWS + fulfillment/logistics; first-party amazon.jobs search.json parser (keyword-sampled)"),
     ("ServiceNow",         "B", "jsearch_company", None,             "https://www.servicenow.com/careers.html", "Platform · enterprise workflow/ITSM; bot-protected careers site, likely Workday behind SSO"),
-    ("Adobe",              "B", "jsearch_company", None,             "https://www.adobe.com/careers.html", "Platform · Creative Cloud/Document Cloud; proprietary careers portal"),
+    ("Adobe",              "B", "workday",    "adobe:wd5:external_experienced", "https://www.adobe.com/careers.html", "Platform · Creative Cloud/Document Cloud; resolved to Workday (adobe.wd5) 2026-07-13"),
     ("Bloomberg",          "B", "jsearch_company", None,             "https://careers.bloomberg.com/", "Finance/Data · financial data terminal & media; proprietary ATS"),
     ("Intuit",             "B", "jsearch_company", None,             "https://jobs.intuit.com/", "Finance/Platform · TurboTax/QuickBooks; proprietary careers portal"),
     ("PayPal",             "B", "jsearch_company", None,             "https://careers.pypl.com/", "Finance · online payments; bot-protected proprietary careers portal"),
@@ -287,7 +287,7 @@ SEED = [
     ("Chase",              "B", "jsearch_company", None,             "https://jobs.chase.com", "Finance · JPMorgan Chase consumer/commercial banking; confirmed on Oracle Cloud HCM (jpmc.fa.oraclecloud.com), no public JSON board"),
     ("Discover",           "B", "jsearch_company", None,             "https://www.capitalonecareers.com/discover", "Finance · card network + direct bank, acquired by Capital One 2025 — careers now route through Capital One's Workday board (already seeded), no separate ATS token needed"),
     ("Synchrony",          "B", "jsearch_company", None,             "https://jobs.synchrony.com", "Finance · private-label/store credit cards; careers site blocked automated access, no public board found"),
-    ("Citi",               "B", "jsearch_company", None,             "https://jobs.citi.com", "Finance · Citigroup consumer/commercial banking; confirmed on Workday (citi.wd5.myworkdayjobs.com) but couldn't resolve the exact career-site slug after several tries — worth another look"),
+    ("Citi",               "B", "workday",    "citi:wd5:2",     "https://jobs.citi.com", "Finance · Citigroup consumer/commercial banking; resolved to Workday (citi.wd5, site '2') 2026-07-13"),
     ("Wells Fargo",        "B", "jsearch_company", None,             "https://www.wellsfargojobs.com", "Finance · consumer/commercial banking; bot-protected careers portal (403), no public board found"),
 ]
 
