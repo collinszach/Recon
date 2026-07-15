@@ -51,17 +51,25 @@ class WorkdayParser(ATSParser):
         with client() as c:
             offset = 0
             total = None
-            while total is None or offset < min(total, MAX_POSTINGS):
+            while True:
                 resp = c.post(
                     url,
                     json={"appliedFacets": {}, "limit": PAGE_SIZE, "offset": offset, "searchText": ""},
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                total = data.get("total", 0)
-                for job in data.get("jobPostings", []):
+                page = data.get("jobPostings", [])
+                # Workday only reports the real total on the FIRST page; deeper
+                # pages intermittently report total=0. Capture it once and rely on
+                # an empty page to detect the true end, so a spurious 0 can't
+                # truncate a large board to a couple pages.
+                if total is None:
+                    total = data.get("total", 0) or 0
+                for job in page:
                     _add(job)
                 offset += PAGE_SIZE
+                if not page or offset >= min(total or MAX_POSTINGS, MAX_POSTINGS):
+                    break
                 polite_delay()
 
             if total and total > MAX_POSTINGS:
@@ -75,10 +83,11 @@ class WorkdayParser(ATSParser):
                         )
                         resp.raise_for_status()
                         data = resp.json()
-                        for job in data.get("jobPostings", []):
+                        page = data.get("jobPostings", [])
+                        for job in page:
                             _add(job)
                         s_offset += PAGE_SIZE
-                        if s_offset >= data.get("total", 0):
+                        if not page:            # end of this keyword's results
                             break
                         polite_delay()
 
