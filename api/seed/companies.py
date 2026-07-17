@@ -289,6 +289,11 @@ SEED = [
     ("Synchrony",          "B", "jsearch_company", None,             "https://jobs.synchrony.com", "Finance · private-label/store credit cards; careers site blocked automated access, no public board found"),
     ("Citi",               "B", "workday",    "citi:wd5:2",     "https://jobs.citi.com", "Finance · Citigroup consumer/commercial banking; resolved to Workday (citi.wd5, site '2') 2026-07-13"),
     ("Wells Fargo",        "B", "jsearch_company", None,             "https://www.wellsfargojobs.com", "Finance · consumer/commercial banking; bot-protected careers portal (403), no public board found"),
+
+    # ════════════════════════════════════════════════════════════════════
+    # DISCOVERY ROUND 7 — surfaced via Zach's own application, 2026-07-16.
+    # ════════════════════════════════════════════════════════════════════
+    ("Tessera Labs",       "B", "ashby",      "tessera-labs",   "https://jobs.ashbyhq.com/tessera-labs", "AI&Data · AI-native enterprise workflow automation (SAP/Salesforce/Workday/Snowflake/Databricks integrations), $60M Series A led by a16z — Zach applied to the PM Intern role here (San Jose HQ / NYC / remote-eligible)"),
 ]
 
 
