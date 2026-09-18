@@ -39,6 +39,7 @@ services:
       - "${API_PORT:-8000}:8000"
     volumes:
       - ./web:/app/web:ro
+      - ./secrets:/app/secrets:ro
     restart: unless-stopped
 
   worker:
@@ -52,6 +53,8 @@ services:
         condition: service_healthy
       api:
         condition: service_started
+    volumes:
+      - ./secrets:/app/secrets:ro
     restart: unless-stopped
 
 volumes:
