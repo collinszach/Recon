@@ -105,6 +105,11 @@ struct ReconAPI {
     func roles(minFit: Double = 0) async throws -> [Role] {
         try await get("api/roles?min_fit=\(minFit)", as: [Role].self)
     }
+    /// Includes roles marked "not for me" (normally filtered out server-side),
+    /// so the ratings review screen can show — and undo — them.
+    func ratedRoles() async throws -> [Role] {
+        try await get("api/roles?include_hidden=true", as: [Role].self)
+    }
     func brief() async throws -> Brief { try await get("api/brief", as: Brief.self) }
     func applications() async throws -> [AppItem] { try await get("api/applications", as: [AppItem].self) }
     func companies() async throws -> [Company] { try await get("api/companies", as: [Company].self) }

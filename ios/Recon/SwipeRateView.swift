@@ -48,6 +48,12 @@ struct SwipeRateView: View {
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: Role.self) { RoleDetailView(role: $0, store: store) }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink { RatedRolesView().environmentObject(store) } label: {
+                        Label("Your ratings", systemImage: "clock.arrow.circlepath")
+                    }
+                    .tint(Theme.rust)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }

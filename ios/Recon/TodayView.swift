@@ -25,6 +25,19 @@ struct TodayView: View {
                     FollowUpsSection()
                 }
 
+                // New arrivals get their own section. "Top matches" sorts purely
+                // by fit, so a day's new roles (often C-tier) never crack the
+                // top 5 and were effectively invisible — you'd have no idea the
+                // scan found anything (2026-09-18).
+                let newToday = store.internFeed.filter { $0.firstSeenIsToday }
+                if !newToday.isEmpty {
+                    SectionHeader(title: "New today", trailing: "\(newToday.count)")
+                    ForEach(newToday.prefix(5)) { role in
+                        NavigationLink(value: role) { RoleRow(role: role, isNew: true) }
+                            .buttonStyle(.plain)
+                    }
+                }
+
                 SectionHeader(title: "Top matches",
                               trailing: store.todayCount > 0 ? "\(store.todayCount) today" : nil)
                 if store.internFeed.isEmpty {

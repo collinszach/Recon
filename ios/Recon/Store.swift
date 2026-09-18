@@ -22,6 +22,10 @@ final class Store: ObservableObject {
     @Published var hiddenRoleIds: Set<Int> = []
     @Published var likedRoleIds: Set<Int> = []
 
+    /// Ratings/tracks that couldn't reach the server, persisted to disk and
+    /// replayed on the next successful refresh.
+    @Published private(set) var pending: [PendingAction] = []
+
     /// Baseline for "new since you last looked": the sync time *before* this one.
     /// Roles first seen after it are flagged NEW until the next refresh advances it.
     @Published var newSince: Date?
@@ -38,6 +42,14 @@ final class Store: ObservableObject {
         resume = Cache.load(ResumeData.self, "resume")
         lastSynced = Cache.load(Date.self, "lastSynced")
         newSince = Cache.load(Date.self, "newSince")
+        pending = Cache.load([PendingAction].self, "pending") ?? []
+        // Re-apply queued ratings so the feed looks the same after a restart as
+        // it did when they were made — otherwise a role you already passed on
+        // reappears until the queue drains.
+        for a in pending where a.kind == .interest {
+            if a.value == "up" { likedRoleIds.insert(a.roleId) }
+            if a.value == "down" { hiddenRoleIds.insert(a.roleId) }
+        }
     }
 
     private func markSynced() {
@@ -87,12 +99,51 @@ final class Store: ObservableObject {
     }
 
     /// Record 👍/👎 (or clear). Down-voted roles drop out of the feed at once.
+    /// If the server can't be reached the action is queued to disk and replayed
+    /// on the next successful refresh — swiping offline used to update the UI
+    /// optimistically and then silently lose the rating on the next launch,
+    /// since the optimistic sets live only in memory (2026-09-18: an entire
+    /// session's worth of ratings was lost this way).
     func setInterest(_ role: Role, _ value: String?) async {
         likedRoleIds.remove(role.id); hiddenRoleIds.remove(role.id)
         if value == "up" { likedRoleIds.insert(role.id) }
         if value == "down" { hiddenRoleIds.insert(role.id) }
         do { try await api.feedback(roleId: role.id, value: value) }
-        catch { self.error = error.localizedDescription }
+        catch { enqueue(.init(roleId: role.id, kind: .interest, value: value)) }
+    }
+
+    // ── offline queue ────────────────────────────────────────────────────
+    /// A rating/track that never reached the server, kept so it isn't lost.
+    struct PendingAction: Codable, Equatable {
+        enum Kind: String, Codable { case interest, track }
+        let roleId: Int
+        let kind: Kind
+        var value: String? = nil     // "up" / "down" / nil — interest only
+    }
+
+    private func enqueue(_ a: PendingAction) {
+        pending.removeAll { $0.roleId == a.roleId && $0.kind == a.kind }
+        pending.append(a)
+        Cache.save(pending, "pending")
+        error = "Saved offline — \(pending.count) change\(pending.count == 1 ? "" : "s") will sync when Recon is reachable."
+    }
+
+    /// Replay queued actions. Anything that still fails stays queued.
+    private func flushPending() async {
+        guard !pending.isEmpty else { return }
+        var stillFailing: [PendingAction] = []
+        for a in pending {
+            do {
+                switch a.kind {
+                case .interest: try await api.feedback(roleId: a.roleId, value: a.value)
+                case .track:    _ = try await api.track(roleId: a.roleId)
+                }
+            } catch {
+                stillFailing.append(a)
+            }
+        }
+        pending = stillFailing
+        Cache.save(pending, "pending")
     }
     var internFeed: [Role]   { feed.filter { ($0.track ?? "intern") == "intern" } }
     var fulltimeFeed: [Role] { feed.filter { $0.track == "fulltime" } }
@@ -113,6 +164,8 @@ final class Store: ObservableObject {
             Cache.save(roles, "roles"); Cache.save(brief, "brief"); Cache.save(apps, "apps")
             markSynced()
             newSince = prevSync; Cache.save(newSince, "newSince")
+            // Server is reachable again — replay anything queued while offline.
+            await flushPending()
         } catch {
             handleLoadFailure(error, hadCache: hadCache)
         }
@@ -121,7 +174,7 @@ final class Store: ObservableObject {
 
     func track(_ role: Role) async {
         do { let item = try await api.track(roleId: role.id); apps.insert(item, at: 0) }
-        catch { self.error = error.localizedDescription }
+        catch { enqueue(.init(roleId: role.id, kind: .track)) }
     }
 
     func move(_ app: AppItem, to stage: Stage) async {
