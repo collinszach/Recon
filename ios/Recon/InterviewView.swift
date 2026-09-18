@@ -14,11 +14,13 @@ struct InterviewPrepView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if loading {
-                        VStack(spacing: 10) {
-                            ProgressView()
-                            Text("Prepping you for \(role.company ?? "this interview")…")
-                                .font(.caption).foregroundStyle(Theme.inkSoft)
-                        }.frame(maxWidth: .infinity).padding(.top, 40)
+                        AILoadingView(steps: [
+                            "Studying the role requirements…",
+                            "Anticipating likely questions…",
+                            "Building your talking points…",
+                            "Prepping questions to ask them…",
+                            "Finalizing your prep guide…",
+                        ])
                     } else if let err = prep?.error {
                         ErrorBanner(message: err)
                     } else if let p = prep {

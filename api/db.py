@@ -23,6 +23,8 @@ class Company(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String, unique=True)
     tier: Mapped[str | None] = mapped_column(String, default="B")
+    # big_tech | startup | finance | defense | aerospace | consulting | enterprise | other
+    sector: Mapped[str | None] = mapped_column(String)
     ats_name: Mapped[str | None] = mapped_column(String)
     ats_token: Mapped[str | None] = mapped_column(String)
     careers_url: Mapped[str | None] = mapped_column(String)
@@ -40,7 +42,8 @@ class Role(Base):
     source: Mapped[str] = mapped_column(String, default="ats")  # ats | jsearch | usajobs
     title: Mapped[str] = mapped_column(String)
     location: Mapped[str | None] = mapped_column(String)
-    metro: Mapped[str | None] = mapped_column(String)   # target-metro slug (scan.geo)
+    metro: Mapped[str | None] = mapped_column(String)   # target-metro slug (scan.geo) — Zach's 9 curated targets
+    state: Mapped[str | None] = mapped_column(String)   # US state code / 'remote' / 'international' (scan.geo) — exhaustive, all locations
     remote_flag: Mapped[bool] = mapped_column(Boolean, default=False)
     department: Mapped[str | None] = mapped_column(String)
     url: Mapped[str | None] = mapped_column(String)
@@ -59,6 +62,7 @@ class Role(Base):
     curriculum_hook: Mapped[str | None] = mapped_column(Text)
     tc_estimate: Mapped[str | None] = mapped_column(String)
     is_product_pm: Mapped[bool | None] = mapped_column(Boolean)
+    is_mba: Mapped[bool | None] = mapped_column(Boolean)   # MBA-track internship (rule-based)
     scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # user feedback: "up" (good fit) | "down" (not for me) | None — hides downs
     # from the feed and calibrates future scoring toward Zach's actual taste.
@@ -180,6 +184,53 @@ class PushSubscription(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class DeviceToken(Base):
+    """APNs device token for native iOS push (parallel channel to PushSubscription/web push)."""
+    __tablename__ = "device_tokens"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token: Mapped[str] = mapped_column(String, unique=True)
+    platform: Mapped[str] = mapped_column(String, default="ios")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Startup(Base):
+    """A startup Zach is tracking/researching — separate from Company (which drives
+    the job-scan pipeline). Sector is one of the four focus areas he named."""
+    __tablename__ = "startups"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String, unique=True)
+    # fintech | defense | sustainability_energy | product_tech_data | other
+    sector: Mapped[str | None] = mapped_column(String)
+    hq_location: Mapped[str | None] = mapped_column(String)
+    stage: Mapped[str | None] = mapped_column(String)          # e.g. seed, series A, growth
+    founded_year: Mapped[int | None] = mapped_column(Integer)
+    website: Mapped[str | None] = mapped_column(String)
+    one_liner: Mapped[str | None] = mapped_column(Text)
+    funding_summary: Mapped[str | None] = mapped_column(Text)  # best-effort, LLM-researched — not authoritative
+    notes: Mapped[str | None] = mapped_column(Text)
+    # cached on-demand writeup — regenerated only when explicitly requested, never on a schedule
+    writeup_markdown: Mapped[str | None] = mapped_column(Text)
+    writeup_generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    writeup_model: Mapped[str | None] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    contacts: Mapped[list["StartupContact"]] = relationship(back_populates="startup",
+                                                             cascade="all, delete-orphan")
+
+
+class StartupContact(Base):
+    __tablename__ = "startup_contacts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    startup_id: Mapped[int] = mapped_column(ForeignKey("startups.id", ondelete="CASCADE"))
+    name: Mapped[str | None] = mapped_column(String)
+    role: Mapped[str | None] = mapped_column(String)
+    email: Mapped[str | None] = mapped_column(String)
+    linkedin: Mapped[str | None] = mapped_column(String)
+    warmth: Mapped[str | None] = mapped_column(String)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    startup: Mapped["Startup"] = relationship(back_populates="contacts")
+
+
 class Resume(Base):
     """Single-row master resume profile (id=1). Experiences live in ResumeExperience."""
     __tablename__ = "resume"
@@ -207,3 +258,34 @@ class ResumeExperience(Base):
     bullets: Mapped[str | None] = mapped_column(Text)          # newline-separated
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AutofillProfile(Base):
+    """Single-row (id=1) answers to the standard application-form fields that aren't
+    part of the resume proper: contact info, links, work auth, EEO (all optional)."""
+    __tablename__ = "autofill_profile"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    phone: Mapped[str | None] = mapped_column(String)
+    email: Mapped[str | None] = mapped_column(String)
+    address_line1: Mapped[str | None] = mapped_column(String)
+    city: Mapped[str | None] = mapped_column(String)
+    state: Mapped[str | None] = mapped_column(String)
+    zip_code: Mapped[str | None] = mapped_column(String)
+    country: Mapped[str | None] = mapped_column(String)
+    linkedin_url: Mapped[str | None] = mapped_column(String)
+    portfolio_url: Mapped[str | None] = mapped_column(String)
+    github_url: Mapped[str | None] = mapped_column(String)
+    work_authorized: Mapped[bool | None] = mapped_column(Boolean)
+    requires_sponsorship: Mapped[bool | None] = mapped_column(Boolean)
+    willing_to_relocate: Mapped[bool | None] = mapped_column(Boolean)
+    pronouns: Mapped[str | None] = mapped_column(String)
+    veteran_status: Mapped[str | None] = mapped_column(String)
+    disability_status: Mapped[str | None] = mapped_column(String)
+    gender: Mapped[str | None] = mapped_column(String)
+    race_ethnicity: Mapped[str | None] = mapped_column(String)
+    desired_salary: Mapped[str | None] = mapped_column(String)
+    earliest_start_date: Mapped[str | None] = mapped_column(String)
+    notice_period: Mapped[str | None] = mapped_column(String)
+    how_heard: Mapped[str | None] = mapped_column(String)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
+                                                 server_default=func.now(), onupdate=func.now())

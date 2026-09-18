@@ -16,11 +16,12 @@ import re
 from datetime import datetime, timezone
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from config import settings
 from db import Company, Role
-from scan.geo import metro_of
+from scan.geo import metro_of, states_csv
 from search import default_terms, enabled_providers
 
 log = logging.getLogger("recon.search")
@@ -54,6 +55,10 @@ def run_search(db: Session) -> dict:
     companies = {_norm_company(c.name).lower(): c for c in db.scalars(select(Company)).all()}
     # per-company set of normalized open-role titles, lazily filled for dedupe
     titles_by_company: dict[int, set[str]] = {}
+    # per-company set of ats_job_id already stored (any status) — the real unique
+    # constraint is (company_id, ats_job_id), which can collide even when the title
+    # dedup above misses (title text drifted slightly between scans).
+    job_ids_by_company: dict[int, set[str]] = {}
 
     def _open_titles(company_id: int) -> set[str]:
         if company_id not in titles_by_company:
@@ -63,6 +68,27 @@ def run_search(db: Session) -> dict:
                     Role.company_id == company_id, Role.status != "closed"))
             }
         return titles_by_company[company_id]
+
+    def _known_job_ids(company_id: int) -> set[str]:
+        if company_id not in job_ids_by_company:
+            job_ids_by_company[company_id] = set(db.scalars(
+                select(Role.ats_job_id).where(Role.company_id == company_id)))
+        return job_ids_by_company[company_id]
+
+    def _insert_role(role: Role) -> bool:
+        """Add + flush a role, tolerating a (company_id, ats_job_id) race/miss in the
+        dedup above. Returns False (and rolls back just this insert) on conflict so
+        one bad row can never poison the rest of the run."""
+        db.add(role)
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()
+            log.info("search: skipped duplicate role company=%s ats_job_id=%s",
+                     role.company_id, role.ats_job_id)
+            return False
+        _known_job_ids(role.company_id).add(role.ats_job_id)
+        return True
 
     now = datetime.now(timezone.utc)
     new_ids: list[int] = []
@@ -91,14 +117,17 @@ def run_search(db: Session) -> dict:
             results_total += 1
             r = sr.role
             metro = metro_of(r.location)
+            state = states_csv(r.location)
             if settings.search_metros_only and not metro:
-                continue                       # keep search tightly geo-relevant
+                continue                       # off by default (2026-08-16) — Zach wants
+                                                # every location ingested, filterable client-side
 
             key = _norm_company(sr.employer).lower()
             co = companies.get(key)
             if co is None:
+                from seed.sectors import sector_for
                 co = Company(name=sr.employer.strip(), tier="B", ats_name=provider.name,
-                             notes=f"auto-added via {provider.name} search {now.date()}")
+                             sector=sector_for(sr.employer), notes=f"auto-added via {provider.name} search {now.date()}")
                 db.add(co)
                 db.flush()                     # assign co.id
                 companies[key] = co
@@ -109,15 +138,17 @@ def run_search(db: Session) -> dict:
             seen = _open_titles(co.id)
             if ntitle in seen:                 # already have this role (likely from its ATS)
                 continue
+            if r.ats_job_id in _known_job_ids(co.id):
+                continue
 
             role = Role(
                 company_id=co.id, ats_job_id=r.ats_job_id, source=provider.name,
-                title=r.title, location=r.location, metro=metro,
+                title=r.title, location=r.location, metro=metro, state=state,
                 remote_flag=r.remote_flag, department=r.department, url=r.url,
                 description_hash=r.description_hash, posted_at=r.posted_at, status="open",
             )
-            db.add(role)
-            db.flush()
+            if not _insert_role(role):
+                continue
             seen.add(ntitle)
             new_ids.append(role.id)
 
@@ -162,6 +193,7 @@ def run_search(db: Session) -> dict:
                 results_total += 1
                 r = sr.role
                 metro = metro_of(r.location)
+                state = states_csv(r.location)
                 if settings.search_metros_only and not metro:
                     continue
                 ekey = _norm_company(sr.employer).lower()
@@ -171,14 +203,16 @@ def run_search(db: Session) -> dict:
                 seen = _open_titles(co.id)
                 if ntitle in seen:
                     continue
+                if r.ats_job_id in _known_job_ids(co.id):
+                    continue
                 role = Role(
                     company_id=co.id, ats_job_id=r.ats_job_id, source="jsearch",
-                    title=r.title, location=r.location, metro=metro,
+                    title=r.title, location=r.location, metro=metro, state=state,
                     remote_flag=r.remote_flag, department=r.department, url=r.url,
                     description_hash=r.description_hash, posted_at=r.posted_at, status="open",
                 )
-                db.add(role)
-                db.flush()
+                if not _insert_role(role):
+                    continue
                 seen.add(ntitle)
                 new_ids.append(role.id)
 

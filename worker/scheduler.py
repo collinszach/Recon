@@ -25,6 +25,24 @@ def job():
         log.exception("scan failed")
 
 
+def discovery_job():
+    """Weekly startup discovery — proposes + adds new startups with writeups
+    and contacts (2026-08-15, Zach's call: ongoing discovery, not one-time).
+    AI cost, unlike the scan job, so this stays weekly not hourly."""
+    log.info("startup discovery starting")
+    from db import SessionLocal
+    from startups.researcher import run_discovery
+    db = SessionLocal()
+    try:
+        result = run_discovery(db, n=settings.startup_discovery_batch)
+        log.info("startup discovery done: +%d added, %d skipped",
+                 len(result["added"]), len(result["skipped"]))
+    except Exception:
+        log.exception("startup discovery failed")
+    finally:
+        db.close()
+
+
 def main():
     sched = BlockingScheduler(timezone=settings.tz)
     hours = max(1, settings.scan_interval_hours)
@@ -35,8 +53,13 @@ def main():
     sched.add_job(job, "date",
                   run_date=datetime.now() + timedelta(seconds=15),
                   id="startup_scan", max_instances=1, coalesce=True)
-    log.info("worker up — scan scheduled every %d hour(s) (%s); first run ~15s after startup",
-             hours, settings.tz)
+    # weekly startup discovery (separate from the job scan above)
+    if settings.startup_discovery_enabled:
+        sched.add_job(discovery_job, IntervalTrigger(weeks=1, timezone=settings.tz),
+                      id="weekly_startup_discovery", max_instances=1, coalesce=True)
+    log.info("worker up — scan scheduled every %d hour(s) (%s); first run ~15s after startup; "
+             "startup discovery %s",
+             hours, settings.tz, "weekly" if settings.startup_discovery_enabled else "disabled")
     sched.start()
 
 

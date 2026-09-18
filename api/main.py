@@ -11,7 +11,7 @@ from config import settings
 from db import (
     Base, engine, SessionLocal, Company, Role, Application, ApplicationEvent,
     Contact, DailyBrief, ScanRun, PushSubscription, Resume, ResumeExperience,
-    Interview, Material,
+    Interview, Material, AutofillProfile, DeviceToken, Startup, StartupContact,
 )
 from seed.companies import seed as seed_companies
 
@@ -42,6 +42,9 @@ def _ensure_schema():
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS interest VARCHAR"))
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS interest_at TIMESTAMPTZ"))
         conn.execute(text("ALTER TABLE scan_runs ADD COLUMN IF NOT EXISTS searched BOOLEAN DEFAULT FALSE"))
+        conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_mba BOOLEAN"))
+        conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS state VARCHAR"))
+        conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS sector VARCHAR"))
         # Semantic embeddings: resize column from 1536 → 1024 (mxbai-embed-large).
         # Safe because the column is all-NULL at this point — the USING clause
         # just produces NULL for every row (no data loss).
@@ -73,6 +76,55 @@ def _ensure_schema():
         """))
 
 
+def _backfill_sector():
+    """One-time backfill of companies.sector for rows that predate the column
+    (and any that were auto-created before a name/keyword was added to the
+    classifier). Only touches rows where sector IS NULL — no-op after the
+    first pass, safe to re-run any time the classifier gains new names."""
+    from seed.sectors import sector_for
+    db = SessionLocal()
+    try:
+        rows = db.scalars(select(Company).where(Company.sector.is_(None))).all()
+        n = 0
+        for c in rows:
+            s = sector_for(c.name)
+            if s:
+                c.sector = s
+                n += 1
+        if n:
+            db.commit()
+        log.info("startup: backfilled sector on %d/%d companies", n, len(rows))
+    finally:
+        db.close()
+
+
+def _backfill_state():
+    """Recompute roles.state for every role with a location, every boot —
+    NOT gated on state IS NULL. states_csv() had a real classification bug
+    until 2026-08-16 (single-value fallback picked whichever state matched
+    earliest in a fixed dict order, not the state actually in the posting —
+    e.g. a Denver/CO + LA/CA multi-location posting got mis-tagged CA-only,
+    silently hiding it from the Colorado filter), so existing rows can carry
+    wrong data, not just missing data. Recomputing all ~54K rows is fast
+    enough to just always do it — self-heals if the classifier ever improves
+    again, at negligible cost."""
+    from scan.geo import states_csv
+    db = SessionLocal()
+    try:
+        rows = db.scalars(select(Role).where(Role.location.isnot(None))).all()
+        n = 0
+        for r in rows:
+            s = states_csv(r.location)
+            if s != r.state:
+                r.state = s
+                n += 1
+        if n:
+            db.commit()
+        log.info("startup: recomputed state on %d/%d roles", n, len(rows))
+    finally:
+        db.close()
+
+
 def _backfill_metro():
     """One-time backfill of roles.metro for rows that predate the column.
     Only touches rows where metro IS NULL, so it's a no-op after the first pass."""
@@ -99,8 +151,10 @@ def startup():
     Base.metadata.create_all(engine)   # safety net; creates new tables (e.g. resume) too
     _ensure_schema()
     _backfill_metro()
+    _backfill_state()
     added = seed_companies()
     log.info("startup: seeded %d new companies", added)
+    _backfill_sector()   # after seeding so freshly-seeded companies get tagged too
     from resume.seed import seed as seed_resume
     log.info("startup: seeded %d resume rows", seed_resume())
 
@@ -119,6 +173,8 @@ def health():
 def list_roles(tier: str | None = None, company: str | None = None,
                min_fit: float = 0.0, scored_only: bool = True,
                track: str | None = None, metro: str | None = None,
+               mba: bool | None = None, sector: str | None = None,
+               states: str | None = None,   # comma-separated state/remote/international slugs — multi-select
                dedupe: bool = True, include_hidden: bool = False,
                db: Session = Depends(get_db)):
     import re as _re
@@ -136,13 +192,22 @@ def list_roles(tier: str | None = None, company: str | None = None,
         q = q.where(Role.fit_score >= min_fit)
     if metro:
         q = q.where(Role.metro == metro)
+    if mba is not None:
+        q = q.where(Role.is_mba == mba)
     rows = db.scalars(q.order_by(Role.fit_score.desc().nullslast())).all()
+    wanted_states = {s.strip() for s in states.split(",") if s.strip()} if states else None
     out = []
     for r in rows:
         co = r.company
         if company and co and company.lower() not in co.name.lower():
             continue
         if tier and co and co.tier != tier:
+            continue
+        if sector and (not co or co.sector != sector):
+            continue
+        # Role.state may hold multiple comma-joined codes (multi-location
+        # postings) — match if ANY of the role's states is in the requested set.
+        if wanted_states and not (set((r.state or "").split(",")) & wanted_states):
             continue
         if is_internship(r.title, r.department):
             role_track = "intern"
@@ -156,10 +221,12 @@ def list_roles(tier: str | None = None, company: str | None = None,
             "track": role_track,
             "id": r.id, "company": co.name if co else None,
             "company_tier": co.tier if co else None,
+            "sector": co.sector if co else None,
+            "is_mba": r.is_mba,
             "source": r.source or "ats",        # ats | jsearch | usajobs (provenance)
             "tier": r.score_tier,               # fit tier (A/B/C/pass) from scoring
             "title": r.title,
-            "location": r.location, "metro": r.metro, "url": r.url, "status": r.status,
+            "location": r.location, "metro": r.metro, "state": r.state, "url": r.url, "status": r.status,
             "description": (r.description or "")[:4000] or None,
             "remote": r.remote_flag,
             "posted_at": r.posted_at.isoformat() if r.posted_at else None,
@@ -262,6 +329,42 @@ def list_metros(scored_only: bool = True, db: Session = Depends(get_db)):
         q = q.where(Role.scored_at.isnot(None))
     counts = dict(db.execute(q.group_by(Role.metro)).all())
     return [{"slug": s, "label": l, "count": counts.get(s, 0)} for s, l in METROS]
+
+
+# ─── states (broad geo facet — every US state + remote + international) ────
+@app.get("/api/states")
+def list_states(scored_only: bool = True, db: Session = Depends(get_db)):
+    from scan.geo import STATE_LABELS
+    # Role.state can hold multiple comma-joined codes (a role open in several
+    # cities counts under every state it lists) — split in Python rather than
+    # SQL group-by, which would treat "CA,CO" as one distinct group.
+    q = select(Role.state).where(Role.status.in_(["open", "changed"]), Role.state.isnot(None))
+    if scored_only:
+        q = q.where(Role.scored_at.isnot(None))
+    counts: dict[str, int] = {}
+    for (state_csv,) in db.execute(q).all():
+        for code in state_csv.split(","):
+            counts[code] = counts.get(code, 0) + 1
+    return [{"slug": s, "label": l, "count": counts.get(s, 0)} for s, l in STATE_LABELS]
+
+
+# ─── sectors (company facet) ─────────────────────────────────
+_SECTOR_LABELS = [
+    ("big_tech", "Big Tech"), ("finance", "Finance"),
+    ("defense_aerospace", "Defense / Aerospace"), ("consulting", "Consulting"),
+]
+
+
+@app.get("/api/sectors")
+def list_sectors(scored_only: bool = True, db: Session = Depends(get_db)):
+    """Company sectors with a count of currently-open roles, for the sector facet."""
+    q = (select(Company.sector, func.count(Role.id))
+         .join(Role, Role.company_id == Company.id)
+         .where(Role.status.in_(["open", "changed"]), Company.sector.isnot(None)))
+    if scored_only:
+        q = q.where(Role.scored_at.isnot(None))
+    counts = dict(db.execute(q.group_by(Company.sector)).all())
+    return [{"slug": s, "label": l, "count": counts.get(s, 0)} for s, l in _SECTOR_LABELS]
 
 
 # ─── companies (Plan breakdown) ─────────────────────────────
@@ -514,6 +617,154 @@ def update_contact(contact_id: int, body: ContactUpdate, db: Session = Depends(g
         setattr(c, f, v)
     db.commit()
     return _contact_dict(c)
+
+
+# ─── startups tracker (fintech / defense / sustainability-energy / product-tech-data) ──
+class StartupIn(BaseModel):
+    name: str
+    sector: str | None = None
+    hq_location: str | None = None
+    stage: str | None = None
+    founded_year: int | None = None
+    website: str | None = None
+    one_liner: str | None = None
+    notes: str | None = None
+
+
+class StartupUpdate(BaseModel):
+    sector: str | None = None
+    hq_location: str | None = None
+    stage: str | None = None
+    founded_year: int | None = None
+    website: str | None = None
+    one_liner: str | None = None
+    funding_summary: str | None = None
+    notes: str | None = None
+
+
+class StartupContactIn(BaseModel):
+    name: str | None = None
+    role: str | None = None
+    email: str | None = None
+    linkedin: str | None = None
+    warmth: str | None = None
+    notes: str | None = None
+
+
+def _startup_dict(s: Startup) -> dict:
+    return {
+        "id": s.id, "name": s.name, "sector": s.sector, "hq_location": s.hq_location,
+        "stage": s.stage, "founded_year": s.founded_year, "website": s.website,
+        "one_liner": s.one_liner, "funding_summary": s.funding_summary, "notes": s.notes,
+        "has_writeup": bool(s.writeup_markdown),
+        "writeup_generated_at": s.writeup_generated_at.isoformat() if s.writeup_generated_at else None,
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+    }
+
+
+def _startup_contact_dict(c: StartupContact) -> dict:
+    return {"id": c.id, "startup_id": c.startup_id, "name": c.name, "role": c.role,
+            "email": c.email, "linkedin": c.linkedin, "warmth": c.warmth, "notes": c.notes,
+            "created_at": c.created_at.isoformat() if c.created_at else None}
+
+
+@app.get("/api/startups")
+def list_startups(sector: str | None = None, db: Session = Depends(get_db)):
+    q = select(Startup)
+    if sector:
+        q = q.where(Startup.sector == sector)
+    rows = db.scalars(q.order_by(Startup.name)).all()
+    return [_startup_dict(s) for s in rows]
+
+
+@app.post("/api/startups")
+def create_startup(body: StartupIn, db: Session = Depends(get_db)):
+    existing = db.scalar(select(Startup).where(Startup.name == body.name))
+    if existing:
+        raise HTTPException(409, "startup already tracked")
+    s = Startup(**body.model_dump())
+    db.add(s)
+    db.commit()
+    return _startup_dict(s)
+
+
+@app.get("/api/startups/{startup_id}")
+def get_startup(startup_id: int, db: Session = Depends(get_db)):
+    s = db.get(Startup, startup_id)
+    if not s:
+        raise HTTPException(404, "startup not found")
+    d = _startup_dict(s)
+    d["writeup_markdown"] = s.writeup_markdown
+    return d
+
+
+@app.patch("/api/startups/{startup_id}")
+def update_startup(startup_id: int, body: StartupUpdate, db: Session = Depends(get_db)):
+    s = db.get(Startup, startup_id)
+    if not s:
+        raise HTTPException(404, "startup not found")
+    for f, v in body.model_dump(exclude_unset=True).items():
+        setattr(s, f, v)
+    db.commit()
+    return _startup_dict(s)
+
+
+@app.delete("/api/startups/{startup_id}")
+def delete_startup(startup_id: int, db: Session = Depends(get_db)):
+    s = db.get(Startup, startup_id)
+    if s:
+        db.delete(s)
+        db.commit()
+    return {"status": "ok"}
+
+
+@app.post("/api/startups/{startup_id}/writeup")
+def startup_writeup(startup_id: int, db: Session = Depends(get_db)):
+    """Generate (or regenerate) the in-depth writeup. On-demand only — never
+    called by the scan pipeline — so this is the only place that cost is spent."""
+    s = db.get(Startup, startup_id)
+    if not s:
+        raise HTTPException(404, "startup not found")
+    from startups.researcher import generate_writeup
+    return generate_writeup(db, s)
+
+
+@app.get("/api/startups/{startup_id}/contacts")
+def list_startup_contacts(startup_id: int, db: Session = Depends(get_db)):
+    rows = db.scalars(select(StartupContact).where(StartupContact.startup_id == startup_id)
+                       .order_by(StartupContact.created_at.desc())).all()
+    return [_startup_contact_dict(c) for c in rows]
+
+
+@app.post("/api/startups/{startup_id}/contacts")
+def create_startup_contact(startup_id: int, body: StartupContactIn, db: Session = Depends(get_db)):
+    s = db.get(Startup, startup_id)
+    if not s:
+        raise HTTPException(404, "startup not found")
+    c = StartupContact(startup_id=startup_id, **body.model_dump())
+    db.add(c)
+    db.commit()
+    return _startup_contact_dict(c)
+
+
+@app.post("/api/startups/discover")
+def discover_startups(n: int = 10, db: Session = Depends(get_db)):
+    """Bulk discovery pass: proposes `n` new startups Zach isn't tracking yet,
+    adds them, and researches a writeup + contacts for each. Also runs weekly
+    from worker/scheduler.py — this endpoint lets it be triggered on demand too."""
+    from startups.researcher import run_discovery
+    return run_discovery(db, n=n)
+
+
+@app.post("/api/startups/{startup_id}/contacts/research")
+def research_startup_contacts(startup_id: int, db: Session = Depends(get_db)):
+    """Who-to-reach research (warm-path personas, never invented names) — same
+    pattern as the role-networking feature, scoped to a startup instead of a role."""
+    s = db.get(Startup, startup_id)
+    if not s:
+        raise HTTPException(404, "startup not found")
+    from startups.researcher import who_to_reach
+    return who_to_reach(db, s)
 
 
 # ─── materials vault ────────────────────────────────────────
@@ -796,6 +1047,71 @@ def resume_chat(body: ChatIn, db: Session = Depends(get_db)):
     return coach_reply(db, [m.model_dump() for m in body.messages])
 
 
+class AutofillProfileIn(BaseModel):
+    phone: str | None = None
+    email: str | None = None
+    address_line1: str | None = None
+    city: str | None = None
+    state: str | None = None
+    zip_code: str | None = None
+    country: str | None = None
+    linkedin_url: str | None = None
+    portfolio_url: str | None = None
+    github_url: str | None = None
+    work_authorized: bool | None = None
+    requires_sponsorship: bool | None = None
+    willing_to_relocate: bool | None = None
+    pronouns: str | None = None
+    veteran_status: str | None = None
+    disability_status: str | None = None
+    gender: str | None = None
+    race_ethnicity: str | None = None
+    desired_salary: str | None = None
+    earliest_start_date: str | None = None
+    notice_period: str | None = None
+    how_heard: str | None = None
+
+
+@app.get("/api/autofill/profile")
+def get_autofill_profile(db: Session = Depends(get_db)):
+    from resume.autofill import assemble_autofill_profile
+    return assemble_autofill_profile(db)
+
+
+@app.put("/api/autofill/profile")
+def update_autofill_profile(body: AutofillProfileIn, db: Session = Depends(get_db)):
+    from resume.autofill import upsert_autofill_profile
+    upsert_autofill_profile(db, body.model_dump(exclude_unset=True))
+    return {"status": "ok"}
+
+
+class AutofillQuestion(BaseModel):
+    id: str
+    label: str
+
+
+class AutofillRoleCtx(BaseModel):
+    company: str | None = None
+    title: str | None = None
+    url: str | None = None
+    description: str | None = None
+
+
+class AutofillAnswerIn(BaseModel):
+    questions: list[AutofillQuestion]
+    role_ctx: AutofillRoleCtx = AutofillRoleCtx()
+
+
+@app.post("/api/autofill/answer")
+def autofill_answer(body: AutofillAnswerIn, db: Session = Depends(get_db)):
+    from resume.autofill import answer_questions
+    return answer_questions(
+        db,
+        [q.model_dump() for q in body.questions],
+        body.role_ctx.model_dump(),
+    )
+
+
 @app.post("/api/roles/{role_id}/draft_outreach")
 def draft_outreach_endpoint(role_id: int, db: Session = Depends(get_db)):
     role = db.get(Role, role_id)
@@ -842,6 +1158,21 @@ def push_subscribe(body: PushSubscriptionIn, db: Session = Depends(get_db)):
 @app.get("/api/push/vapid-public-key")
 def push_vapid_public_key():
     return {"key": settings.vapid_public_key}
+
+
+class DeviceTokenIn(BaseModel):
+    token: str
+    platform: str = "ios"
+
+
+@app.post("/api/push/register-device")
+def register_device(body: DeviceTokenIn, db: Session = Depends(get_db)):
+    """Native app calls this once on launch with its APNs device token."""
+    existing = db.scalar(select(DeviceToken).where(DeviceToken.token == body.token))
+    if not existing:
+        db.add(DeviceToken(token=body.token, platform=body.platform))
+        db.commit()
+    return {"status": "ok"}
 
 
 # service worker must be served from the site root to control the page

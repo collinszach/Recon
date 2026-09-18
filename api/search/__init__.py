@@ -8,8 +8,11 @@ from search.base import NormalizedRole, SearchProvider, SearchResult
 from search.jsearch import JSearchProvider
 from search.usajobs import USAJobsProvider
 from search.themuse import MuseProvider
+from search.adzuna import AdzunaProvider
 
-_PROVIDERS: list[SearchProvider] = [JSearchProvider(), USAJobsProvider(), MuseProvider()]
+_PROVIDERS: list[SearchProvider] = [
+    JSearchProvider(), USAJobsProvider(), MuseProvider(), AdzunaProvider(),
+]
 
 
 def enabled_providers() -> list[SearchProvider]:

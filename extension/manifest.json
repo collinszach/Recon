@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Recon Autofill",
+  "version": "0.1.0",
+  "description": "Fills job application forms from your Recon profile. Never submits for you.",
+  "permissions": ["storage", "scripting", "activeTab"],
+  "host_permissions": [
+    "http://100.91.198.28:8010/*",
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Recon Autofill"
+  },
+  "options_page": "options.html"
+}

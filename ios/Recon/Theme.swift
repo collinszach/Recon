@@ -104,6 +104,37 @@ struct Pill: View {
 }
 
 /// Prominent pill-shaped accent button.
+/// Animated step-through loading indicator for LLM-powered sheets.
+/// Cycles through `steps` every ~3 seconds so the wait feels purposeful.
+struct AILoadingView: View {
+    let steps: [String]
+    @State private var idx = 0
+    @State private var opacity = 1.0
+
+    var body: some View {
+        VStack(spacing: 14) {
+            ProgressView()
+                .tint(Theme.rust)
+            Text(steps[idx])
+                .font(.subheadline).foregroundStyle(Theme.inkSoft)
+                .multilineTextAlignment(.center)
+                .opacity(opacity)
+                .animation(.easeInOut(duration: 0.4), value: opacity)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 60)
+        .task {
+            while true {
+                try? await Task.sleep(for: .seconds(3))
+                withAnimation { opacity = 0 }
+                try? await Task.sleep(for: .milliseconds(400))
+                idx = (idx + 1) % steps.count
+                withAnimation { opacity = 1 }
+            }
+        }
+    }
+}
+
 struct ReconButtonStyle: ButtonStyle {
     var color: Color = Theme.rust
     var soft: Bool = false

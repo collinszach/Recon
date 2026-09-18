@@ -22,8 +22,11 @@ class Settings(BaseSettings):
 
     # ─── Focus: which tracks to scan/score ──────────────────
     # "intern"   -> only internships          "fulltime" -> only full-time PM roles
-    # "both"     -> internships + full-time product-management roles (default)
-    track_mode: str = "both"
+    # "both"     -> internships + full-time product-management roles
+    # Default "intern" (2026-08-15, Zach's call) — internships are scored free via
+    # rules (see scoring/claude_scorer.py._score_intern_rules), not Claude, so this
+    # keeps the pipeline's AI spend near zero while still surfacing everything.
+    track_mode: str = "intern"
     intern_target_year: int = 2027      # the summer term being targeted
     score_max_intern: int = 200         # cost cap: max internships scored per scan
     score_max_fulltime: int = 200       # cost cap: max full-time PM roles scored per scan
@@ -40,7 +43,9 @@ class Settings(BaseSettings):
     # the providers' free tiers. Roles are geo-filtered to the target metros.
     search_enabled: bool = False
     search_interval_hours: int = 24          # run search at most this often (free-tier friendly)
-    search_metros_only: bool = True          # keep only results in a target metro / US-remote
+    # False (2026-08-16, Zach's call): ingest every location, not just the 9 curated
+    # target metros — the state facet (scan.geo.state_of) covers everywhere, filter client-side.
+    search_metros_only: bool = False
     search_max_queries_per_run: int = 12     # hard cap on provider calls per run (quota guard)
     search_max_pages: int = 1                # JSearch pages per term (10 results/page)
     search_date_posted: str = "week"         # JSearch: all|today|3days|week|month
@@ -49,10 +54,21 @@ class Settings(BaseSettings):
     # Company sweep: proprietary/bot-walled employers (ats_name='jsearch_company') have no public
     # ATS board, so instead of a per-site parser we run ONE employer-scoped JSearch query each and
     # file the hits under that known company. Capped + round-robined by day to respect the free tier.
-    search_company_sweep_max: int = 6        # employer-scoped queries per run (rotates across days)
+    # Raised 6 -> 25 (2026-08-16): the jsearch_company pool grew to ~70+ companies
+    # (Fortune 500 + MBA-recruiting sweep) — at 6/day that was a ~12-day rotation
+    # before every employer got checked even once. Search itself still runs at
+    # most once/day (SEARCH_INTERVAL_HOURS), so this only affects how many
+    # employers get swept within that one daily run, not query frequency.
+    search_company_sweep_max: int = 25       # employer-scoped queries per run (rotates across days)
     jsearch_api_key: str = ""                # RapidAPI key for jsearch.p.rapidapi.com
     themuse_enabled: bool = True             # The Muse (themuse.com) — free, no key needed
     themuse_api_key: str = ""                # optional free key to raise the 500/hr limit
+    # Adzuna (2026-08-16) — broad cross-board aggregator, meaningfully wider long-tail
+    # coverage than JSearch/TheMuse (regional/smaller employers). Free signup:
+    # https://developer.adzuna.com/overview — enabled once both keys are set.
+    adzuna_app_id: str = ""
+    adzuna_app_key: str = ""
+    adzuna_country: str = "us"
     usajobs_api_key: str = ""                # data.usajobs.gov Authorization-Key
     usajobs_email: str = ""                  # USAJobs requires a contact email as the User-Agent
 
@@ -69,7 +85,12 @@ class Settings(BaseSettings):
     embed_dedup_threshold: float = 0.93
 
     scan_hour_local: int = 6
-    scan_interval_hours: int = 12       # how often the worker runs the scan
+    # Scan (ATS fetch + reconcile) is cheap — no LLM calls, just HTTP. Scoring only
+    # runs against the new/changed delta each cycle, and prompt caching (see
+    # scoring/claude_scorer.py) makes back-to-back scoring calls ~90% cheaper on
+    # input tokens, so an hourly cadence keeps postings fresh without materially
+    # raising cost over the old 12h interval (2026-08-15).
+    scan_interval_hours: int = 1        # how often the worker runs the scan
     notify_min_fit: float = 7.0         # min fit_score for a new-role alert
     scan_min_delay_sec: float = 2.0
     scan_max_delay_sec: float = 5.0
@@ -98,6 +119,23 @@ class Settings(BaseSettings):
     notify_gdoc_enabled: bool = False
     gdoc_credentials_json: str = ""
     gdoc_folder_id: str = ""
+
+    # ─── Startups tracker: ongoing discovery ────────────────
+    # Weekly (not hourly, unlike the job scan) since this is real recurring AI
+    # cost (2026-08-15, Zach's explicit call — "seed now, but do ongoing
+    # discovery"). n new startups/week, each gets a writeup + contact research.
+    startup_discovery_enabled: bool = True
+    startup_discovery_batch: int = 6
+
+    # ─── Notifications: native iOS push (APNs) ──────────────
+    # Provider-token auth (ES256 JWT signed with a .p8 auth key from the Apple
+    # Developer account) — no per-device certs, one key covers every app/device.
+    notify_apns_enabled: bool = False
+    apns_key_path: str = ""       # path to the AuthKey_XXXX.p8 file, mounted into the container
+    apns_key_id: str = ""         # the "XXXX" in AuthKey_XXXX.p8
+    apns_team_id: str = ""        # Apple Developer team ID
+    apns_bundle_id: str = ""      # e.g. com.zacharyjcollins.Recon — also used as the apns-topic
+    apns_use_sandbox: bool = False  # true for Xcode dev/ad-hoc builds not from TestFlight/App Store
 
 
 settings = Settings()

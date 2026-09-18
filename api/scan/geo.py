@@ -80,6 +80,120 @@ METROS: list[tuple[str, str]] = [(s, l) for s, l, _ in _METROS] + [("remote", "R
 METRO_SLUGS: set[str] = {s for s, _ in METROS}
 
 
+# ─── Broad US-state classifier ──────────────────────────────────────────────
+# The 9-metro list above is deliberately narrow (Zach's specific relocation
+# targets, used as a positive scoring signal). It will always miss somewhere
+# he hasn't thought of yet (2026-08-16: "Denver/CO and other areas I might not
+# be considering") — so for BROWSING/FILTERING, tag every role with its US
+# state instead. 50 states + DC is exhaustive by construction; no ongoing
+# hand-curation needed, unlike a city list.
+US_STATES: dict[str, str] = {
+    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
+    "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware", "FL": "Florida", "GA": "Georgia",
+    "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa",
+    "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+    "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+    "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire",
+    "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York", "NC": "North Carolina",
+    "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania",
+    "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota", "TN": "Tennessee",
+    "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
+    "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming", "DC": "District of Columbia",
+}
+# Match "City, ST" / "City, ST, USA" — abbreviation directly after a comma is
+# the reliable ATS pattern (raw word-boundary matching on "OR"/"IN"/"HI"/"ME"
+# etc. would false-positive constantly without it).
+_STATE_ABBR_RE = re.compile(r",\s*(" + "|".join(US_STATES) + r")\b(?!\.\w)")
+# Fallback: full state name anywhere in the string.
+_STATE_NAME_RE = {
+    code: re.compile(r"\b" + re.escape(name) + r"\b", re.IGNORECASE)
+    for code, name in US_STATES.items()
+}
+_INTERNATIONAL_HINT_RE = re.compile(
+    r"\b(india|uk|united\s+kingdom|london|canada|toronto|vancouver|montreal|germany|berlin|munich|"
+    r"amsterdam|netherlands|ireland|dublin|australia|sydney|melbourne|singapore|japan|tokyo|"
+    r"china|beijing|shanghai|hong\s+kong|france|paris|spain|madrid|barcelona|italy|milan|rome|"
+    r"switzerland|zurich|geneva|austria|vienna|belgium|brussels|sweden|stockholm|denmark|copenhagen|"
+    r"norway|oslo|finland|helsinki|poland|warsaw|portugal|lisbon|israel|tel\s+aviv|"
+    r"united\s+arab\s+emirates|\buae\b|dubai|abu\s+dhabi|south\s+korea|seoul|taiwan|taipei|"
+    r"vietnam|philippines|indonesia|thailand|malaysia|new\s+zealand|"
+    r"mexico(?!\s*,?\s*missouri)|brazil|argentina|colombia(?!\s*,?\s*(sc|south\s+carolina))|"
+    r"emea|apac|latam)\b", re.IGNORECASE)
+# Explicit US marker — when present alongside an international hint (a genuine
+# multi-region posting that also happens to say "EMEA"), don't let the hint
+# override real US state matches.
+_US_MARKER_RE = re.compile(r"\b(united\s+states|u\.s\.a?\.?)\b", re.IGNORECASE)
+
+
+def states_of(location: str | None) -> list[str]:
+    """ALL US state codes present in a location string, in first-occurrence
+    order, or ['remote'] / ['international'] / [] (unparseable).
+
+    Multi-location postings are common ("Atlanta, GA; Denver, CO; LA, CA" or
+    "Atlanta, Georgia, ... Los Angeles, California, ..."), and returning only
+    one state silently drops the others from every state-scoped filter — a
+    role open in Denver AND LA would only ever show up under whichever state
+    happened to be checked first. Confirmed 2026-08-16: a single-value
+    fallback that checked full state names in a fixed dict order (CA before
+    CO, GA, ...) was mis-tagging Colorado (and other alphabetically-later
+    states) as California whenever both names appeared in the same multi-city
+    posting — which is also why Colorado internships weren't showing up.
+    """
+    if not location:
+        return []
+    hay = re.sub(r"\s+", " ", location).strip()
+    # A named foreign city/country wins over a coincidental state-abbreviation
+    # match — confirmed 2026-08-16: Lucid Motors' Greenhouse board lists their
+    # Netherlands office as literally "Amsterdam, NH", which the abbreviation
+    # regex below happily (wrongly) parsed as New Hampshire. Skip straight to
+    # international UNLESS the string also explicitly says "United States"
+    # (a genuine multi-region posting that happens to mention "EMEA" too).
+    if _INTERNATIONAL_HINT_RE.search(hay) and not _US_MARKER_RE.search(hay):
+        return ["international"]
+    found: list[str] = []
+    for m in _STATE_ABBR_RE.finditer(hay):
+        code = m.group(1).upper()
+        if code not in found:
+            found.append(code)
+    # Full-name fallback, ordered by position in the string (not dict order),
+    # so multi-location postings resolve every state mentioned, not just
+    # whichever one happens to sort first in US_STATES.
+    name_hits: list[tuple[int, str]] = []
+    for code, pat in _STATE_NAME_RE.items():
+        m = pat.search(hay)
+        if m:
+            name_hits.append((m.start(), code))
+    for _, code in sorted(name_hits):
+        if code not in found:
+            found.append(code)
+    if found:
+        return found
+    if _REMOTE_RE.search(hay) and not _REMOTE_NON_US_RE.search(hay):
+        return ["remote"]
+    if _INTERNATIONAL_HINT_RE.search(hay):
+        return ["international"]
+    return []
+
+
+def state_of(location: str | None) -> str | None:
+    """Back-compat single-value accessor (first match) — prefer states_of()."""
+    found = states_of(location)
+    return found[0] if found else None
+
+
+def states_csv(location: str | None) -> str | None:
+    """Comma-joined states_of(), for storing in Role.state (a single TEXT
+    column holding possibly-multiple codes — see states_of() docstring)."""
+    found = states_of(location)
+    return ",".join(found) if found else None
+
+
+STATE_LABELS: list[tuple[str, str]] = (
+    sorted(US_STATES.items(), key=lambda kv: kv[1])
+    + [("remote", "Remote (US)"), ("international", "International")]
+)
+
+
 def metro_of(location: str | None) -> str | None:
     """Return the target-metro slug for a location string, or None.
 

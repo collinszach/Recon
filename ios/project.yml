@@ -53,3 +53,10 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_PREVIEWS: true
         DEVELOPMENT_ASSET_PATHS: '"Recon/Preview Content"'
+        # Push Notifications entitlement (aps-environment) is added here once the
+        # capability has been enabled for this App ID via Xcode GUI (Signing &
+        # Capabilities → + Capability → Push Notifications) or the Apple Developer
+        # portal — that registration can't happen from a headless `xcodebuild`
+        # call, and an unregistered entitlement blocks on-device builds entirely.
+        # PushManager.swift's registerForRemoteNotifications() call is harmless
+        # without it (silently fails via didFailToRegister); re-add once ready.

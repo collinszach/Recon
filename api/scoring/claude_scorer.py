@@ -1,6 +1,7 @@
 """Score roles against Zach's profile via Claude. Stub mode runs free."""
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 import llm
@@ -9,11 +10,12 @@ from db import Role
 
 log = logging.getLogger("recon.scoring")
 
-# Approx Claude pricing, USD per (input, output) token — update if pricing changes.
+# Approx Claude pricing, USD per token: (base input, output, cache write, cache read).
+# Cache write is ~1.25x base input; cache read is ~0.1x base input (Anthropic prompt caching).
 PRICING = {
-    "claude-haiku-4-5": (1.0 / 1_000_000, 5.0 / 1_000_000),
-    "claude-sonnet-4-6": (3.0 / 1_000_000, 15.0 / 1_000_000),
-    "claude-opus-4-8": (5.0 / 1_000_000, 25.0 / 1_000_000),
+    "claude-haiku-4-5": (1.0 / 1_000_000, 5.0 / 1_000_000, 1.25 / 1_000_000, 0.10 / 1_000_000),
+    "claude-sonnet-4-6": (3.0 / 1_000_000, 15.0 / 1_000_000, 3.75 / 1_000_000, 0.30 / 1_000_000),
+    "claude-opus-4-8": (5.0 / 1_000_000, 25.0 / 1_000_000, 6.25 / 1_000_000, 0.50 / 1_000_000),
 }
 
 _CANDIDATE = """\
@@ -168,6 +170,31 @@ Score the role below. Respond with ONLY a JSON object, no prose, no markdown fen
 }
 """
 
+# Bulk scoring cost is dominated by re-paying the ~1.5-2.5K-token rubric on every
+# single-role call — prompt caching turned out not to help here (Anthropic's
+# minimum cacheable prompt length for Haiku sits around 4K tokens, well above
+# this rubric; verified empirically 2026-08-15, see CLAUDE.md). Batching several
+# roles into one call amortizes that fixed rubric cost across all of them instead.
+BATCH_SIZE = 10
+
+BATCH_INSTRUCTIONS = """\
+Score EACH role below independently, using the rubric above for every one — do not let one
+role's score anchor another's. Respond with ONLY a JSON array, no prose, no markdown fences,
+one object per role IN THE SAME ORDER, same length as the number of roles given:
+[
+  {
+    "fit_score": <float 0-10>,
+    "tier": "A" | "B" | "C" | "pass",
+    "domain": "AI&Data" | "SCM&Twins" | "Hardware" | "Venture" | "Finance" | "Platform" | "Defense" | "Aerospace" | "other",
+    "why_fit": "<= 2 sentences, specific to this JD",
+    "concerns": "<= 1 sentence or null",
+    "curriculum_hook": "which course(s) this role justifies, or null",
+    "tc_estimate": "range string or null",
+    "is_product_pm": <true|false>
+  }
+]
+"""
+
 
 def _role_blob(role: Role) -> str:
     co = role.company.name if role.company else "?"
@@ -211,9 +238,24 @@ def _taste_block(db: Session) -> str:
 
 
 def score_roles(db: Session, roles: list[Role]) -> dict:
-    if settings.scoring_mode != "live" or not llm.configured():
-        return _score_stub(db, roles)
-    return _score_live(db, roles)
+    """Route by track: internships are ALWAYS scored via free deterministic
+    rules (2026-08-15 — Zach's call: don't spend AI on the intern firehose, keep
+    cost near zero and let rules + filters do the narrowing). Any non-intern
+    roles that still reach this (e.g. if track_mode is ever widened back beyond
+    "intern") keep the existing live/stub Claude path."""
+    from scan.intern_filter import is_internship
+    interns = [r for r in roles if is_internship(r.title, r.department)]
+    others = [r for r in roles if r not in interns]
+
+    cost = {"tokens_in": 0, "tokens_out": 0, "usd": 0.0}
+    if interns:
+        _score_intern_rules(db, interns)
+    if others:
+        if settings.scoring_mode != "live" or not llm.configured():
+            cost = _score_stub(db, others)
+        else:
+            cost = _score_live(db, others)
+    return cost
 
 
 def _apply(role: Role, data: dict) -> None:
@@ -229,6 +271,73 @@ def _apply(role: Role, data: dict) -> None:
     role.tc_estimate = data.get("tc_estimate")
     role.is_product_pm = data.get("is_product_pm")
     role.scored_at = datetime.now(timezone.utc)
+
+
+_INTERN_PM_RE = re.compile(r"\b(product|apm|associate\s+product\s+manager)\b", re.I)
+_INTERN_TECHY_RE = re.compile(
+    r"\b(technical|platform|data|ai|ml|strategy|program|innovation|analytics|"
+    r"autonomy|robotics|operations|engineering)\b", re.I)
+_INTERN_SENIOR_RE = re.compile(r"\b(senior|sr\.?|staff|principal|lead|director|vp|head)\b", re.I)
+
+
+def _score_intern_rules(db: Session, roles: list[Role]) -> dict:
+    """Deterministic, zero-cost internship scorer. Internships run at high
+    volume (every posting is fetched, none capped) so AI-scoring all of them
+    would be the single biggest cost driver in the pipeline; a JD-reading LLM
+    call also isn't needed for this lens — MBA-track / sector / term / company-
+    tier are exactly the kind of structured signals rules handle well. The
+    Claude scorer stays reserved for the (much smaller, higher-stakes) full-time
+    lens if track_mode is ever widened back beyond "intern"."""
+    from scan.intern_filter import is_mba_track
+    target = str(settings.intern_target_year)
+
+    for r in roles:
+        t = (r.title or "").lower()
+        mba = is_mba_track(r.title, r.department)
+        sector = r.company.sector if r.company else None
+        tier = r.company.tier if r.company else None
+        years = re.findall(r"\b(20\d{2})\b", t)
+        off_cycle = bool(years) and target not in years
+        is_pm = bool(_INTERN_PM_RE.search(t))
+        is_techy = bool(_INTERN_TECHY_RE.search(t))
+        is_senior = bool(_INTERN_SENIOR_RE.search(t))  # rare for internships, but guard anyway
+
+        why_bits: list[str] = []
+        if off_cycle:
+            score, score_tier = 2.0, "pass"
+            concern = f"Off-cycle: title names {','.join(years)}, not {target}."
+        else:
+            score = 5.0
+            if mba:
+                score += 2.0; why_bits.append("MBA-track")
+            if is_pm:
+                score += 1.5; why_bits.append("product/APM role")
+            elif is_techy:
+                score += 0.5; why_bits.append("technical/adjacent role")
+            if tier == "A":
+                score += 1.0; why_bits.append("tier-A company")
+            if is_senior:
+                score -= 1.0; concern_senior = "Unusually senior title for an internship — verify level."
+            else:
+                concern_senior = None
+            score = max(0.0, min(score, 10.0))
+            score_tier = "A" if score >= 8 else "B" if score >= 6 else "C"
+            concern = concern_senior
+
+        if sector:
+            why_bits.append(f"{sector.replace('_', ' ')} sector")
+        why_fit = ("Rule-based match: " + ", ".join(why_bits) + "."
+                  if why_bits else "Rule-based heuristic score — no strong signal either way.")
+
+        _apply(r, {
+            "fit_score": score, "tier": score_tier, "domain": sector or "other",
+            "why_fit": why_fit, "concerns": concern, "curriculum_hook": None,
+            "tc_estimate": None, "is_product_pm": is_pm,
+        })
+        r.is_mba = mba
+    db.commit()
+    log.info("rule-scored %d internships (zero AI cost)", len(roles))
+    return {"tokens_in": 0, "tokens_out": 0, "usd": 0.0}
 
 
 def _score_stub(db: Session, roles: list[Role]) -> dict:
@@ -282,38 +391,81 @@ def _score_stub(db: Session, roles: list[Role]) -> dict:
     return {"tokens_in": 0, "tokens_out": 0, "usd": 0.0}
 
 
+def _score_one(r: Role, profile: str, taste: str) -> tuple[int, int]:
+    """Fallback path: score a single role on its own call. Used for the last
+    partial batch's leftovers and to recover from a batch that came back
+    malformed, so one bad batch can never silently drop scores."""
+    res = llm.complete(
+        system=profile + taste, max_tokens=400, model=settings.scoring_model,
+        messages=[{"role": "user", "content": INSTRUCTIONS + "\n\nROLE:\n" + _role_blob(r)}],
+    )
+    text = res.text.strip().replace("```json", "").replace("```", "").strip()
+    try:
+        _apply(r, json.loads(text))
+    except json.JSONDecodeError:
+        log.warning("could not parse score for role %s", r.id)
+    return res.tokens_in, res.tokens_out
+
+
 def _score_live(db: Session, roles: list[Role]) -> dict:
     from scan.intern_filter import is_internship, is_ops_strategy
     tok_in = tok_out = 0
     taste = _taste_block(db)   # computed once; appended to every lens
 
-    for r in roles:
-        # Pick the lens that matches the role: internship, ops/strategy, or product.
+    def _lens(r: Role) -> str:
         if is_internship(r.title, r.department):
-            profile = INTERN_PROFILE
-        elif is_ops_strategy(r.title, r.department):
-            profile = OPS_PROFILE
-        else:
-            profile = FULLTIME_PROFILE
-        res = llm.complete(
-            system=profile + taste,
-            max_tokens=400,
-            model=settings.scoring_model,
-            messages=[{"role": "user", "content": INSTRUCTIONS + "\n\nROLE:\n" + _role_blob(r)}],
-        )
-        tok_in += res.tokens_in
-        tok_out += res.tokens_out
-        text = res.text.strip()
-        text = text.replace("```json", "").replace("```", "").strip()
-        try:
-            _apply(r, json.loads(text))
-        except json.JSONDecodeError:
-            log.warning("could not parse score for role %s", r.id)
+            return "intern"
+        if is_ops_strategy(r.title, r.department):
+            return "ops"
+        return "fulltime"
+
+    profiles = {"intern": INTERN_PROFILE, "ops": OPS_PROFILE, "fulltime": FULLTIME_PROFILE}
+
+    # Group by lens, then chunk into batches of BATCH_SIZE — one call scores up to
+    # BATCH_SIZE roles at once, so the ~1.5-2.5K-token rubric is paid once per
+    # batch instead of once per role (the dominant cost driver at this prompt
+    # size; see the BATCH_SIZE comment above for why caching didn't work instead).
+    by_lens: dict[str, list[Role]] = {}
+    for r in roles:
+        by_lens.setdefault(_lens(r), []).append(r)
+
+    for lens, lens_roles in by_lens.items():
+        profile = profiles[lens]
+        for i in range(0, len(lens_roles), BATCH_SIZE):
+            batch = lens_roles[i:i + BATCH_SIZE]
+            if len(batch) == 1:
+                ti, to = _score_one(batch[0], profile, taste)
+                tok_in += ti; tok_out += to
+                continue
+
+            blob = "\n\n".join(f"=== ROLE {j} ===\n{_role_blob(r)}" for j, r in enumerate(batch))
+            res = llm.complete(
+                system=profile + taste, max_tokens=220 * len(batch), model=settings.scoring_model,
+                messages=[{"role": "user", "content": BATCH_INSTRUCTIONS + "\n\n" + blob}],
+            )
+            tok_in += res.tokens_in
+            tok_out += res.tokens_out
+            text = res.text.strip().replace("```json", "").replace("```", "").strip()
+            try:
+                results = json.loads(text)
+                if not isinstance(results, list) or len(results) != len(batch):
+                    raise ValueError(f"expected {len(batch)} results, got "
+                                     f"{len(results) if isinstance(results, list) else type(results)}")
+                for r, data in zip(batch, results):
+                    _apply(r, data)
+            except (json.JSONDecodeError, ValueError) as e:
+                # Malformed/mismatched batch response — fall back to scoring each
+                # role in this batch individually rather than dropping any of them.
+                log.warning("batch score unparseable (%s) — falling back to per-role for %d roles",
+                           e, len(batch))
+                for r in batch:
+                    ti, to = _score_one(r, profile, taste)
+                    tok_in += ti; tok_out += to
     db.commit()
 
     # gs65 (local) is free; only the Claude API bills per token.
     if settings.llm_provider == "anthropic":
-        price_in, price_out = PRICING.get(settings.scoring_model, PRICING["claude-haiku-4-5"])
+        price_in, price_out, _, _ = PRICING.get(settings.scoring_model, PRICING["claude-haiku-4-5"])
         usd = tok_in * price_in + tok_out * price_out
     else:
         usd = 0.0

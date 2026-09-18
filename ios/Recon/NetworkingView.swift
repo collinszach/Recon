@@ -37,14 +37,13 @@ struct NetworkingView: View {
     }
 
     private var loadingState: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                Circle().fill(Theme.rust.opacity(0.12)).frame(width: 64, height: 64)
-                Image(systemName: "person.2.badge.gearshape").font(.title2).foregroundStyle(Theme.rust)
-            }
-            ProgressView()
-            Text("Mapping the warmest way in…").font(.caption).foregroundStyle(Theme.inkSoft)
-        }.frame(maxWidth: .infinity).padding(.top, 48)
+        AILoadingView(steps: [
+            "Identifying target personas…",
+            "Finding warm-path contacts…",
+            "Drafting outreach openers…",
+            "Mapping the warmest way in…",
+            "Building your playbook…",
+        ])
     }
 
     private func playCard(_ s: String) -> some View {

@@ -17,11 +17,13 @@ struct OutreachView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if loading {
-                        VStack(spacing: 10) {
-                            ProgressView()
-                            Text("Drafting outreach for \(role.company ?? "this role")…")
-                                .font(.caption).foregroundStyle(Theme.inkSoft)
-                        }.frame(maxWidth: .infinity).padding(.top, 40)
+                        AILoadingView(steps: [
+                            "Researching \(role.company ?? "the company")…",
+                            "Finding the right angle…",
+                            "Drafting the subject line…",
+                            "Writing your outreach…",
+                            "Polishing the message…",
+                        ])
                     } else if let err = result?.error {
                         ErrorBanner(message: err)
                     } else if let r = result {

@@ -16,3 +16,6 @@ pywebpush==2.0.3                    # web push (VAPID)
 # email channel uses stdlib smtplib + a minimal built-in markdown->HTML converter
 google-api-python-client==2.154.0   # Google Doc delivery
 google-auth==2.37.0                  # Google Doc delivery (service account)
+PyJWT==2.10.1                        # APNs provider-token auth (ES256)
+cryptography==44.0.0                 # signs the APNs .p8 auth key
+h2==4.1.0                            # httpx HTTP/2 support, required by Apple's APNs endpoint

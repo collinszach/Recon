@@ -48,6 +48,8 @@ def run_daily_scan() -> dict:
                 log.info("scanned %s: +%d ~%d -%d",
                          co.name, result["new"], result["changed"], result["closed"])
             except Exception as e:  # one company failing must not kill the run
+                db.rollback()  # clear any poisoned transaction (deadlock/integrity/etc.)
+                                # before the next company's queries run on this session
                 msg = f"{co.name}: {type(e).__name__}: {e}"
                 errors.append(msg)
                 log.warning("scan error %s", msg)
@@ -74,6 +76,7 @@ def run_daily_scan() -> dict:
                     log.info("search ingest: +%d roles, +%d companies (%d results)",
                              sres["new"], sres["new_companies"], sres["results"])
                 except Exception as e:  # search must never kill the ATS scan
+                    db.rollback()  # clear any poisoned transaction before scoring continues
                     log.warning("search ingest failed: %s: %s", type(e).__name__, e)
 
         # score only the new + changed roles, narrowed to the tracks we care about
@@ -92,7 +95,10 @@ def run_daily_scan() -> dict:
             to_score: list[Role] = []
 
             if mode in ("intern", "both"):
-                interns = filter_internships(fresh)[: settings.score_max_intern]
+                # No cap: internship scoring is rule-based (zero AI cost, see
+                # scoring/claude_scorer.py._score_intern_rules), so there's no
+                # cost reason to cut the list short — score every one found.
+                interns = filter_internships(fresh)
                 to_score += interns
                 totals["interns"] = len(interns)
 
@@ -141,9 +147,14 @@ def run_daily_scan() -> dict:
                 if mode in ("ops", "both") and is_ops_strategy(r.title, r.department):
                     return True
                 return False
+            # The blanket "score any non-ATS role in a target metro regardless of
+            # title" carve-out only applies when a full-time/ops lane is actually
+            # active — in strict intern-only mode it would otherwise route
+            # full-time search-sourced roles into the (paid) Claude fallback in
+            # score_roles, defeating the point of going intern-only.
             metro_roles = [r for r in fresh
                            if r.metro and r.id not in picked
-                           and (_in_a_track(r) or (r.source or "ats") != "ats")]
+                           and (_in_a_track(r) or (mode != "intern" and (r.source or "ats") != "ats"))]
             metro_roles = metro_roles[: settings.score_max_metro]
             to_score += metro_roles
             totals["metro"] = len(metro_roles)

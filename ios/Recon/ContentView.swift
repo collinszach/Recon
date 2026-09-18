@@ -15,6 +15,9 @@ struct ContentView: View {
             NavTab(title: "Pipeline", store: store, showSettings: $showSettings) { PipelineView() }
                 .tabItem { Label("Pipeline", systemImage: "rectangle.stack") }
 
+            NavTab(title: "Startups", store: store, showSettings: $showSettings) { StartupsView() }
+                .tabItem { Label("Startups", systemImage: "building.2") }
+
             NavTab(title: "Résumé", store: store, showSettings: $showSettings) { ResumeView() }
                 .tabItem { Label("Résumé", systemImage: "doc.text") }
 
@@ -22,7 +25,14 @@ struct ContentView: View {
                 .tabItem { Label("Plan", systemImage: "map") }
         }
         .tint(Theme.rust)
-        .task { if store.roles.isEmpty { await store.refresh() } }
+        // Always refresh on launch, not just when the cache is empty — Store.init()
+        // loads a local disk cache synchronously, so gating on isEmpty meant the app
+        // would silently keep showing a stale snapshot forever after the first-ever
+        // successful fetch (2026-08-16: this is why new fields like `state` never
+        // appeared — cached roles predated them, and launch never refetched).
+        // refresh() already falls back to the cache gracefully on failure (see
+        // handleLoadFailure), so this is safe even fully offline.
+        .task { await store.refresh() }
         .sheet(isPresented: $showSettings) {
             SettingsView { Task { await store.refresh() } }
         }

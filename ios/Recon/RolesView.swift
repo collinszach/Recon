@@ -16,6 +16,7 @@ struct RoleRow: View {
                 HStack(spacing: 8) {
                     TierChip(tier: role.tier)
                     if isNew { Pill(text: "New", color: Theme.gold, filled: true) }
+                    if role.isMba == true { Pill(text: "MBA", color: Theme.rust) }
                     Text(role.company ?? "—").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                     Spacer()
                     FitBadge(score: role.fitScore, text: role.fitText)
@@ -69,12 +70,19 @@ struct RolesView: View {
     @EnvironmentObject var store: Store
     @State private var track: String = "intern"
     @State private var filter: String = "All"
-    @State private var metro: String? = nil      // nil = all locations
+    @State private var selectedStates: Set<String> = []   // empty = all locations; multi-select
+    @State private var showStateFilter = false
+    @State private var sector: String? = nil      // nil = all sectors
+    @State private var mbaOnly: Bool = false
+    @State private var showSwipe = false
     private let filters = ["All", "A", "B", "C"]
-    /// Target-metro slug -> display label (mirrors api/scan/geo.py METROS).
+    /// Target-metro slug -> display label (mirrors api/scan/geo.py METROS). Still
+    /// used for the RoleDetailView "target metro" callout — the browse/filter UI
+    /// below uses the exhaustive state list instead (2026-08-16).
     static let metroLabels: [(String, String)] = [
         ("charleston", "Charleston"), ("nyc", "NYC"), ("dc_metro", "DC / NoVA / MD"),
         ("socal", "SoCal"), ("boston", "Boston"), ("pennsylvania", "Pennsylvania"),
+        ("rtp", "Raleigh-Durham"), ("bay_area", "SF Bay Area"),
         ("remote", "Remote (US)"),
     ]
 
@@ -88,12 +96,21 @@ struct RolesView: View {
     var shown: [Role] {
         trackFeed.filter {
             (filter == "All" || ($0.tier ?? "").uppercased() == filter)
-            && (metro == nil || $0.metro == metro)
+            && (selectedStates.isEmpty || !selectedStates.isDisjoint(with: $0.stateCodes))
+            && (sector == nil || $0.sector == sector)
+            && (!mbaOnly || $0.isMba == true)
         }
     }
-    private var metroLabel: String {
-        guard let m = metro else { return "All locations" }
-        return Self.metroLabels.first { $0.0 == m }?.1 ?? m
+    private var stateFilterLabel: String {
+        switch selectedStates.count {
+        case 0: return "All locations"
+        case 1: return Role.stateLabels.first { $0.0 == selectedStates.first }?.1 ?? selectedStates.first!
+        default: return "\(selectedStates.count) locations"
+        }
+    }
+    private var sectorLabel: String {
+        guard let s = sector else { return "All sectors" }
+        return Role.sectorLabels.first { $0.0 == s }?.1 ?? s
     }
 
     var body: some View {
@@ -109,26 +126,20 @@ struct RolesView: View {
                     ForEach(filters, id: \.self) { Text($0) }
                 }.pickerStyle(.segmented)
 
-                // Geo facet: filter the current track by a target metro. Counts
-                // are computed over the active track so they track the segment.
-                Menu {
-                    Button { metro = nil } label: {
-                        Label("All locations (\(trackFeed.count))",
-                              systemImage: metro == nil ? "checkmark" : "")
-                    }
-                    ForEach(Self.metroLabels, id: \.0) { slug, label in
-                        let n = trackFeed.filter { $0.metro == slug }.count
-                        Button { metro = slug } label: {
-                            Label("\(label) (\(n))", systemImage: metro == slug ? "checkmark" : "")
-                        }.disabled(n == 0)
-                    }
+                // Geo facet: every US state + remote + international (exhaustive —
+                // 2026-08-16, replacing the old hand-picked metro-only list which
+                // always missed somewhere, e.g. Denver/CO). Multi-select via a sheet
+                // since Menu dismisses on every tap, which doesn't work for picking
+                // more than one.
+                Button {
+                    showStateFilter = true
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "mappin.and.ellipse")
-                        Text(metroLabel).font(.subheadline.weight(.medium))
+                        Text(stateFilterLabel).font(.subheadline.weight(.medium))
                         Image(systemName: "chevron.down").font(.caption2)
                         Spacer()
-                        if metro != nil {
+                        if !selectedStates.isEmpty {
                             Text("\(shown.count)").font(.caption.weight(.bold))
                                 .foregroundStyle(Theme.inkSoft)
                         }
@@ -138,24 +149,152 @@ struct RolesView: View {
                     .background(Theme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.hair))
                 }
+                .sheet(isPresented: $showStateFilter) {
+                    StateFilterSheet(selected: $selectedStates, trackFeed: trackFeed)
+                }
+
+                // Sector facet (Big Tech / Finance / Defense-Aerospace / Consulting)
+                // + MBA-track toggle — both rule-based, zero AI cost (2026-08-15).
+                HStack(spacing: 8) {
+                    Menu {
+                        Button { sector = nil } label: {
+                            Label("All sectors (\(trackFeed.count))",
+                                  systemImage: sector == nil ? "checkmark" : "")
+                        }
+                        ForEach(Role.sectorLabels, id: \.0) { slug, label in
+                            let n = trackFeed.filter { $0.sector == slug }.count
+                            Button { sector = slug } label: {
+                                Label("\(label) (\(n))", systemImage: sector == slug ? "checkmark" : "")
+                            }.disabled(n == 0)
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "building.2")
+                            Text(sectorLabel).font(.subheadline.weight(.medium))
+                            Image(systemName: "chevron.down").font(.caption2)
+                        }
+                        .foregroundStyle(Theme.ink)
+                        .padding(.horizontal, 12).padding(.vertical, 9)
+                        .background(Theme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.hair))
+                    }
+
+                    if track == "intern" {
+                        let mbaCount = trackFeed.filter { $0.isMba == true }.count
+                        Button { mbaOnly.toggle() } label: {
+                            Label("MBA (\(mbaCount))", systemImage: mbaOnly ? "checkmark.circle.fill" : "circle")
+                                .font(.subheadline.weight(.medium))
+                        }
+                        .foregroundStyle(mbaOnly ? .white : Theme.ink)
+                        .padding(.horizontal, 12).padding(.vertical, 9)
+                        .background(mbaOnly ? Theme.rust : Theme.card,
+                                   in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.hair))
+                        .disabled(mbaCount == 0 && !mbaOnly)
+                    }
+                }
 
                 if shown.isEmpty {
-                    Text(metro != nil
-                         ? "No \(track == "intern" ? "internships" : "roles") in \(metroLabel) at this tier yet."
+                    Text(!selectedStates.isEmpty
+                         ? "No \(track == "intern" ? "internships" : "roles") in \(stateFilterLabel) at this tier yet."
                          : (track == "intern"
                             ? "No internships in this tier yet. Most Summer 2027 reqs post Aug 2026–Jan 2027."
                             : "No full-time product roles in this tier right now."))
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 } else {
                     ForEach(shown) { role in
-                        NavigationLink(value: role) { RoleRow(role: role, isNew: store.isNew(role)) }.buttonStyle(.plain)
+                        NavigationLink(value: role) { RoleRow(role: role, isNew: role.firstSeenIsToday) }.buttonStyle(.plain)
                     }
                 }
             }
             .padding(16)
         }
-        .navigationDestination(for: Role.self) { RoleDetailView(role: $0) }
+        .navigationDestination(for: Role.self) { RoleDetailView(role: $0, store: store) }
         .scrollContentBackground(.hidden)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showSwipe = true } label: { Image(systemName: "hand.draw") }
+                    .accessibilityLabel("Rate roles")
+            }
+        }
+        .fullScreenCover(isPresented: $showSwipe) {
+            SwipeRateView(deck: store.unratedDeck(from: shown))
+                .environmentObject(store)
+        }
+    }
+}
+
+/// Multi-select location picker — every US state + remote + international,
+/// with live counts over the active track. A sheet (not a Menu) because Menu
+/// dismisses on every tap, which breaks multi-select.
+struct StateFilterSheet: View {
+    @Binding var selected: Set<String>
+    let trackFeed: [Role]
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    private var counts: [String: Int] {
+        Dictionary(grouping: trackFeed.flatMap(\.stateCodes), by: { $0 }).mapValues(\.count)
+    }
+    private var rows: [(String, String)] {
+        let all = Role.stateLabels.filter { counts[$0.0, default: 0] > 0 }
+        guard !query.isEmpty else { return all }
+        return all.filter { $0.1.localizedCaseInsensitiveContains(query) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Button {
+                        selected.removeAll()
+                    } label: {
+                        HStack {
+                            Text("All locations (\(trackFeed.count))")
+                            Spacer()
+                            if selected.isEmpty { Image(systemName: "checkmark").foregroundStyle(Theme.rust) }
+                        }
+                    }
+                    .foregroundStyle(Theme.ink)
+                    .listRowBackground(Theme.card)
+                }
+                Section {
+                    ForEach(rows, id: \.0) { slug, label in
+                        Button {
+                            if selected.contains(slug) { selected.remove(slug) }
+                            else { selected.insert(slug) }
+                        } label: {
+                            HStack {
+                                Text("\(label) (\(counts[slug, default: 0]))")
+                                Spacer()
+                                if selected.contains(slug) { Image(systemName: "checkmark").foregroundStyle(Theme.rust) }
+                            }
+                        }
+                        .foregroundStyle(Theme.ink)
+                        .listRowBackground(Theme.card)
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.canvas.ignoresSafeArea())
+            .searchable(text: $query, prompt: "Search locations")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // Explicit principal title, not .navigationTitle() — the latter's
+                // text color follows the system color scheme, which washed out to
+                // near-invisible white-on-cream in dark mode since Theme's palette
+                // is fixed/light-only. This guarantees the color regardless.
+                ToolbarItem(placement: .principal) {
+                    Text("Locations").font(.headline).foregroundStyle(Theme.ink)
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Clear") { selected.removeAll() }.disabled(selected.isEmpty)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 }
 
@@ -164,7 +303,7 @@ struct RolesView: View {
 /// signals calibrate future scoring.
 struct InterestControl: View {
     let role: Role
-    @EnvironmentObject var store: Store
+    @ObservedObject var store: Store
     var body: some View {
         let cur = store.interest(of: role)
         HStack(spacing: 10) {
@@ -190,18 +329,28 @@ struct InterestControl: View {
     }
 }
 
+private enum RoleSheet: Identifiable {
+    case tailor, outreach, prep, cover, network
+    case editContact(Contact)
+    var id: String {
+        switch self {
+        case .tailor:             return "tailor"
+        case .outreach:           return "outreach"
+        case .prep:               return "prep"
+        case .cover:              return "cover"
+        case .network:            return "network"
+        case .editContact(let c): return "contact-\(c.id ?? 0)"
+        }
+    }
+}
+
 struct RoleDetailView: View {
     let role: Role
-    @EnvironmentObject var store: Store
+    @ObservedObject var store: Store
     @State private var tracked = false
-    @State private var showTailor = false
-    @State private var showOutreach = false
-    @State private var showPrep = false
-    @State private var showCover = false
-    @State private var showNetwork = false
+    @State private var activeSheet: RoleSheet?
     @State private var matRefresh = 0
     @State private var companyContacts: [Contact] = []
-    @State private var editingContact: Contact?
 
     /// levels.fyi has no public API, so deep-link a search for the company.
     private var levelsURL: URL? {
@@ -223,7 +372,7 @@ struct RoleDetailView: View {
                     Text(role.title).font(.title3.weight(.semibold)).foregroundStyle(Theme.ink)
                 }
 
-                InterestControl(role: role)
+                InterestControl(role: role, store: store)
 
                 facts
 
@@ -249,7 +398,7 @@ struct RoleDetailView: View {
                         Text("WHO YOU KNOW AT \((role.company ?? "").uppercased())")
                             .font(.caption2.weight(.bold)).foregroundStyle(Theme.inkSoft)
                         ForEach(companyContacts) { c in
-                            Button { editingContact = c } label: {
+                            Button { activeSheet = .editContact(c) } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: "person.crop.circle")
                                         .foregroundStyle(c.needsFollowUp ? Theme.rust : Theme.gold)
@@ -272,23 +421,23 @@ struct RoleDetailView: View {
                     }.frame(maxWidth: .infinity, alignment: .leading).reconCard()
                 }
 
-                Button { showTailor = true } label: {
+                Button { activeSheet = .tailor } label: {
                     Label("Tailor my résumé to this role", systemImage: "wand.and.stars")
                 }.buttonStyle(ReconButtonStyle(color: Theme.gold))
 
-                Button { showNetwork = true } label: {
+                Button { activeSheet = .network } label: {
                     Label("Who to reach out to", systemImage: "person.2.badge.gearshape")
                 }.buttonStyle(ReconButtonStyle(color: Theme.rust))
 
-                Button { showOutreach = true } label: {
+                Button { activeSheet = .outreach } label: {
                     Label("Draft outreach", systemImage: "envelope")
                 }.buttonStyle(ReconButtonStyle(color: Theme.rust, soft: true))
 
-                Button { showPrep = true } label: {
+                Button { activeSheet = .prep } label: {
                     Label("Interview prep", systemImage: "person.2.wave.2")
                 }.buttonStyle(ReconButtonStyle(color: Theme.green, soft: true))
 
-                Button { showCover = true } label: {
+                Button { activeSheet = .cover } label: {
                     Label("Cover letter", systemImage: "doc.text")
                 }.buttonStyle(ReconButtonStyle(color: Theme.gold, soft: true))
 
@@ -321,21 +470,33 @@ struct RoleDetailView: View {
         .navigationTitle(role.company ?? "Role")
         .navigationBarTitleDisplayMode(.inline)
         .scrollContentBackground(.hidden)
-        .sheet(isPresented: $showTailor, onDismiss: { matRefresh += 1 }) { TailorView(role: role).environmentObject(store) }
-        .sheet(isPresented: $showOutreach, onDismiss: { matRefresh += 1 }) { OutreachView(role: role).environmentObject(store) }
-        .sheet(isPresented: $showPrep, onDismiss: { matRefresh += 1 }) { InterviewPrepView(role: role).environmentObject(store) }
-        .sheet(isPresented: $showCover, onDismiss: { matRefresh += 1 }) { CoverLetterView(role: role).environmentObject(store) }
-        .sheet(isPresented: $showNetwork) { NetworkingView(role: role).environmentObject(store) }
-        .sheet(item: $editingContact) { c in
-            ContactEditor(contact: c)
-                .environmentObject(store)
-                .onDisappear {
-                    Task {
-                        if let co = role.company {
-                            companyContacts = (try? await ReconAPI.shared.contacts(company: co)) ?? []
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .tailor:
+                TailorView(role: role).environmentObject(store)
+                    .onDisappear { matRefresh += 1 }
+            case .outreach:
+                OutreachView(role: role).environmentObject(store)
+                    .onDisappear { matRefresh += 1 }
+            case .prep:
+                InterviewPrepView(role: role).environmentObject(store)
+                    .onDisappear { matRefresh += 1 }
+            case .cover:
+                CoverLetterView(role: role).environmentObject(store)
+                    .onDisappear { matRefresh += 1 }
+            case .network:
+                NetworkingView(role: role).environmentObject(store)
+            case .editContact(let c):
+                ContactEditor(contact: c)
+                    .environmentObject(store)
+                    .onDisappear {
+                        Task {
+                            if let co = role.company {
+                                companyContacts = (try? await ReconAPI.shared.contacts(company: co)) ?? []
+                            }
                         }
                     }
-                }
+            }
         }
         .task {
             if let co = role.company {

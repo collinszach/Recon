@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from db import Role
 from parsers import NormalizedRole
-from scan.geo import metro_of
+from scan.geo import metro_of, states_csv
 
 
 def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole],
@@ -30,6 +30,7 @@ def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole
                 title=f.title,
                 location=f.location,
                 metro=metro_of(f.location),
+                state=states_csv(f.location),
                 remote_flag=f.remote_flag,
                 department=f.department,
                 url=f.url,
@@ -46,6 +47,7 @@ def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole
                 row.title = f.title
                 row.location = f.location
                 row.metro = metro_of(f.location)
+                row.state = states_csv(f.location)
                 row.department = f.department
                 row.url = f.url
                 row.description = f.description or None

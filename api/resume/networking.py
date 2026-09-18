@@ -60,7 +60,10 @@ def who_to_reach(db: Session, role: Role) -> dict:
         role_blob += f"\nWHY IT FITS HIM: {role.why_fit}"
 
     res = llm.complete(
-        system=SYSTEM, max_tokens=1100,
+        # 3-5 targets x (persona/why/find_hint/opener) runs verbose — 1100 was
+        # observed truncating mid-JSON on every real call for the equivalent
+        # startups prompt (tokens_out==max_tokens, 2026-08-15); same shape here.
+        system=SYSTEM, max_tokens=2000,
         messages=[{"role": "user",
                    "content": f"=== RESUME ===\n{resume}\n\n=== TARGET ROLE ===\n{role_blob}"}],
     )

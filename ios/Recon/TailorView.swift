@@ -15,11 +15,14 @@ struct TailorView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if loading {
-                        VStack(spacing: 10) {
-                            ProgressView()
-                            Text("Matching your resume to this role…")
-                                .font(.caption).foregroundStyle(Theme.inkSoft)
-                        }.frame(maxWidth: .infinity).padding(.top, 40)
+                        AILoadingView(steps: [
+                            "Reading your resume…",
+                            "Parsing the job description…",
+                            "Identifying keyword gaps…",
+                            "Writing tailored bullets…",
+                            "Finalizing recommendations…",
+                        ])
+
                     } else if let err = result?.error {
                         ErrorBanner(message: err)
                     } else if let t = result {

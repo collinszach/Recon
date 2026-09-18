@@ -130,3 +130,42 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
     auth         TEXT NOT NULL,
     created_at   TIMESTAMPTZ DEFAULT now()
 );
+
+-- ─── device_tokens (native iOS push via APNs) ───────────────
+CREATE TABLE IF NOT EXISTS device_tokens (
+    id           SERIAL PRIMARY KEY,
+    token        TEXT NOT NULL UNIQUE,
+    platform     TEXT NOT NULL DEFAULT 'ios',
+    created_at   TIMESTAMPTZ DEFAULT now()
+);
+
+-- ─── startups (fintech / defense / sustainability-energy / product-tech-data) ──
+CREATE TABLE IF NOT EXISTS startups (
+    id                     SERIAL PRIMARY KEY,
+    name                   TEXT NOT NULL UNIQUE,
+    sector                 TEXT,     -- fintech | defense | sustainability_energy | product_tech_data | other
+    hq_location            TEXT,
+    stage                  TEXT,
+    founded_year           INTEGER,
+    website                TEXT,
+    one_liner              TEXT,
+    funding_summary        TEXT,     -- best-effort, LLM-researched — not authoritative
+    notes                  TEXT,
+    writeup_markdown       TEXT,     -- cached on-demand writeup; regenerated only when asked
+    writeup_generated_at   TIMESTAMPTZ,
+    writeup_model          TEXT,
+    created_at             TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS startup_contacts (
+    id           SERIAL PRIMARY KEY,
+    startup_id   INTEGER NOT NULL REFERENCES startups(id) ON DELETE CASCADE,
+    name         TEXT,
+    role         TEXT,
+    email        TEXT,
+    linkedin     TEXT,
+    warmth       TEXT,
+    notes        TEXT,
+    created_at   TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_startup_contacts_startup ON startup_contacts(startup_id);

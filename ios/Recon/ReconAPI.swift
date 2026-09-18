@@ -209,4 +209,45 @@ struct ReconAPI {
         let msgs = turns.map { ["role": $0.role, "content": $0.content] }
         return try await send("POST", "api/resume/chat", body: ChatReq(messages: msgs), as: ChatResponse.self)
     }
+
+    // ---- push ----
+    struct DeviceTokenReq: Encodable { let token: String; let platform: String }
+    struct StatusResp: Decodable { let status: String }
+    func registerDevice(token: String) async throws {
+        _ = try await send("POST", "api/push/register-device",
+                           body: DeviceTokenReq(token: token, platform: "ios"), as: StatusResp.self)
+    }
+
+    // ---- startups ----
+    func startups(sector: String? = nil) async throws -> [Startup] {
+        var path = "api/startups"
+        if let sector { path += "?sector=\(sector)" }
+        return try await get(path, as: [Startup].self)
+    }
+    func startup(id: Int) async throws -> Startup {
+        try await get("api/startups/\(id)", as: Startup.self)
+    }
+    func addStartup(_ s: Startup) async throws -> Startup {
+        try await send("POST", "api/startups", body: s, as: Startup.self)
+    }
+    func updateStartup(_ s: Startup) async throws -> Startup {
+        try await send("PATCH", "api/startups/\(s.id ?? 0)", body: s, as: Startup.self)
+    }
+    func deleteStartup(id: Int) async throws {
+        _ = try await execute("DELETE", "api/startups/\(id)", body: nil)
+    }
+    struct EmptyBody: Encodable {}
+    struct StartupWriteup: Decodable { let markdown: String?; let generated_at: String?; let error: String? }
+    func generateStartupWriteup(id: Int) async throws -> StartupWriteup {
+        try await send("POST", "api/startups/\(id)/writeup", body: EmptyBody(), as: StartupWriteup.self)
+    }
+    func startupContacts(id: Int) async throws -> [StartupContact] {
+        try await get("api/startups/\(id)/contacts", as: [StartupContact].self)
+    }
+    func addStartupContact(startupId: Int, _ c: StartupContact) async throws -> StartupContact {
+        try await send("POST", "api/startups/\(startupId)/contacts", body: c, as: StartupContact.self)
+    }
+    func researchStartupContacts(id: Int) async throws -> NetworkingPlan {
+        try await send("POST", "api/startups/\(id)/contacts/research", body: EmptyBody(), as: NetworkingPlan.self)
+    }
 }

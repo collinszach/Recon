@@ -9,7 +9,9 @@ struct Role: Codable, Identifiable, Hashable {
     let tier: String?          // fit tier A/B/C/pass
     let title: String
     let location: String?
-    let metro: String?         // target-metro slug, e.g. "nyc"
+    let metro: String?         // target-metro slug, e.g. "nyc" — Zach's 9 curated relocation targets
+    let state: String?         // comma-joined US state codes / "remote" / "international" — a multi-
+                                // location posting (e.g. "Atlanta, GA; Denver, CO; LA, CA") lists all of them
     let url: String?
     let status: String?
     let fitScore: Double?
@@ -24,9 +26,11 @@ struct Role: Codable, Identifiable, Hashable {
     let description: String?
     let remote: Bool?
     let interest: String?      // "up" | "down" | nil — user feedback
+    let isMba: Bool?           // MBA-track internship (rule-based, see api/scan/intern_filter.py)
+    let sector: String?        // company sector: big_tech | finance | defense_aerospace | consulting | nil
 
     enum CodingKeys: String, CodingKey {
-        case id, track, company, title, location, metro, url, status, domain, tier, concerns, description, remote, interest
+        case id, track, company, title, location, metro, state, url, status, domain, tier, concerns, description, remote, interest, sector
         case companyTier = "company_tier"
         case fitScore = "fit_score"
         case whyFit = "why_fit"
@@ -35,11 +39,44 @@ struct Role: Codable, Identifiable, Hashable {
         case isProductPm = "is_product_pm"
         case postedAt = "posted_at"
         case firstSeen = "first_seen"
+        case isMba = "is_mba"
+    }
+
+    /// Every US state + DC + remote + international — exhaustive by construction
+    /// (mirrors api/scan/geo.py STATE_LABELS), so it never misses a location like
+    /// the old hand-picked metro list did (2026-08-16: "Denver/CO and other areas").
+    static let stateLabels: [(String, String)] = [
+        ("AL", "Alabama"), ("AK", "Alaska"), ("AZ", "Arizona"), ("AR", "Arkansas"),
+        ("CA", "California"), ("CO", "Colorado"), ("CT", "Connecticut"), ("DE", "Delaware"),
+        ("FL", "Florida"), ("GA", "Georgia"), ("HI", "Hawaii"), ("ID", "Idaho"),
+        ("IL", "Illinois"), ("IN", "Indiana"), ("IA", "Iowa"), ("KS", "Kansas"),
+        ("KY", "Kentucky"), ("LA", "Louisiana"), ("ME", "Maine"), ("MD", "Maryland"),
+        ("MA", "Massachusetts"), ("MI", "Michigan"), ("MN", "Minnesota"), ("MS", "Mississippi"),
+        ("MO", "Missouri"), ("MT", "Montana"), ("NE", "Nebraska"), ("NV", "Nevada"),
+        ("NH", "New Hampshire"), ("NJ", "New Jersey"), ("NM", "New Mexico"), ("NY", "New York"),
+        ("NC", "North Carolina"), ("ND", "North Dakota"), ("OH", "Ohio"), ("OK", "Oklahoma"),
+        ("OR", "Oregon"), ("PA", "Pennsylvania"), ("RI", "Rhode Island"), ("SC", "South Carolina"),
+        ("SD", "South Dakota"), ("TN", "Tennessee"), ("TX", "Texas"), ("UT", "Utah"),
+        ("VT", "Vermont"), ("VA", "Virginia"), ("WA", "Washington"), ("WV", "West Virginia"),
+        ("WI", "Wisconsin"), ("WY", "Wyoming"), ("DC", "District of Columbia"),
+        ("remote", "Remote (US)"), ("international", "International"),
+    ]
+
+    static let sectorLabels: [(String, String)] = [
+        ("big_tech", "Big Tech"), ("finance", "Finance"),
+        ("defense_aerospace", "Defense / Aerospace"), ("consulting", "Consulting"),
+    ]
+    var sectorLabel: String {
+        sector.flatMap { s in Self.sectorLabels.first { $0.0 == s }?.1 } ?? "Other"
     }
 
     var pay: String { tcEstimate?.isEmpty == false ? tcEstimate! : "Pay not listed" }
     var summary: String { whyFit ?? "Not yet summarized." }
     var fitText: String { fitScore.map { String(format: "%.1f", $0) } ?? "–" }
+
+    /// Every state/remote/international code this role lists (a multi-location
+    /// posting spans several). Empty if unparseable.
+    var stateCodes: [String] { state?.split(separator: ",").map(String.init) ?? [] }
 
     /// "Posted 3d ago" from the ATS posting date, falling back to when Recon
     /// first saw it ("Seen 2d ago").
@@ -67,6 +104,13 @@ struct Role: Codable, Identifiable, Hashable {
     func isNew(since: Date?) -> Bool {
         guard let since, let d = firstSeenDate else { return false }
         return d > since
+    }
+    /// First seen today (calendar day, device-local time) — steadier than
+    /// isNew(since:), which resets every refresh and can hide roles you
+    /// already glanced at earlier today.
+    var firstSeenIsToday: Bool {
+        guard let d = firstSeenDate else { return false }
+        return Calendar.current.isDateInToday(d)
     }
     /// ATS posting opened within the last ~5 days.
     var isFresh: Bool {
@@ -385,4 +429,62 @@ struct Tailoring: Codable {
     let tailored_summary: String?
     let suggested_bullets: [String]?
     let error: String?
+}
+
+/// A startup Zach is tracking/researching — fintech, defense, sustainability/energy,
+/// product-tech-data. Separate from Company, which drives the job-scan pipeline.
+struct Startup: Codable, Identifiable, Hashable {
+    var id: Int? = nil
+    var name: String
+    var sector: String? = nil
+    var hqLocation: String? = nil
+    var stage: String? = nil
+    var foundedYear: Int? = nil
+    var website: String? = nil
+    var oneLiner: String? = nil
+    var fundingSummary: String? = nil
+    var notes: String? = nil
+    var hasWriteup: Bool? = nil
+    var writeupGeneratedAt: String? = nil
+    var writeupMarkdown: String? = nil
+    var createdAt: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, sector, stage, website, notes
+        case hqLocation = "hq_location"
+        case foundedYear = "founded_year"
+        case oneLiner = "one_liner"
+        case fundingSummary = "funding_summary"
+        case hasWriteup = "has_writeup"
+        case writeupGeneratedAt = "writeup_generated_at"
+        case writeupMarkdown = "writeup_markdown"
+        case createdAt = "created_at"
+    }
+
+    static let sectors = ["fintech", "defense", "sustainability_energy", "product_tech_data", "other"]
+    var sectorLabel: String {
+        switch sector {
+        case "fintech": return "Fintech"
+        case "defense": return "Defense"
+        case "sustainability_energy": return "Sustainability / Energy"
+        case "product_tech_data": return "Product / Tech / Data"
+        default: return "Other"
+        }
+    }
+}
+
+struct StartupContact: Codable, Identifiable, Hashable {
+    var id: Int? = nil
+    var startupId: Int? = nil
+    var name: String? = nil
+    var role: String? = nil
+    var email: String? = nil
+    var linkedin: String? = nil
+    var warmth: String? = nil
+    var notes: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, role, email, linkedin, warmth, notes
+        case startupId = "startup_id"
+    }
 }

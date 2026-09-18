@@ -50,6 +50,27 @@ def filter_internships(roles: list) -> list:
                                               getattr(r, "department", None))]
 
 
+# MBA-track internships specifically (Zach is an incoming MBA/MEng — these are
+# his highest-signal internship type). Separate from the broader intern regex
+# above so it can be used as a standalone filter, not just a sub-case.
+_MBA_RE = re.compile(
+    r"\b("
+    r"mba|"                                       # bare "MBA" in a title is specific enough on its
+                                                    # own to catch any word order ("MBA Summer Intern",
+                                                    # "MBA Intern", "Rotational MBA Program", "MBA Fellow")
+    r"summer\s+associate|"                        # standard MBA-recruiting title, doesn't always say MBA
+    r"apm\b|associate\s+product\s+manager"         # APM programs recruit MBAs heavily
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def is_mba_track(title: str | None, department: str | None = None) -> bool:
+    """True if the posting is an MBA-recruiting-track internship."""
+    hay = " ".join(p for p in (title, department) if p)
+    return bool(hay) and bool(_MBA_RE.search(hay))
+
+
 # ── Full-time product-management roles ──────────────────────────────────────
 # Pre-narrow to likely product-PM titles so we don't score the whole firehose.
 # The scorer's full-time rubric then makes the finer product-vs-program call.

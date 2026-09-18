@@ -7,6 +7,7 @@ unconfigured) must never affect the others or the scan itself.
 import logging
 from db import DailyBrief
 from notify.push import send_push
+from notify.apns import send_apns
 from notify.email import send_email
 from notify.gdoc import publish_gdoc
 
@@ -37,6 +38,20 @@ def deliver_brief(brief: DailyBrief) -> dict:
         log.warning("deliver: push failed: %s: %s", type(e).__name__, e)
     else:
         log.info("deliver: push %s", results["push"])
+
+    # ─── native iOS push (APNs) ─────────────────────────────
+    try:
+        from config import settings
+        if not settings.notify_apns_enabled:
+            results["apns"] = "skipped"
+        else:
+            send_apns(title=title, body=title, url="/")
+            results["apns"] = "ok"
+    except Exception as e:
+        results["apns"] = "error"
+        log.warning("deliver: apns failed: %s: %s", type(e).__name__, e)
+    else:
+        log.info("deliver: apns %s", results["apns"])
 
     # ─── email ───────────────────────────────────────────────
     try:
@@ -97,6 +112,15 @@ def deliver_alert(roles: list) -> dict:
         results["push"] = "error"; log.warning("alert push failed: %s", e)
 
     try:
+        if not settings.notify_apns_enabled:
+            results["apns"] = "skipped"
+        else:
+            send_apns(title=title, body=title, url="/")
+            results["apns"] = "ok"
+    except Exception as e:
+        results["apns"] = "error"; log.warning("alert apns failed: %s", e)
+
+    try:
         if not settings.notify_email_enabled:
             results["email"] = "skipped"
         else:
@@ -146,6 +170,13 @@ def deliver_reminders(due: list, stale: list, interviews: list | None = None,
             send_push(title=title, body=title, url="/"); results["push"] = "ok"
     except Exception as e:
         results["push"] = "error"; log.warning("reminder push failed: %s", e)
+    try:
+        if not settings.notify_apns_enabled:
+            results["apns"] = "skipped"
+        else:
+            send_apns(title=title, body=title, url="/"); results["apns"] = "ok"
+    except Exception as e:
+        results["apns"] = "error"; log.warning("reminder apns failed: %s", e)
     try:
         if not settings.notify_email_enabled:
             results["email"] = "skipped"

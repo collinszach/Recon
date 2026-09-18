@@ -11,13 +11,13 @@ struct TodayView: View {
 
                 // headline
                 SectionHeader(title: "Recruiting today",
-                              eyebrow: "Summer 2027 + full-time",
+                              eyebrow: "Summer 2027 internships",
                               trailing: store.brief?.date)
 
-                // stat row
+                // stat row — intern-only mode as of 2026-08-15 (full-time/ops are dormant)
                 HStack(spacing: 10) {
                     Stat(num: "\(store.internFeed.count)", label: "internships", color: Theme.rust)
-                    Stat(num: "\(store.fulltimeFeed.count)", label: "full-time", color: Theme.gold)
+                    Stat(num: "\(store.internFeed.filter { $0.isMba == true }.count)", label: "MBA-track", color: Theme.gold)
                     Stat(num: "\(store.apps.count)", label: "pipeline", color: Theme.green)
                 }
 
@@ -26,20 +26,20 @@ struct TodayView: View {
                 }
 
                 SectionHeader(title: "Top matches",
-                              trailing: store.newCount > 0 ? "\(store.newCount) new" : nil)
-                if store.feed.isEmpty {
-                    Text("No high-fit internships open yet. Most Summer 2027 reqs post Aug 2026–Jan 2027 — Recon scans daily and will surface them here.")
+                              trailing: store.todayCount > 0 ? "\(store.todayCount) today" : nil)
+                if store.internFeed.isEmpty {
+                    Text("No high-fit internships open yet. Most Summer 2027 reqs post Aug 2026–Jan 2027 — Recon scans hourly and will surface them here.")
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 } else {
-                    ForEach(store.feed.prefix(5)) { role in
-                        NavigationLink(value: role) { RoleRow(role: role, isNew: store.isNew(role)) }
+                    ForEach(store.internFeed.prefix(5)) { role in
+                        NavigationLink(value: role) { RoleRow(role: role, isNew: role.firstSeenIsToday) }
                             .buttonStyle(.plain)
                     }
                 }
             }
             .padding(16)
         }
-        .navigationDestination(for: Role.self) { RoleDetailView(role: $0) }
+        .navigationDestination(for: Role.self) { RoleDetailView(role: $0, store: store) }
         .scrollContentBackground(.hidden)
     }
 }

@@ -60,6 +60,13 @@ final class Store: ObservableObject {
     func isNew(_ role: Role) -> Bool { role.isNew(since: newSince) }
     /// Count of feed roles first seen since the last refresh.
     var newCount: Int { feed.filter { $0.isNew(since: newSince) }.count }
+    /// Count of feed roles first seen today (calendar day) — what drives the
+    /// "New" badge and today's summary, since it's stable across refreshes.
+    var todayCount: Int { feed.filter { $0.firstSeenIsToday }.count }
+    /// Roles worth rating: in the current feed, not yet swiped on.
+    func unratedDeck(from roles: [Role]) -> [Role] {
+        roles.filter { interest(of: $0) == nil }
+    }
 
     /// Roles worth surfacing: fit-sorted, pass-tier dropped (both tracks).
     var feed: [Role] {
@@ -180,28 +187,40 @@ final class Store: ObservableObject {
         do { try await api.deleteExperience(id: id); resume?.experiences.removeAll { $0.id == id } }
         catch { self.error = error.localizedDescription }
     }
+    // ── LLM result caches (session-scoped; cleared on app restart) ──────────
+    private var tailorCache:    [Int: Tailoring]       = [:]
+    private var outreachCache:  [Int: Outreach]        = [:]
+    private var prepCache:      [Int: InterviewPrep]   = [:]
+    private var networkCache:   [Int: NetworkingPlan]  = [:]
+    private var coverCache:     [Int: GenDoc]          = [:]
+
     func tailor(roleId: Int) async -> Tailoring? {
-        do { return try await api.tailor(roleId: roleId) }
+        if let hit = tailorCache[roleId] { return hit }
+        do { let r = try await api.tailor(roleId: roleId); tailorCache[roleId] = r; return r }
         catch { self.error = error.localizedDescription; return nil }
     }
     func draftOutreach(roleId: Int) async -> Outreach? {
-        do { return try await api.draftOutreach(roleId: roleId) }
+        if let hit = outreachCache[roleId] { return hit }
+        do { let r = try await api.draftOutreach(roleId: roleId); outreachCache[roleId] = r; return r }
         catch { return Outreach(subject: nil, draft: nil,
                                 error: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription) }
     }
     func interviewPrep(roleId: Int) async -> InterviewPrep? {
-        do { return try await api.interviewPrep(roleId: roleId) }
+        if let hit = prepCache[roleId] { return hit }
+        do { let r = try await api.interviewPrep(roleId: roleId); prepCache[roleId] = r; return r }
         catch { return InterviewPrep(likely_questions: nil, talking_points: nil, questions_to_ask: nil,
                                      watch_outs: nil,
                                      error: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription) }
     }
     func networking(roleId: Int) async -> NetworkingPlan {
-        do { return try await api.networking(roleId: roleId) }
+        if let hit = networkCache[roleId] { return hit }
+        do { let r = try await api.networking(roleId: roleId); networkCache[roleId] = r; return r }
         catch { return NetworkingPlan(summary: nil, targets: nil,
                                       error: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription) }
     }
     func coverLetter(roleId: Int) async -> GenDoc? {
-        do { return try await api.coverLetter(roleId: roleId) }
+        if let hit = coverCache[roleId] { return hit }
+        do { let r = try await api.coverLetter(roleId: roleId); coverCache[roleId] = r; return r }
         catch { return GenDoc(title: nil, content: nil,
                               error: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription) }
     }

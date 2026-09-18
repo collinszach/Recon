@@ -14,9 +14,13 @@ struct CoverLetterView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if loading {
-                        VStack(spacing: 10) { ProgressView()
-                            Text("Drafting a cover letter…").font(.caption).foregroundStyle(Theme.inkSoft)
-                        }.frame(maxWidth: .infinity).padding(.top, 40)
+                        AILoadingView(steps: [
+                            "Reading the job description…",
+                            "Matching your experience…",
+                            "Finding the right opening…",
+                            "Drafting the body…",
+                            "Polishing the letter…",
+                        ])
                     } else if let err = doc?.error {
                         ErrorBanner(message: err)
                     } else if let d = doc {

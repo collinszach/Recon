@@ -294,6 +294,69 @@ SEED = [
     # DISCOVERY ROUND 7 — surfaced via Zach's own application, 2026-07-16.
     # ════════════════════════════════════════════════════════════════════
     ("Tessera Labs",       "B", "ashby",      "tessera-labs",   "https://jobs.ashbyhq.com/tessera-labs", "AI&Data · AI-native enterprise workflow automation (SAP/Salesforce/Workday/Snowflake/Databricks integrations), $60M Series A led by a16z — Zach applied to the PM Intern role here (San Jose HQ / NYC / remote-eligible)"),
+
+    # ════════════════════════════════════════════════════════════════════
+    # MBA-RECRUITING EMPLOYERS (2026-08-15) — added because the target list
+    # skewed tech/product/hardware and surfaced ZERO MBA-track internships
+    # (Summer Associate / MBA Intern / APM). These run structured MBA summer
+    # programs; most have no public Greenhouse/Lever/Ashby/Workday board, so
+    # they go in via jsearch_company (search_runner's company sweep pulls
+    # their postings in via one employer-scoped query, round-robined by day —
+    # same mechanism as Rivian/Microsoft/Apple above).
+    # ════════════════════════════════════════════════════════════════════
+    ("Goldman Sachs",      "A", "jsearch_company", None, "https://www.goldmansachs.com/careers", "Finance · MBA Summer Associate program, one of the most established on the Street"),
+    ("JPMorgan Chase",     "A", "jsearch_company", None, "https://careers.jpmorgan.com", "Finance · MBA Summer Associate across IB/AM/CIB"),
+    ("Morgan Stanley",     "A", "jsearch_company", None, "https://www.morganstanley.com/careers", "Finance · MBA Summer Associate"),
+    ("McKinsey & Company", "A", "jsearch_company", None, "https://www.mckinsey.com/careers", "Consulting · MBA Summer Associate/Business Analyst — top MBA recruiter"),
+    ("Boston Consulting Group", "A", "jsearch_company", None, "https://careers.bcg.com", "Consulting · MBA Summer Associate"),
+    ("Bain & Company",     "A", "jsearch_company", None, "https://www.bain.com/careers", "Consulting · MBA Summer Associate Consultant"),
+    ("Deloitte",           "B", "jsearch_company", None, "https://www2.deloitte.com/us/en/careers.html", "Consulting · MBA Summer Associate, strategy/GPS practices"),
+    ("Accenture",          "B", "jsearch_company", None, "https://www.accenture.com/us-en/careers", "Consulting · MBA Summer Associate"),
+    ("PepsiCo",            "B", "jsearch_company", None, "https://www.pepsicojobs.com", "Product/Enterprise · MBA/APM rotational internship (brand/product management track)"),
+    ("Procter & Gamble",   "B", "jsearch_company", None, "https://www.pgcareers.com", "Product/Enterprise · MBA brand management internship — classic APM-style pipeline"),
+    ("General Mills",      "B", "jsearch_company", None, "https://careers.generalmills.com", "Product/Enterprise · MBA marketing/brand internship"),
+    ("Target",             "B", "jsearch_company", None, "https://jobs.target.com", "Product/Enterprise · MBA internship across merchandising/product/strategy"),
+    ("Ford Motor Company", "B", "jsearch_company", None, "https://corporate.ford.com/careers.html", "Hardware/Enterprise · MBA rotational internship"),
+    ("General Motors",     "B", "jsearch_company", None, "https://search-careers.gm.com", "Hardware/Enterprise · MBA internship, product/strategy tracks"),
+    ("UnitedHealth Group", "B", "jsearch_company", None, "https://careers.unitedhealthgroup.com", "Enterprise · MBA internship, strategy/product"),
+    ("Delta Air Lines",    "B", "jsearch_company", None, "https://careers.delta.com", "Enterprise · MBA Leadership Development internship"),
+
+    # ════════════════════════════════════════════════════════════════════
+    # FORTUNE 500 BROAD SWEEP (2026-08-16) — Zach: "pull in all the fortune
+    # 500 type of roles... scrape a whole ton of websites." Same jsearch_company
+    # mechanism (no public ATS board for most of these; company-sweep pulls
+    # roles in via TheMuse/Adzuna). Broad industry spread, not just tech.
+    # ════════════════════════════════════════════════════════════════════
+    ("Walmart",             "B", "jsearch_company", None, "https://careers.walmart.com", "Retail · Fortune 500"),
+    ("Costco Wholesale",    "B", "jsearch_company", None, "https://www.costco.com/jobs.html", "Retail · Fortune 500"),
+    ("The Home Depot",      "B", "jsearch_company", None, "https://careers.homedepot.com", "Retail · Fortune 500"),
+    ("Lowe's",              "B", "jsearch_company", None, "https://talent.lowes.com", "Retail · Fortune 500"),
+    ("Nike",                "B", "jsearch_company", None, "https://jobs.nike.com", "Consumer · Fortune 500"),
+    ("Starbucks",           "B", "jsearch_company", None, "https://www.starbucks.com/careers", "Consumer · Fortune 500"),
+    ("Verizon",             "B", "jsearch_company", None, "https://www.verizon.com/about/careers", "Telecom · Fortune 500"),
+    ("AT&T",                "B", "jsearch_company", None, "https://www.att.jobs", "Telecom · Fortune 500"),
+    ("T-Mobile",            "B", "jsearch_company", None, "https://careers.t-mobile.com", "Telecom · Fortune 500"),
+    ("Comcast",             "B", "jsearch_company", None, "https://jobs.comcast.com", "Media/Telecom · Fortune 500"),
+    ("Pfizer",              "B", "jsearch_company", None, "https://www.pfizer.com/about/careers", "Pharma · Fortune 500"),
+    ("Johnson & Johnson",   "B", "jsearch_company", None, "https://jobs.jnj.com", "Pharma/Healthcare · Fortune 500"),
+    ("Merck",               "B", "jsearch_company", None, "https://jobs.merck.com", "Pharma · Fortune 500"),
+    ("Cigna",               "B", "jsearch_company", None, "https://jobs.cigna.com", "Healthcare/Insurance · Fortune 500"),
+    ("Honeywell",           "B", "jsearch_company", None, "https://careers.honeywell.com", "Industrial · Fortune 500"),
+    ("3M",                  "B", "jsearch_company", None, "https://www.3m.com/3M/en_US/careers-us", "Industrial · Fortune 500"),
+    ("Caterpillar",         "B", "jsearch_company", None, "https://careers.caterpillar.com", "Industrial · Fortune 500"),
+    ("ExxonMobil",          "B", "jsearch_company", None, "https://corporate.exxonmobil.com/careers", "Energy · Fortune 500"),
+    ("Chevron",             "B", "jsearch_company", None, "https://www.chevron.com/careers", "Energy · Fortune 500"),
+    ("The Walt Disney Company", "B", "jsearch_company", None, "https://jobs.disneycareers.com", "Media · Fortune 500"),
+    ("State Farm",          "B", "jsearch_company", None, "https://www.statefarm.com/careers", "Insurance · Fortune 500"),
+    ("Progressive Insurance", "B", "jsearch_company", None, "https://www.progressive.com/careers", "Insurance · Fortune 500"),
+    ("UPS",                 "B", "jsearch_company", None, "https://www.jobs-ups.com", "Logistics · Fortune 500"),
+    ("FedEx",               "B", "jsearch_company", None, "https://careers.fedex.com", "Logistics · Fortune 500"),
+    ("The Coca-Cola Company", "B", "jsearch_company", None, "https://www.coca-colacompany.com/careers", "Consumer · Fortune 500"),
+    ("Charles Schwab",      "B", "jsearch_company", None, "https://www.schwabjobs.com", "Finance · Fortune 500"),
+    ("Lockheed Martin",     "A", "jsearch_company", None, "https://www.lockheedmartinjobs.com", "Defense/Aerospace · Fortune 500"),
+    ("Northrop Grumman",    "A", "jsearch_company", None, "https://www.northropgrumman.com/careers", "Defense/Aerospace · Fortune 500"),
+    ("Raytheon Technologies (RTX)", "A", "jsearch_company", None, "https://www.rtx.com/careers", "Defense/Aerospace · Fortune 500"),
+    ("Charter Communications", "B", "jsearch_company", None, "https://jobs.charter.com", "Telecom · Fortune 500"),
 ]
 
 

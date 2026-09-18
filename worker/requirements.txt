@@ -7,3 +7,6 @@ httpx==0.28.1
 anthropic==0.42.0
 openai==1.59.6                       # gs65 local Ollama (OpenAI-compatible) when LLM_PROVIDER=local; must match api/requirements.txt
 pgvector==0.3.6                      # worker imports api/db.py which defines a Vector column
+PyJWT==2.10.1                        # APNs provider-token auth (lazy-imported; only needed if NOTIFY_APNS_ENABLED)
+cryptography==44.0.0                 # signs the APNs .p8 auth key
+h2==4.1.0                            # httpx HTTP/2 support, required by Apple's APNs endpoint

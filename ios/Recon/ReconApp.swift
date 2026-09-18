@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct ReconApp: App {
+    @UIApplicationDelegateAdaptor(PushManager.self) var pushManager
+
     var body: some Scene {
         WindowGroup {
             ContentView()
