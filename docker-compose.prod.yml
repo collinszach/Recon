@@ -21,11 +21,16 @@ services:
   # other tunnels. Host networking so it reaches the API at the same origin the
   # Cloudflare dashboard Public Hostname uses (http://100.91.198.28:8010); a
   # bridge network can't hairpin to the host's published port. Outbound-only.
+  # Locally-managed config (cloudflared/config.yml) rather than the dashboard's
+  # Public Hostname rules — the dashboard had the origin pointed at the NUC's
+  # own Tailscale IP, which the NUC can't reach itself (Tailscale drops
+  # host-originated traffic to its own tailnet IP). See cloudflared/config.yml.
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: recon-cloudflared
-    command: ["tunnel", "--no-autoupdate", "run"]
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    command: ["tunnel", "--no-autoupdate", "--config", "/etc/cloudflared/config.yml", "run"]
+    volumes:
+      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - ./secrets/tunnel-creds.json:/etc/cloudflared/creds/tunnel-creds.json:ro
     network_mode: host
     restart: unless-stopped

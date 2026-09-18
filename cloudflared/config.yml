@@ -1,0 +1,32 @@
+# Locally-managed Cloudflare Tunnel config for Recon.
+#
+# WHY THIS FILE EXISTS (2026-09-18): the tunnel used to be *dashboard*-managed
+# (run with just TUNNEL_TOKEN, pulling ingress rules from Cloudflare). Its
+# Public Hostname pointed the origin at http://100.91.198.28:8010 — the NUC's
+# own Tailscale IP. That is unreachable *from the NUC itself*: Tailscale drops
+# host-originated traffic to its own tailnet IP (measured 15/15 failures from
+# the host, 15/15 successes to localhost; a bridge-networked container fails
+# too). So every request that cleared Cloudflare Access died at the origin with
+# "dial tcp 100.91.198.28:8010: i/o timeout", which surfaced in the iOS app as a
+# plain "request timed out".
+#
+# Fixing that required changing the origin URL, which lives in the Cloudflare
+# dashboard — so the tunnel is now locally managed instead, putting the ingress
+# rules in git where they're reviewable and deployable.
+#
+# TRADEOFF: editing Public Hostnames in the Cloudflare dashboard no longer has
+# any effect. Change hostnames/origins HERE and redeploy instead.
+#
+# The tunnel ID is not a secret (it's the public DNS CNAME target,
+# <id>.cfargotunnel.com). The credential it pairs with lives only on the NUC at
+# secrets/tunnel-creds.json (gitignored, derived from CLOUDFLARE_TUNNEL_TOKEN).
+tunnel: cac9c2e2-9b01-46c4-a9f3-9b2c363a49b4
+credentials-file: /etc/cloudflared/creds/tunnel-creds.json
+
+ingress:
+  # cloudflared runs with network_mode: host, so localhost here is the NUC, and
+  # 8010 is the API's published port (API_PORT in .env). Do NOT use the
+  # Tailscale IP — see above.
+  - hostname: recon.zacharyjcollins.com
+    service: http://localhost:8010
+  - service: http_status:404
