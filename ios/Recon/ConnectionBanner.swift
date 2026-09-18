@@ -7,12 +7,20 @@ import SwiftUI
 struct ConnectionBanner: View {
     let lastSynced: String?      // e.g. "4d ago", nil if never synced
     let retrying: Bool
+    /// The actual error from the last failed request (e.g. "Cloudflare Access
+    /// rejected the service token..."). Falls back to a generic Tailscale
+    /// hint only when there's nothing more specific — don't guess at a cause
+    /// the request already told us.
+    var detail: String? = nil
     let onRetry: () -> Void
     let onSettings: () -> Void
 
     private var staleness: String {
         guard let lastSynced else { return "No saved data yet." }
         return "Showing data from \(lastSynced)."
+    }
+    private var reason: String {
+        detail ?? "Tailscale may be disconnected — reopen it, then retry."
     }
 
     var body: some View {
@@ -27,7 +35,7 @@ struct ConnectionBanner: View {
                     Text("Can't reach Recon")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.ink)
-                    Text("\(staleness) Tailscale may be disconnected — reopen it, then retry.")
+                    Text("\(staleness) \(reason)")
                         .font(.caption)
                         .foregroundStyle(Theme.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)

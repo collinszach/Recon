@@ -46,9 +46,13 @@ final class Store: ObservableObject {
         Cache.save(lastSynced, "lastSynced")
     }
     /// Show cached data + an offline flag when a load fails but we have a cache.
+    /// The specific error (e.g. Cloudflare Access rejecting a bad service token)
+    /// is captured either way — it used to be dropped whenever hadCache was true,
+    /// which is the common case, so the banner always showed a generic Tailscale
+    /// message even when the real cause was something else entirely.
     private func handleLoadFailure(_ error: Error, hadCache: Bool) {
+        self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         if hadCache { isOffline = true }
-        else { self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
     }
 
     var lastSyncedText: String? {

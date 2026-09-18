@@ -68,6 +68,7 @@ private struct NavTab<Content: View>: View {
                         ConnectionBanner(
                             lastSynced: store.lastSyncedText,
                             retrying: store.loading,
+                            detail: store.error,
                             onRetry: { Task { await store.refresh() } },
                             onSettings: { showSettings = true }
                         )
