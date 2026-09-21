@@ -6,20 +6,22 @@ struct RoleRow: View {
     var isNew: Bool = false
     var body: some View {
         HStack(spacing: 0) {
-            // tier-colored editorial accent edge
+            // Editorial accent edge. Used to be the fit tier; with scoring off
+            // (2026-09-21) recency is the signal that's actually left.
             RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(Theme.tier(role.tier))
+                .fill(isNew ? Theme.gold : Theme.hair)
                 .frame(width: 4)
                 .padding(.vertical, 2)
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    TierChip(tier: role.tier)
                     if isNew { Pill(text: "New", color: Theme.gold, filled: true) }
                     if role.isMba == true { Pill(text: "MBA", color: Theme.rust) }
                     Text(role.company ?? "—").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                     Spacer()
-                    FitBadge(score: role.fitScore, text: role.fitText)
+                    if let seen = role.firstSeenText {
+                        Text(seen).font(.caption2).foregroundStyle(Theme.inkSoft)
+                    }
                 }
                 Text(role.title).font(.callout).foregroundStyle(Theme.ink).lineLimit(2)
                 HStack(spacing: 10) {
@@ -42,40 +44,17 @@ struct RoleRow: View {
     }
 }
 
-/// Fit score as a soft, color-coded capsule — stronger scan signal than plain text.
-struct FitBadge: View {
-    let score: Double?
-    let text: String
-    var body: some View {
-        let color = Theme.fit(score)
-        return Label("fit \(text)", systemImage: "target")
-            .font(.caption2.weight(.bold)).foregroundStyle(color)
-            .padding(.horizontal, 8).padding(.vertical, 4)
-            .background(color.opacity(0.13), in: Capsule())
-    }
-}
-
-struct TierChip: View {
-    let tier: String?
-    var body: some View {
-        Text((tier ?? "?").uppercased())
-            .font(.caption2.weight(.bold)).foregroundStyle(.white)
-            .padding(.horizontal, 7).padding(.vertical, 3)
-            .background(Theme.tier(tier), in: Capsule())
-    }
-}
-
-/// The scored feed, segmented by track (internships vs full-time) and fit tier.
+/// The tracker feed. Scoring is off, so there are no tiers or fit scores to
+/// filter on — what's left is location, sector, MBA-track, and how new it is.
 struct RolesView: View {
     @EnvironmentObject var store: Store
     @State private var track: String = "intern"
-    @State private var filter: String = "All"
     @State private var selectedStates: Set<String> = []   // empty = all locations; multi-select
     @State private var showStateFilter = false
     @State private var sector: String? = nil      // nil = all sectors
     @State private var mbaOnly: Bool = false
     @State private var showSwipe = false
-    private let filters = ["All", "A", "B", "C"]
+    @State private var wipedNotice: String?
     /// Target-metro slug -> display label (mirrors api/scan/geo.py METROS). Still
     /// used for the RoleDetailView "target metro" callout — the browse/filter UI
     /// below uses the exhaustive state list instead (2026-08-16).
@@ -95,8 +74,7 @@ struct RolesView: View {
     }
     var shown: [Role] {
         trackFeed.filter {
-            (filter == "All" || ($0.tier ?? "").uppercased() == filter)
-            && (selectedStates.isEmpty || !selectedStates.isDisjoint(with: $0.stateCodes))
+            (selectedStates.isEmpty || !selectedStates.isDisjoint(with: $0.stateCodes))
             && (sector == nil || $0.sector == sector)
             && (!mbaOnly || $0.isMba == true)
         }
@@ -122,10 +100,6 @@ struct RolesView: View {
                     Text("Full-time (\(store.fulltimeFeed.count))").tag("fulltime")
                     Text("Ops (\(store.opsFeed.count))").tag("ops")
                 }.pickerStyle(.segmented)
-                Picker("Tier", selection: $filter) {
-                    ForEach(filters, id: \.self) { Text($0) }
-                }.pickerStyle(.segmented)
-
                 // Geo facet: every US state + remote + international (exhaustive —
                 // 2026-08-16, replacing the old hand-picked metro-only list which
                 // always missed somewhere, e.g. Denver/CO). Multi-select via a sheet
@@ -194,16 +168,40 @@ struct RolesView: View {
                     }
                 }
 
+                if let notice = wipedNotice {
+                    Text(notice).font(.footnote).foregroundStyle(Theme.inkSoft).reconCard()
+                }
                 if shown.isEmpty {
                     Text(!selectedStates.isEmpty
-                         ? "No \(track == "intern" ? "internships" : "roles") in \(stateFilterLabel) at this tier yet."
+                         ? "Nothing open in \(stateFilterLabel) right now."
                          : (track == "intern"
-                            ? "No internships in this tier yet. Most Summer 2027 reqs post Aug 2026–Jan 2027."
-                            : "No full-time product roles in this tier right now."))
+                            ? "No internships open yet. Most Summer 2027 reqs post Aug 2026–Jan 2027 — Recon scans hourly."
+                            : "Nothing open in this track right now."))
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 } else {
                     ForEach(shown) { role in
-                        NavigationLink(value: role) { RoleRow(role: role, isNew: role.firstSeenIsToday) }.buttonStyle(.plain)
+                        NavigationLink(value: role) { RoleRow(role: role, isNew: role.firstSeenIsToday) }
+                            .buttonStyle(.plain)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task { await store.dismiss(role) }
+                                } label: { Label("Wipe", systemImage: "trash") }
+                            }
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    Task { await store.dismiss(role) }
+                                } label: { Label("Wipe this role", systemImage: "trash") }
+                                if let cid = role.companyId, let name = role.company {
+                                    Button(role: .destructive) {
+                                        Task {
+                                            let n = await store.dismissCompany(cid)
+                                            wipedNotice = "Wiped \(name) — \(n) role\(n == 1 ? "" : "s") removed."
+                                        }
+                                    } label: {
+                                        Label("Never show \(name)", systemImage: "building.2.crop.circle.badge.xmark")
+                                    }
+                                }
+                            }
                     }
                 }
             }
@@ -214,7 +212,7 @@ struct RolesView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showSwipe = true } label: { Image(systemName: "hand.draw") }
-                    .accessibilityLabel("Rate roles")
+                    .accessibilityLabel("Triage new roles")
             }
         }
         .fullScreenCover(isPresented: $showSwipe) {
@@ -298,9 +296,10 @@ struct StateFilterSheet: View {
     }
 }
 
-/// Full detail for one internship.
-/// 👍 Good fit / 👎 Not for me. Optimistic; down-votes leave the feed and both
-/// signals calibrate future scoring.
+/// Keep it or wipe it. "Wipe" is permanent — the role leaves the feed now and
+/// stays gone when the scan re-ingests the same posting — so it's the one
+/// action here that can't be undone by accident: the Dismissed screen is where
+/// it comes back from.
 struct InterestControl: View {
     let role: Role
     @ObservedObject var store: Store
@@ -308,15 +307,15 @@ struct InterestControl: View {
         let cur = store.interest(of: role)
         HStack(spacing: 10) {
             Button { Task { await store.setInterest(role, cur == "up" ? nil : "up") } } label: {
-                Label("Good fit", systemImage: cur == "up" ? "hand.thumbsup.fill" : "hand.thumbsup")
+                Label("Keep", systemImage: cur == "up" ? "bookmark.fill" : "bookmark")
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity).padding(.vertical, 10)
                     .foregroundStyle(cur == "up" ? .white : Theme.green)
                     .background(cur == "up" ? Theme.green : Theme.green.opacity(0.12),
                                 in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            Button { Task { await store.setInterest(role, cur == "down" ? nil : "down") } } label: {
-                Label("Not for me", systemImage: cur == "down" ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+            Button { Task { await store.dismiss(role) } } label: {
+                Label("Wipe", systemImage: cur == "down" ? "trash.fill" : "trash")
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity).padding(.vertical, 10)
                     .foregroundStyle(cur == "down" ? .white : Theme.inkSoft)
@@ -364,10 +363,12 @@ struct RoleDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack { TierChip(tier: role.tier)
+                    HStack {
                         Text(role.company ?? "—").font(.headline).foregroundStyle(Theme.ink)
                         Spacer()
-                        FitBadge(score: role.fitScore, text: role.fitText)
+                        if let seen = role.firstSeenText {
+                            Text("seen \(seen)").font(.caption).foregroundStyle(Theme.inkSoft)
+                        }
                     }
                     Text(role.title).font(.title3.weight(.semibold)).foregroundStyle(Theme.ink)
                 }
@@ -376,7 +377,10 @@ struct RoleDetailView: View {
 
                 facts
 
-                Section_("Why it fits", role.summary)
+                // These three are all scorer output. Nothing written since
+                // 2026-09-21 has them, but older roles still do — show them when
+                // they exist rather than blanking history.
+                if let w = role.whyFit, !w.isEmpty { Section_("Why it fits", w) }
                 if let c = role.concerns, !c.isEmpty { Section_("Concerns", c, tint: Theme.rust) }
                 if let h = role.curriculumHook, !h.isEmpty { Section_("Curriculum hook", h) }
                 if let d = role.description, !d.isEmpty {

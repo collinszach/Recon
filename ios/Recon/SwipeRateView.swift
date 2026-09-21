@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// Tinder-style rating: swipe right = interested ("up"), left = not for me
-/// ("down"). A right swipe both tags feedback (POST /api/roles/{id}/feedback,
-/// same as the thumbs buttons on RoleDetailView — calibrates future scoring)
-/// AND adds the role to the pipeline (POST /api/applications, "watching"
-/// stage) — liking it here is the same act as saying "track this," so the
-/// swipe itself is the reason to come back and actually apply. A left swipe
-/// just dismisses it, no pipeline entry.
+/// Fast triage over new arrivals: swipe right = track it (POST /api/applications,
+/// "watching" — the reason to come back and actually apply), left = wipe it
+/// (POST /api/roles/{id}/dismiss, permanent and gone after re-ingest).
+///
+/// This was the scoring-calibration deck; with the scorer off (2026-09-21) a
+/// rating has nothing to calibrate, so the same gesture now does the two things
+/// a tracker cares about — keep or wipe.
 struct SwipeRateView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
@@ -28,7 +28,7 @@ struct SwipeRateView: View {
                     if deck.isEmpty {
                         emptyState
                     } else {
-                        Text("\(deck.count) to rate")
+                        Text("\(deck.count) to triage")
                             .font(.caption.weight(.semibold)).foregroundStyle(Theme.inkSoft)
                             .padding(.top, 4)
                         cardStack
@@ -64,7 +64,7 @@ struct SwipeRateView: View {
     private var emptyState: some View {
         VStack(spacing: 10) {
             Image(systemName: "checkmark.circle").font(.system(size: 40)).foregroundStyle(Theme.green)
-            Text(rated > 0 ? "Rated \(rated) role\(rated == 1 ? "" : "s") — nice work." : "Nothing left to rate right now.")
+            Text(rated > 0 ? "Triaged \(rated) role\(rated == 1 ? "" : "s") — nice work." : "Nothing new to triage right now.")
                 .font(.subheadline.weight(.medium)).foregroundStyle(Theme.ink)
             Text("New roles show up here as Recon scores them.")
                 .font(.caption).foregroundStyle(Theme.inkSoft)
@@ -174,8 +174,12 @@ struct SwipeRateView: View {
         let flyDistance: CGFloat = value == "up" ? 500 : -500
         withAnimation(.easeOut(duration: 0.25)) { dragOffset = CGSize(width: flyDistance, height: 0) }
         Task {
-            await store.setInterest(role, value)
-            if value == "up" { await store.track(role) }
+            if value == "up" {
+                await store.setInterest(role, "up")
+                await store.track(role)
+            } else {
+                await store.dismiss(role)
+            }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
             deck.removeAll { $0.id == role.id }
@@ -191,10 +195,12 @@ private struct RateCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                TierChip(tier: role.tier)
-                FitBadge(score: role.fitScore, text: role.fitText)
+                if role.firstSeenIsToday { Pill(text: "New", color: Theme.gold, filled: true) }
                 if role.isMba == true { Pill(text: "MBA", color: Theme.rust) }
                 Spacer()
+                if let seen = role.firstSeenText {
+                    Text(seen).font(.caption2).foregroundStyle(Theme.inkSoft)
+                }
             }
             Text(role.company ?? "—").font(.title3.weight(.bold)).foregroundStyle(Theme.ink)
             Text(role.title).font(.headline).foregroundStyle(Theme.ink)

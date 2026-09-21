@@ -21,6 +21,10 @@ final class Store: ObservableObject {
     /// Optimistic feedback overrides (bridge UI until the next server refresh).
     @Published var hiddenRoleIds: Set<Int> = []
     @Published var likedRoleIds: Set<Int> = []
+    /// Employers wiped with "never show this again". Persisted for the same
+    /// reason the role sets are: the server knows, but the app must still be
+    /// right about it offline and immediately after a relaunch.
+    @Published var dismissedCompanyIds: Set<Int> = []
 
     /// Ratings/tracks that couldn't reach the server, persisted to disk and
     /// replayed on the next successful refresh.
@@ -50,17 +54,23 @@ final class Store: ObservableObject {
             if a.value == "up" { likedRoleIds.insert(a.roleId) }
             if a.value == "down" { hiddenRoleIds.insert(a.roleId) }
         }
+        for a in pending where a.kind == .dismissRole { hiddenRoleIds.insert(a.roleId) }
         // The queue only holds ratings that *failed* to send, so it can't be the
         // whole picture — a rating the server accepted leaves no trace in it.
         // Persist the sets themselves too, so the feed after a relaunch matches
         // the feed you left, whether or not the server was reachable.
         hiddenRoleIds.formUnion(Cache.load(Set<Int>.self, "hiddenRoleIds") ?? [])
         likedRoleIds.formUnion(Cache.load(Set<Int>.self, "likedRoleIds") ?? [])
+        dismissedCompanyIds.formUnion(Cache.load(Set<Int>.self, "dismissedCompanyIds") ?? [])
+        for a in pending where a.kind == .dismissCompany {
+            dismissedCompanyIds.insert(a.roleId)   // carries the company id
+        }
     }
 
     private func saveRatingSets() {
         Cache.save(hiddenRoleIds, "hiddenRoleIds")
         Cache.save(likedRoleIds, "likedRoleIds")
+        Cache.save(dismissedCompanyIds, "dismissedCompanyIds")
     }
 
     private func markSynced() {
@@ -95,28 +105,28 @@ final class Store: ObservableObject {
         roles.filter { interest(of: $0) == nil }
     }
 
-    /// Roles worth surfacing: fit-sorted, pass-tier dropped (both tracks).
-    /// Two things this must get right, both of which it used to get wrong:
+    /// The tracker feed: everything the server sent, newest first, minus what
+    /// has been wiped. The server already decides relevance (it only returns
+    /// in-track roles) and already drops dismissals — this second pass exists so
+    /// a wipe takes effect instantly and survives offline, before any refresh.
     ///
-    /// - Down-voted roles are dropped via `interest(of:)`, which also reads the
-    ///   role's *server-recorded* interest. Filtering on `hiddenRoleIds` alone
-    ///   only covered the in-memory optimistic set, and that set is rebuilt at
-    ///   launch from the offline queue — which by definition holds only ratings
-    ///   that never reached the server. So every rating that *succeeded* was
-    ///   forgotten on relaunch, and roles already passed on came back until a
-    ///   refresh landed. Offline, on the cached payload, they came back for good.
-    ///
-    /// - A role with no tier is *unscored*, not rejected. `tier ?? "pass"` threw
-    ///   away exactly the postings that just arrived and hadn't been graded yet,
-    ///   which is the set most worth seeing.
-    ///
-    /// The sort stays purely on fit: "Top matches" and "New today" both read this
-    /// list, and floating today's arrivals to the front would make the two
-    /// sections show the same rows. Unscored roles have no fit score, so they
-    /// sort last here and surface through the date filter instead.
+    /// Dismissals go through `interest(of:)`, which reads the *server-recorded*
+    /// interest as well as the optimistic sets. Filtering on `hiddenRoleIds`
+    /// alone only covered the in-memory set, which is rebuilt at launch from the
+    /// offline queue — and that queue by definition holds only the wipes that
+    /// never reached the server. Every wipe that succeeded was forgotten on
+    /// relaunch, so roles already passed on came back; offline, for good.
     var feed: [Role] {
-        roles.filter { ($0.tier ?? "").uppercased() != "PASS" && interest(of: $0) != "down" }
-             .sorted { ($0.fitScore ?? 0) > ($1.fitScore ?? 0) }
+        roles.filter { interest(of: $0) != "down" && !dismissedCompanyIds.contains($0.companyId ?? -1) }
+             .sorted { ($0.firstSeenDate ?? .distantPast) > ($1.firstSeenDate ?? .distantPast) }
+    }
+
+    /// Arrivals from the last week — the dashboard's headline list. Compared as
+    /// dates, not strings: the server sends "+00:00" offsets, so a string
+    /// compare against a "Z"-formatted cutoff would be wrong.
+    var newThisWeek: [Role] {
+        let cutoff = Date().addingTimeInterval(-7 * 86_400)
+        return feed.filter { ($0.firstSeenDate ?? .distantPast) >= cutoff }
     }
 
     /// Effective interest for a role, honoring optimistic overrides.
@@ -141,10 +151,49 @@ final class Store: ObservableObject {
         catch { enqueue(.init(roleId: role.id, kind: .interest, value: value)) }
     }
 
+    /// Wipe a role: gone from the feed now, gone after a relaunch, gone after
+    /// the next scan re-ingests the same posting.
+    func dismiss(_ role: Role) async {
+        likedRoleIds.remove(role.id)
+        hiddenRoleIds.insert(role.id)
+        saveRatingSets()
+        do { try await api.dismiss(roleId: role.id) }
+        catch { enqueue(.init(roleId: role.id, kind: .dismissRole)) }
+    }
+
+    func undismiss(_ roleId: Int) async {
+        hiddenRoleIds.remove(roleId)
+        saveRatingSets()
+        do { try await api.undismiss(roleId: roleId) }
+        catch { self.error = error.localizedDescription }
+    }
+
+    /// Never show this employer again. Returns how many roles it took out of
+    /// the feed so the caller can say so instead of the list just shrinking.
+    @discardableResult
+    func dismissCompany(_ companyId: Int) async -> Int {
+        dismissedCompanyIds.insert(companyId)
+        saveRatingSets()
+        let hidden = roles.filter { $0.companyId == companyId }.count
+        do { _ = try await api.dismiss(companyId: companyId) }
+        catch { enqueue(.init(roleId: companyId, kind: .dismissCompany)) }
+        return hidden
+    }
+
+    func undismissCompany(_ companyId: Int) async {
+        dismissedCompanyIds.remove(companyId)
+        saveRatingSets()
+        do { try await api.undismiss(companyId: companyId) }
+        catch { self.error = error.localizedDescription }
+    }
+
     // ── offline queue ────────────────────────────────────────────────────
     /// A rating/track that never reached the server, kept so it isn't lost.
     struct PendingAction: Codable, Equatable {
-        enum Kind: String, Codable { case interest, track }
+        /// `dismissRole` / `dismissCompany` are wipes; for dismissCompany the
+        /// `roleId` field carries the *company* id (the queue is keyed by
+        /// (id, kind), so the two never collide).
+        enum Kind: String, Codable { case interest, track, dismissRole, dismissCompany }
         let roleId: Int
         let kind: Kind
         var value: String? = nil     // "up" / "down" / nil — interest only
@@ -166,6 +215,8 @@ final class Store: ObservableObject {
                 switch a.kind {
                 case .interest: try await api.feedback(roleId: a.roleId, value: a.value)
                 case .track:    _ = try await api.track(roleId: a.roleId)
+                case .dismissRole:    try await api.dismiss(roleId: a.roleId)
+                case .dismissCompany: _ = try await api.dismiss(companyId: a.roleId)
                 }
             } catch {
                 stillFailing.append(a)
@@ -174,10 +225,13 @@ final class Store: ObservableObject {
         pending = stillFailing
         Cache.save(pending, "pending")
     }
+    /// The server sends only in-track roles (TRACK_MODE=intern → internships),
+    /// so these are just lenses on the same feed, kept for the views that read
+    /// them by name.
     var internFeed: [Role]   { feed.filter { ($0.track ?? "intern") == "intern" } }
     var fulltimeFeed: [Role] { feed.filter { $0.track == "fulltime" } }
     var opsFeed: [Role]      { feed.filter { $0.track == "ops" } }
-    var passCount: Int { roles.filter { ($0.tier ?? "").uppercased() == "PASS" }.count }
+    var dismissedCount: Int { hiddenRoleIds.count }
 
     func refresh() async {
         loading = true; error = nil

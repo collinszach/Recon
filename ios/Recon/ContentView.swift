@@ -6,10 +6,10 @@ struct ContentView: View {
 
     var body: some View {
         TabView {
-            NavTab(title: "Today", store: store, showSettings: $showSettings) { TodayView() }
-                .tabItem { Label("Today", systemImage: "sun.max") }
+            NavTab(title: "Dashboard", store: store, showSettings: $showSettings) { TodayView() }
+                .tabItem { Label("Dashboard", systemImage: "square.grid.2x2") }
 
-            NavTab(title: "Internships", store: store, showSettings: $showSettings) { RolesView() }
+            NavTab(title: "Roles", store: store, showSettings: $showSettings) { RolesView() }
                 .tabItem { Label("Roles", systemImage: "dot.radiowaves.left.and.right") }
 
             NavTab(title: "Pipeline", store: store, showSettings: $showSettings) { PipelineView() }

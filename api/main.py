@@ -254,6 +254,7 @@ def list_roles(tier: str | None = None, company: str | None = None,
         out.append({
             "track": role_track,
             "id": r.id, "company": co.name if co else None,
+            "company_id": r.company_id,     # lets the app dismiss the employer
             "company_tier": co.tier if co else None,
             "sector": co.sector if co else None,
             "is_mba": r.is_mba,

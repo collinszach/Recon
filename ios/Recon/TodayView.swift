@@ -1,56 +1,106 @@
 import SwiftUI
 
-/// A small daily summary: the headline numbers, the top matches, and pipeline.
+/// The dashboard: what arrived, what needs action, what's in flight.
+///
+/// Was a scored digest — headline stats, "Top matches" by fit. With the scorer
+/// off (2026-09-21) fit is gone, so the questions this answers are the tracker's:
+/// what's new since I last looked, what am I late on, and where do my
+/// applications stand.
 struct TodayView: View {
     @EnvironmentObject var store: Store
+
+    /// New arrivals grouped by the day Recon first saw them, newest day first.
+    private var byDay: [(label: String, roles: [Role])] {
+        let cal = Calendar.current
+        let groups = Dictionary(grouping: store.newThisWeek) { role -> Date in
+            cal.startOfDay(for: role.firstSeenDate ?? Date())
+        }
+        let fmt = DateFormatter(); fmt.dateFormat = "EEEE, MMM d"
+        return groups.keys.sorted(by: >).map { day in
+            let label = cal.isDateInToday(day) ? "Today"
+                      : cal.isDateInYesterday(day) ? "Yesterday"
+                      : fmt.string(from: day)
+            return (label, groups[day]?.sorted { ($0.company ?? "") < ($1.company ?? "") } ?? [])
+        }
+    }
+
+    private var inFlight: [AppItem] {
+        store.apps.filter { $0.stage != "closed" }
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let err = store.error { ErrorBanner(message: err) }
 
-                // headline
-                SectionHeader(title: "Recruiting today",
+                SectionHeader(title: "Recon",
                               eyebrow: "Summer 2027 internships",
-                              trailing: store.brief?.date)
+                              trailing: store.lastSyncedText.map { "synced \($0)" })
 
-                // stat row — intern-only mode as of 2026-08-15 (full-time/ops are dormant)
                 HStack(spacing: 10) {
-                    Stat(num: "\(store.internFeed.count)", label: "internships", color: Theme.rust)
-                    Stat(num: "\(store.internFeed.filter { $0.isMba == true }.count)", label: "MBA-track", color: Theme.gold)
-                    Stat(num: "\(store.apps.count)", label: "pipeline", color: Theme.green)
+                    Stat(num: "\(store.newThisWeek.count)", label: "new this week", color: Theme.gold)
+                    Stat(num: "\(inFlight.count)", label: "in flight", color: Theme.green)
+                    Stat(num: "\(store.dismissedCount)", label: "wiped", color: Theme.inkSoft)
                 }
 
                 if store.totalNudgeCount > 0 {
                     FollowUpsSection()
                 }
 
-                // New arrivals get their own section. "Top matches" sorts purely
-                // by fit, so a day's new roles (often C-tier) never crack the
-                // top 5 and were effectively invisible — you'd have no idea the
-                // scan found anything (2026-09-18).
-                let newToday = store.internFeed.filter { $0.firstSeenIsToday }
-                if !newToday.isEmpty {
-                    SectionHeader(title: "New today", trailing: "\(newToday.count)")
-                    ForEach(newToday.prefix(10)) { role in
-                        NavigationLink(value: role) { RoleRow(role: role, isNew: true) }
-                            .buttonStyle(.plain)
+                // Applications, the half of the tracker that isn't intake.
+                SectionHeader(title: "Applied",
+                              trailing: inFlight.isEmpty ? nil : "\(inFlight.count)")
+                if inFlight.isEmpty {
+                    Text("Nothing in flight. Swipe right on a role — or tap Track on one — and it lands here.")
+                        .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
+                } else {
+                    ForEach(inFlight.prefix(6)) { app in
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(app.companyName ?? "—")
+                                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                                Text(app.roleTitle ?? "—")
+                                    .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                            }
+                            Spacer()
+                            Pill(text: app.stage.capitalized, color: Theme.green)
+                        }
+                        .reconCard()
                     }
-                    if newToday.count > 10 {
-                        Text("+ \(newToday.count - 10) more in Roles")
+                    if inFlight.count > 6 {
+                        Text("+ \(inFlight.count - 6) more in Pipeline")
                             .font(.caption).foregroundStyle(Theme.inkSoft)
                     }
                 }
 
-                SectionHeader(title: "Top matches",
-                              trailing: store.todayCount > 0 ? "\(store.todayCount) today" : nil)
-                if store.internFeed.isEmpty {
-                    Text("No high-fit internships open yet. Most Summer 2027 reqs post Aug 2026–Jan 2027 — Recon scans hourly and will surface them here.")
+                // New arrivals, grouped by day — the "did the scan find anything"
+                // question, which the old fit-sorted list couldn't answer because
+                // a day's arrivals never cracked the top 5.
+                SectionHeader(title: "New this week",
+                              trailing: store.newThisWeek.isEmpty ? nil : "\(store.newThisWeek.count)")
+                if store.newThisWeek.isEmpty {
+                    Text("Nothing new in the last 7 days. Most Summer 2027 reqs post Aug 2026–Jan 2027 — Recon scans hourly.")
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 } else {
-                    ForEach(store.internFeed.prefix(5)) { role in
-                        NavigationLink(value: role) { RoleRow(role: role, isNew: role.firstSeenIsToday) }
+                    ForEach(byDay.prefix(4), id: \.label) { day in
+                        Text("\(day.label) · \(day.roles.count)")
+                            .font(.caption.weight(.semibold)).foregroundStyle(Theme.inkSoft)
+                            .textCase(.uppercase).padding(.top, 4)
+                        ForEach(day.roles.prefix(8)) { role in
+                            NavigationLink(value: role) {
+                                RoleRow(role: role, isNew: role.firstSeenIsToday)
+                            }
                             .buttonStyle(.plain)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    Task { await store.dismiss(role) }
+                                } label: { Label("Wipe", systemImage: "trash") }
+                            }
+                        }
+                        if day.roles.count > 8 {
+                            Text("+ \(day.roles.count - 8) more in Roles")
+                                .font(.caption).foregroundStyle(Theme.inkSoft)
+                        }
                     }
                 }
             }

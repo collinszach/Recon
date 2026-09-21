@@ -102,17 +102,18 @@ struct ReconAPI {
     }
 
     // ---- reads ----
-    /// include_unscored pulls in postings from the last week that the scorer
-    /// hasn't graded yet. Without it the feed only ever showed already-scored
-    /// roles, so a scan's fresh arrivals stayed invisible until the next
-    /// scoring pass — which looked exactly like the scan having found nothing.
-    func roles(minFit: Double = 0) async throws -> [Role] {
-        try await get("api/roles?min_fit=\(minFit)&include_unscored=true", as: [Role].self)
+    /// The tracker feed: open roles in the tracks being watched, newest first.
+    /// The server decides relevance (scan.intern_filter) — scoring is off, so
+    /// there is no fit to filter or sort on here.
+    func roles(limit: Int = 300) async throws -> [Role] {
+        try await get("api/roles?limit=\(limit)", as: [Role].self)
     }
-    /// Includes roles marked "not for me" (normally filtered out server-side),
-    /// so the ratings review screen can show — and undo — them.
-    func ratedRoles() async throws -> [Role] {
-        try await get("api/roles?include_hidden=true", as: [Role].self)
+    /// What was wiped, for the undo list.
+    func dismissedRoles() async throws -> [DismissedRole] {
+        try await get("api/roles/dismissed", as: [DismissedRole].self)
+    }
+    func dismissedCompanies() async throws -> [DismissedCompany] {
+        try await get("api/companies/dismissed", as: [DismissedCompany].self)
     }
     func brief() async throws -> Brief { try await get("api/brief", as: Brief.self) }
     func applications() async throws -> [AppItem] { try await get("api/applications", as: [AppItem].self) }
@@ -138,6 +139,24 @@ struct ReconAPI {
     func feedback(roleId: Int, value: String?) async throws {
         _ = try await execute("POST", "api/roles/\(roleId)/feedback",
                               body: try JSONEncoder().encode(Feedback(value: value)))
+    }
+    /// Wipe a role — permanent, and it stays gone across re-ingest.
+    func dismiss(roleId: Int) async throws {
+        _ = try await execute("POST", "api/roles/\(roleId)/dismiss", body: nil)
+    }
+    func undismiss(roleId: Int) async throws {
+        _ = try await execute("POST", "api/roles/\(roleId)/undismiss", body: nil)
+    }
+    /// Never show this employer again. Returns how many open roles just left.
+    struct DismissResult: Decodable { let roles_hidden: Int?; let company: String? }
+    @discardableResult
+    func dismiss(companyId: Int) async throws -> DismissResult {
+        let data = try await execute("POST", "api/companies/\(companyId)/dismiss", body: nil)
+        return (try? JSONDecoder().decode(DismissResult.self, from: data))
+            ?? DismissResult(roles_hidden: nil, company: nil)
+    }
+    func undismiss(companyId: Int) async throws {
+        _ = try await execute("POST", "api/companies/\(companyId)/undismiss", body: nil)
     }
     struct StageUpdate: Encodable { let stage: String }
     func move(appId: Int, to stage: String) async throws -> AppItem {

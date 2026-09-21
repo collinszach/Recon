@@ -5,8 +5,13 @@ struct Role: Codable, Identifiable, Hashable {
     let id: Int
     let track: String?         // "intern" | "fulltime"
     let company: String?
+    let companyId: Int?        // for "never show this employer again"
     let companyTier: String?
-    let tier: String?          // fit tier A/B/C/pass
+    /// Fit tier A/B/C/pass. Scoring was turned off 2026-09-21 (SCORING_ENABLED),
+    /// so this is nil on everything ingested since; the old values are still in
+    /// the DB. Nothing in the UI reads it any more — kept so decoding a cached
+    /// payload written before the switch still works.
+    let tier: String?
     let title: String
     let location: String?
     let metro: String?         // target-metro slug, e.g. "nyc" — Zach's 9 curated relocation targets
@@ -31,6 +36,7 @@ struct Role: Codable, Identifiable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id, track, company, title, location, metro, state, url, status, domain, tier, concerns, description, remote, interest, sector
+        case companyId = "company_id"
         case companyTier = "company_tier"
         case fitScore = "fit_score"
         case whyFit = "why_fit"
@@ -77,6 +83,13 @@ struct Role: Codable, Identifiable, Hashable {
     /// Every state/remote/international code this role lists (a multi-location
     /// posting spans several). Empty if unparseable.
     var stateCodes: [String] { state?.split(separator: ",").map(String.init) ?? [] }
+
+    /// When Recon first saw it, e.g. "2d ago" — the tracker's primary signal
+    /// now that there is no fit score to lead with.
+    var firstSeenText: String? {
+        guard let d = firstSeenDate else { return nil }
+        return Self.ago(d)
+    }
 
     /// "Posted 3d ago" from the ATS posting date, falling back to when Recon
     /// first saw it ("Seen 2d ago").
@@ -486,5 +499,35 @@ struct StartupContact: Codable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, name, role, email, linkedin, warmth, notes
         case startupId = "startup_id"
+    }
+}
+
+// ── Dismissals ──────────────────────────────────────────────
+/// A role that was wiped. Compact by design — the server omits the JD text,
+/// since this list only ever needs to show what was dismissed and undo it.
+struct DismissedRole: Codable, Identifiable, Hashable {
+    let id: Int
+    let title: String
+    let company: String?
+    let companyId: Int?
+    let location: String?
+    let url: String?
+    let dismissedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, company, location, url
+        case companyId = "company_id"
+        case dismissedAt = "dismissed_at"
+    }
+}
+
+struct DismissedCompany: Codable, Identifiable, Hashable {
+    let id: Int
+    let name: String
+    let dismissedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case dismissedAt = "dismissed_at"
     }
 }
