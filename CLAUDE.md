@@ -140,9 +140,32 @@ behind a Cloudflare Tunnel. See `SPEC.md` for the full spec.
     properly — that pass persisted the *queue*, not the *state*.
   - `TodayView`'s "New today" shows 10 (was 5) with a "+N more in Roles" tail.
   - Server query semantics verified against SQLite (scored ∪ recent, no backlog, no
-    down-voted, no duplicates, no closed). **iOS changes are unbuilt** — no Swift
-    toolchain in the session container, and the NUC is unreachable without Tailscale, so
-    nothing here is deployed or run on device yet.
+    down-voted, no duplicates, no closed).
+  - **Merged to `main` (PR #1, merge commit `5f5f20b`)** — the repo's first PR; earlier work
+    went straight to `main`. Merge commit, not squash, so the APNs fix (`ad991df`) stays
+    revertable without touching the feed fix (`8a32be6`).
+  - **Merged ≠ verified, and ≠ live. Two things are still open:**
+    1. **The iOS changes have never been compiled.** No Swift toolchain in the session
+       container, and this repo runs **no CI at all** (no `.github/workflows`, nothing at
+       root), so nothing caught it and nothing will. The Swift on `main` is reviewed-by-eye
+       only. `xcodebuild` is the real gate — run it before trusting the app side.
+    2. **The NUC is still running the old image.** The session container has no Tailscale,
+       no route to `100.91.198.28` (`:8010` and `:22` both time out), no `ssh` binary and no
+       key, so deploying from a Claude web session is structurally impossible — not a
+       permissions problem to retry. Needs a machine on the tailnet:
+       `ssh zach@100.91.198.28 'cd ~/recon && git pull && docker compose -f
+       docker-compose.yml -f docker-compose.prod.yml up --build -d'`. The NUC has its own
+       clone, so `git pull` first or `--build` just rebuilds the same old source.
+  - **Post-deploy check that actually proves it landed** (`/health` only proves the server is
+    up): `curl -s '…:8010/api/roles?include_unscored=true' | jq length` should be ≥
+    `curl -s '…:8010/api/roles' | jq length`. Equal means either nothing arrived in 7 days or
+    the rebuild didn't take. The `device_tokens.environment` ALTER runs in `_ensure_schema()`
+    on API boot — no separate migration, but if the API can't reach Postgres it's skipped and
+    `send_apns` will fail on the missing column.
+  - **Caveat worth watching:** if new postings were missing because *scoring itself* stalled
+    rather than lagged, this change surfaces the problem instead of fixing it — unscored roles
+    render with a `?` tier chip. A wall of `?` means the scorer is the fault, not the feed;
+    check `scan_runs.finished_at` for NULLs, which is how the Aug 2026 10-day outage presented.
 - **Deployed:** `zach@100.91.198.28` (Tailscale), `~/recon`, via
   `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`. The NUC is shared,
   so the prod overlay publishes **only the API on host port 8010** (8000/6379 were taken) and
