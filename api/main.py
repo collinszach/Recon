@@ -185,7 +185,8 @@ def list_roles(tier: str | None = None, company: str | None = None,
                include_unscored: bool = False,
                db: Session = Depends(get_db)):
     import re as _re
-    from scan.intern_filter import is_internship, is_ops_strategy
+    from scan.intern_filter import (is_internship, is_ops_strategy,
+                                    in_active_track)
     q = select(Role).where(Role.status.in_(["open", "changed"]))
     if not include_hidden:
         # Hide roles Zach marked "not for me" and cross-source near-duplicates.
@@ -203,6 +204,12 @@ def list_roles(tier: str | None = None, company: str | None = None,
             # thousands of rows with their JD text attached.
             cutoff = datetime.now(timezone.utc) - timedelta(days=NEW_ARRIVAL_DAYS)
             q = q.where((Role.scored_at.isnot(None)) | (Role.first_seen >= cutoff))
+            # Recency alone is not enough: a week of ingest is ~3k full-time rows
+            # that TRACK_MODE=intern will never score, so the feed filled with
+            # permanent "?" tiers (2,917 of 3,019 unscored on 2026-09-21) and
+            # buried the ~40 arrivals actually waiting on the scorer. Unscored
+            # rows are additionally held to the tracks the scorer runs — see
+            # in_active_track, shared with the runner's metro lane.
         else:
             q = q.where(Role.scored_at.isnot(None))
     if min_fit:
@@ -212,6 +219,8 @@ def list_roles(tier: str | None = None, company: str | None = None,
     if mba is not None:
         q = q.where(Role.is_mba == mba)
     rows = db.scalars(q.order_by(Role.fit_score.desc().nullslast())).all()
+    _mode = "intern" if settings.intern_only else settings.track_mode
+    _track_gate = scored_only and include_unscored
     wanted_states = {s.strip() for s in states.split(",") if s.strip()} if states else None
     out = []
     for r in rows:
@@ -225,6 +234,13 @@ def list_roles(tier: str | None = None, company: str | None = None,
         # Role.state may hold multiple comma-joined codes (multi-location
         # postings) — match if ANY of the role's states is in the requested set.
         if wanted_states and not (set((r.state or "").split(",")) & wanted_states):
+            continue
+        if (_track_gate and r.scored_at is None
+                and not in_active_track(r.title, r.department, _mode)):
+            # Not in a track the scorer covers: it will stay unscored forever,
+            # so it is backlog, not a new arrival. Only gates the feed's
+            # include_unscored path — scored_only=false is the deliberate
+            # "show me everything raw" escape hatch and stays unfiltered.
             continue
         if is_internship(r.title, r.department):
             role_track = "intern"

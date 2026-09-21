@@ -134,19 +134,12 @@ def run_daily_scan() -> dict:
             # geo-filtered at ingest, and their titles (esp. federal) often don't
             # match the PM/intern/ops classifiers, so we score them on merit rather
             # than drop them. Deduped against the track lanes above.
-            from scan.intern_filter import (is_fulltime_pm, is_internship,
-                                             is_ops_strategy, is_fulltime_tech)
+            from scan.intern_filter import in_active_track
             picked = {r.id for r in to_score}
             def _in_a_track(r) -> bool:
-                if mode in ("intern", "both") and is_internship(r.title, r.department):
-                    return True
-                if mode in ("fulltime", "both") and (
-                        is_fulltime_pm(r.title, r.department)
-                        or is_fulltime_tech(r.title, r.department)):
-                    return True
-                if mode in ("ops", "both") and is_ops_strategy(r.title, r.department):
-                    return True
-                return False
+                # Shared with the API's include_unscored feed so "will this ever
+                # be scored?" has one answer in both places.
+                return in_active_track(r.title, r.department, mode)
             # The blanket "score any non-ATS role in a target metro regardless of
             # title" carve-out only applies when a full-time/ops lane is actually
             # active — in strict intern-only mode it would otherwise route

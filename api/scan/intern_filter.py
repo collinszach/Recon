@@ -245,3 +245,26 @@ def is_fulltime_tech(title: str | None, department: str | None = None) -> bool:
 def filter_fulltime_tech(roles: list) -> list:
     return [r for r in roles if is_fulltime_tech(getattr(r, "title", None),
                                                  getattr(r, "department", None))]
+
+
+# ── Which tracks the scorer is actually running ─────────────────────────────
+def in_active_track(title: str | None, department: str | None = None,
+                    mode: str = "intern") -> bool:
+    """True if a role belongs to a track the scorer covers under `mode`.
+
+    Single source of truth for "would this role ever get scored?", shared by the
+    scan runner's metro lane and the API's include_unscored feed. Anything false
+    here stays unscored forever, so the feed must not surface it as a pending
+    arrival — in intern-only mode that is the entire full-time firehose.
+    """
+    if is_pure_swe(title, department):
+        # Blanket exclusion, ahead of every lane — see _PURE_SWE_RE.
+        return False
+    if mode in ("intern", "both") and is_internship(title, department):
+        return True
+    if mode in ("fulltime", "both") and (is_fulltime_pm(title, department)
+                                         or is_fulltime_tech(title, department)):
+        return True
+    if mode in ("ops", "both") and is_ops_strategy(title, department):
+        return True
+    return False
