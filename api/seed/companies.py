@@ -360,6 +360,9 @@ SEED = [
 ]
 
 
+AGGREGATOR_SOURCES = {"adzuna", "jsearch", "jsearch_company", "themuse", "usajobs", ""}
+
+
 def seed() -> int:
     db = SessionLocal()
     added = updated = 0
@@ -369,6 +372,20 @@ def seed() -> int:
             if exists:
                 # Keep verified ATS routing current without clobbering user edits
                 # to tier/notes — only repair stale ats_name/ats_token.
+                #
+                # Never downgrade a direct board to an aggregator, though: ATS
+                # discovery (scan/ats_discovery.py, scan/workday_discovery.py)
+                # writes a real board onto companies seeded as jsearch_company
+                # or adzuna, and this ran on every API boot and reverted it.
+                # Accenture was resolved to workday:accenture:wd103:
+                # AccentureCareers and was back to jsearch_company after the
+                # next restart — silently, since the scan just carries on with
+                # the aggregator. Seed still wins when it names a real board,
+                # so hand-curated fixes keep flowing.
+                seed_is_aggregator = (ats or "") in AGGREGATOR_SOURCES
+                db_is_direct = (exists.ats_name or "") not in AGGREGATOR_SOURCES and exists.ats_name
+                if seed_is_aggregator and db_is_direct:
+                    continue
                 if (exists.ats_name, exists.ats_token) != (ats, token):
                     exists.ats_name = ats
                     exists.ats_token = token
