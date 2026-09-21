@@ -116,6 +116,33 @@ behind a Cloudflare Tunnel. See `SPEC.md` for the full spec.
     code changes — both `worker/Dockerfile` and `api/Dockerfile` `COPY` source in at build time.
     Always `docker compose build <svc> && docker compose up -d --no-deps <svc>` (or full
     `--build`) after an rsync, or the "fix" silently keeps running the old image.
+- **2026-09-21 — new arrivals visible on Today; passed-on roles stay gone:**
+  - **Unscored arrivals were invisible.** `/api/roles` defaults `scored_only=true`
+    (`scored_at IS NOT NULL`), so a posting the scan had just ingested but the scorer
+    hadn't graded yet never reached the app at all. On top of that the client's
+    `Store.feed` did `($0.tier ?? "pass") != "PASS"` — a nil tier means *unscored*, not
+    rejected, so even if one had arrived the feed threw it away. Both fixed: new
+    `include_unscored` param on `/api/roles` admits unscored rows whose `first_seen` is
+    within `NEW_ARRIVAL_DAYS` (7) **in addition to** scored ones, the iOS `roles()` call
+    passes it, and `feed` only drops an explicit `PASS`. The week bound matters — without
+    it this would pull the entire dormant non-intern backlog (never scored while
+    `TRACK_MODE=intern`, tens of thousands of rows carrying JD text). Default stays
+    `false`, so every other caller is unchanged.
+  - **Down-voted roles came back on every cold launch.** `feed` filtered on
+    `hiddenRoleIds`, the in-memory optimistic set, which `init()` rebuilds *only from the
+    offline queue* — and that queue by construction holds just the ratings that FAILED to
+    send. A rating the server accepted left no trace locally, so on relaunch the cached
+    `roles` payload (written before the rating) showed it as unrated and it reappeared.
+    Offline it reappeared permanently, since no refresh could land to correct it. Now
+    `feed` goes through `interest(of:)` (which also reads the role's server-recorded
+    `interest`), and `hiddenRoleIds`/`likedRoleIds` are persisted to `Cache` on every
+    rating and unioned back at launch. This is the 2026-09-18 offline-ratings fix finished
+    properly — that pass persisted the *queue*, not the *state*.
+  - `TodayView`'s "New today" shows 10 (was 5) with a "+N more in Roles" tail.
+  - Server query semantics verified against SQLite (scored ∪ recent, no backlog, no
+    down-voted, no duplicates, no closed). **iOS changes are unbuilt** — no Swift
+    toolchain in the session container, and the NUC is unreachable without Tailscale, so
+    nothing here is deployed or run on device yet.
 - **Deployed:** `zach@100.91.198.28` (Tailscale), `~/recon`, via
   `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`. The NUC is shared,
   so the prod overlay publishes **only the API on host port 8010** (8000/6379 were taken) and

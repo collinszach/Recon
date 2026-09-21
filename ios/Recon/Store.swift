@@ -50,6 +50,17 @@ final class Store: ObservableObject {
             if a.value == "up" { likedRoleIds.insert(a.roleId) }
             if a.value == "down" { hiddenRoleIds.insert(a.roleId) }
         }
+        // The queue only holds ratings that *failed* to send, so it can't be the
+        // whole picture — a rating the server accepted leaves no trace in it.
+        // Persist the sets themselves too, so the feed after a relaunch matches
+        // the feed you left, whether or not the server was reachable.
+        hiddenRoleIds.formUnion(Cache.load(Set<Int>.self, "hiddenRoleIds") ?? [])
+        likedRoleIds.formUnion(Cache.load(Set<Int>.self, "likedRoleIds") ?? [])
+    }
+
+    private func saveRatingSets() {
+        Cache.save(hiddenRoleIds, "hiddenRoleIds")
+        Cache.save(likedRoleIds, "likedRoleIds")
     }
 
     private func markSynced() {
@@ -85,9 +96,26 @@ final class Store: ObservableObject {
     }
 
     /// Roles worth surfacing: fit-sorted, pass-tier dropped (both tracks).
+    /// Two things this must get right, both of which it used to get wrong:
+    ///
+    /// - Down-voted roles are dropped via `interest(of:)`, which also reads the
+    ///   role's *server-recorded* interest. Filtering on `hiddenRoleIds` alone
+    ///   only covered the in-memory optimistic set, and that set is rebuilt at
+    ///   launch from the offline queue — which by definition holds only ratings
+    ///   that never reached the server. So every rating that *succeeded* was
+    ///   forgotten on relaunch, and roles already passed on came back until a
+    ///   refresh landed. Offline, on the cached payload, they came back for good.
+    ///
+    /// - A role with no tier is *unscored*, not rejected. `tier ?? "pass"` threw
+    ///   away exactly the postings that just arrived and hadn't been graded yet,
+    ///   which is the set most worth seeing.
+    ///
+    /// The sort stays purely on fit: "Top matches" and "New today" both read this
+    /// list, and floating today's arrivals to the front would make the two
+    /// sections show the same rows. Unscored roles have no fit score, so they
+    /// sort last here and surface through the date filter instead.
     var feed: [Role] {
-        roles.filter { ($0.tier ?? "pass").uppercased() != "PASS"
-                       && !hiddenRoleIds.contains($0.id) }
+        roles.filter { ($0.tier ?? "").uppercased() != "PASS" && interest(of: $0) != "down" }
              .sorted { ($0.fitScore ?? 0) > ($1.fitScore ?? 0) }
     }
 
@@ -108,6 +136,7 @@ final class Store: ObservableObject {
         likedRoleIds.remove(role.id); hiddenRoleIds.remove(role.id)
         if value == "up" { likedRoleIds.insert(role.id) }
         if value == "down" { hiddenRoleIds.insert(role.id) }
+        saveRatingSets()
         do { try await api.feedback(roleId: role.id, value: value) }
         catch { enqueue(.init(roleId: role.id, kind: .interest, value: value)) }
     }
