@@ -172,6 +172,34 @@ behind a Cloudflare Tunnel. See `SPEC.md` for the full spec.
     rather than lagged, this change surfaces the problem instead of fixing it — unscored roles
     render with a `?` tier chip. A wall of `?` means the scorer is the fault, not the feed;
     check `scan_runs.finished_at` for NULLs, which is how the Aug 2026 10-day outage presented.
+- **2026-09-21 (later) — new arrivals held to the scorer's active tracks (`db3f286`):**
+  - The caveat above landed the same day it was written, and it was neither a scoring stall
+    nor a lag: `include_unscored` bounded arrivals by **age only**, and a week of ingest is
+    ~3k full-time rows that `TRACK_MODE=intern` never scores. Live NUC, before the fix:
+    3,658 roles back, **3,019 unscored, 2,917 of them full-time** — a feed that was ~95% `?`
+    tiers that would never resolve.
+  - Unscored rows are now also held to the tracks the scorer actually runs. That test already
+    existed as `_in_a_track`, a closure inside the runner's metro lane; it moved to
+    `scan.intern_filter.in_active_track(title, department, mode)` and both callers use it, so
+    "will this ever be scored?" has one answer. Change the lanes in `scan/runner.py` and the
+    feed follows.
+  - It includes the blanket **pure-SWE exclusion**, which is why 40 of the 41 unscored
+    *intern-track* roles dropped too — "Software Engineering Intern, Android" classifies as an
+    internship but is excluded from scoring entirely, so it is backlog, not an arrival. This is
+    the subtlety to remember: derived `track` (what the API reports) and scorer eligibility are
+    **not** the same predicate.
+  - Gated on `scored_only and include_unscored`. `scored_only=false` stays the unfiltered
+    raw-browse hatch (MCP `list_roles`, admin) — don't let the gate creep onto it.
+  - **Deployed and verified** on the NUC (`up --build -d api worker`): `include_unscored`
+    3,658 -> 638, zero unscored, no down-voted leakage, no duplicate ids. Expect ~0 unscored
+    most of the time now — intern scoring is rule-based and uncapped, so arrivals are usually
+    graded within the hour; the path only covers the ingest→score window. **A wall of `?`
+    still means the scorer, not the feed.**
+  - Unrelated thing seen while diffing two consecutive `/api/roles` responses: the `dedupe`
+    tie-break picks a **different representative** among equal-fit same-title duplicates across
+    requests (3 of 638 differed, same titles, different ids). Harmless for the feed, but it
+    means role ids are not stable across refreshes for tied dupes — don't build anything that
+    assumes they are.
 - **Deployed:** `zach@100.91.198.28` (Tailscale), `~/recon`, via
   `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`. The NUC is shared,
   so the prod overlay publishes **only the API on host port 8010** (8000/6379 were taken) and
