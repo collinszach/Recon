@@ -874,6 +874,16 @@ def _role_out_min(r: Role) -> dict:
             "dismissed_at": r.interest_at.isoformat() if r.interest_at else None}
 
 
+@app.post("/api/admin/merge-shadow-companies")
+def merge_shadow_companies(dry_run: bool = True, db: Session = Depends(get_db)):
+    """Fold aggregator duplicates into the company Recon already pulls directly
+    ("Anduril Industries" -> "Anduril"). Defaults to a dry run; pass
+    dry_run=false to actually move the roles. See scan/company_merge.py.
+    """
+    from scan.company_merge import merge
+    return merge(db, dry_run=dry_run)
+
+
 @app.post("/api/admin/discover-ats")
 def discover_ats(limit: int = 40, only_with_roles: bool = True,
                  recheck_broken: bool = True, db: Session = Depends(get_db)):
