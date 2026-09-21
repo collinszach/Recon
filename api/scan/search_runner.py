@@ -145,6 +145,11 @@ def run_search(db: Session) -> dict:
                 company_id=co.id, ats_job_id=r.ats_job_id, source=provider.name,
                 title=r.title, location=r.location, metro=metro, state=state,
                 remote_flag=r.remote_flag, department=r.department, url=r.url,
+                # description was omitted here until 2026-09-21: every provider
+                # populates it (search/adzuna.py, jsearch.py, themuse.py,
+                # usajobs.py) and we stored only its hash, so all 1,159
+                # search-sourced roles had a JD we had thrown away.
+                description=r.description or None,
                 description_hash=r.description_hash, posted_at=r.posted_at, status="open",
             )
             if not _insert_role(role):
@@ -209,6 +214,7 @@ def run_search(db: Session) -> dict:
                     company_id=co.id, ats_job_id=r.ats_job_id, source="jsearch",
                     title=r.title, location=r.location, metro=metro, state=state,
                     remote_flag=r.remote_flag, department=r.department, url=r.url,
+                    description=r.description or None,   # see the note above
                     description_hash=r.description_hash, posted_at=r.posted_at, status="open",
                 )
                 if not _insert_role(role):

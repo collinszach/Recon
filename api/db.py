@@ -29,6 +29,10 @@ class Company(Base):
     ats_token: Mapped[str | None] = mapped_column(String)
     careers_url: Mapped[str | None] = mapped_column(String)
     snoozed_until: Mapped[date | None] = mapped_column(Date)
+    # "never show me this employer again" — set from the app. Permanent: the
+    # scan keeps ingesting their postings (cheaper than special-casing intake),
+    # the feed just never returns them. Clear it to bring the company back.
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     roles: Mapped[list["Role"]] = relationship(back_populates="company", cascade="all, delete-orphan")

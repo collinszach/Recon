@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS companies (
     ats_token       TEXT,                       -- board token / org slug / tenant id
     careers_url     TEXT,
     snoozed_until   DATE,
+    dismissed_at    TIMESTAMPTZ,                -- "never show me this employer again"
     notes           TEXT,
     created_at      TIMESTAMPTZ DEFAULT now()
 );

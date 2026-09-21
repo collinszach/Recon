@@ -79,9 +79,8 @@ def run_daily_scan() -> dict:
                     db.rollback()  # clear any poisoned transaction before scoring continues
                     log.warning("search ingest failed: %s: %s", type(e).__name__, e)
 
-        # score only the new + changed roles, narrowed to the tracks we care about
-        # (internships and/or full-time product-management roles). Everything else
-        # stays in the DB unscored — keeps the feed and the API bill focused.
+        # Narrow the new + changed roles to the tracks we care about. Everything
+        # else stays in the DB untouched — keeps the feed focused.
         score_cost = {"tokens_in": 0, "tokens_out": 0, "usd": 0.0}
         if fresh_role_ids:
             fresh = db.scalars(select(Role).where(Role.id.in_(fresh_role_ids))).all()
@@ -91,10 +90,16 @@ def run_daily_scan() -> dict:
             # title" carve-out.
             fresh = [r for r in fresh if not is_pure_swe(r.title, r.department)]
             mode = "intern" if settings.intern_only else settings.track_mode
+            # The roles the feed will actually show (see in_active_track, shared
+            # with the API). Needed whether or not scoring runs: embedding and
+            # new-arrival alerts both key off this set now, not off what the
+            # scorer happened to pick.
+            from scan.intern_filter import in_active_track
+            relevant = [r for r in fresh if in_active_track(r.title, r.department, mode)]
             tier_rank = {"A": 0, "B": 1, "C": 2}
             to_score: list[Role] = []
 
-            if mode in ("intern", "both"):
+            if settings.scoring_enabled and mode in ("intern", "both"):
                 # No cap: internship scoring is rule-based (zero AI cost, see
                 # scoring/claude_scorer.py._score_intern_rules), so there's no
                 # cost reason to cut the list short — score every one found.
@@ -102,7 +107,7 @@ def run_daily_scan() -> dict:
                 to_score += interns
                 totals["interns"] = len(interns)
 
-            if mode in ("fulltime", "both"):
+            if settings.scoring_enabled and mode in ("fulltime", "both"):
                 ft = filter_fulltime_pm(fresh)
                 # target-tier companies first, so the cap keeps the best roles
                 ft.sort(key=lambda r: tier_rank.get(r.company.tier if r.company else "C", 3))
@@ -110,14 +115,14 @@ def run_daily_scan() -> dict:
                 to_score += ft
                 totals["fulltime"] = len(ft)
 
-            if mode in ("ops", "both"):
+            if settings.scoring_enabled and mode in ("ops", "both"):
                 ops = filter_ops_strategy(fresh)
                 ops.sort(key=lambda r: tier_rank.get(r.company.tier if r.company else "C", 3))
                 ops = ops[: settings.score_max_ops]
                 to_score += ops
                 totals["ops"] = len(ops)
 
-            if mode in ("fulltime", "both"):
+            if settings.scoring_enabled and mode in ("fulltime", "both"):
                 # Adjacent technical roles (TPM / solutions / data / devex / SWE /
                 # autonomy). Dedupe against the PM + ops lanes already picked.
                 seen = {r.id for r in to_score}
@@ -134,47 +139,57 @@ def run_daily_scan() -> dict:
             # geo-filtered at ingest, and their titles (esp. federal) often don't
             # match the PM/intern/ops classifiers, so we score them on merit rather
             # than drop them. Deduped against the track lanes above.
-            from scan.intern_filter import in_active_track
-            picked = {r.id for r in to_score}
-            def _in_a_track(r) -> bool:
-                # Shared with the API's include_unscored feed so "will this ever
-                # be scored?" has one answer in both places.
-                return in_active_track(r.title, r.department, mode)
-            # The blanket "score any non-ATS role in a target metro regardless of
-            # title" carve-out only applies when a full-time/ops lane is actually
-            # active — in strict intern-only mode it would otherwise route
-            # full-time search-sourced roles into the (paid) Claude fallback in
-            # score_roles, defeating the point of going intern-only.
-            metro_roles = [r for r in fresh
-                           if r.metro and r.id not in picked
-                           and (_in_a_track(r) or (mode != "intern" and (r.source or "ats") != "ats"))]
-            metro_roles = metro_roles[: settings.score_max_metro]
-            to_score += metro_roles
-            totals["metro"] = len(metro_roles)
+            if settings.scoring_enabled:
+                picked = {r.id for r in to_score}
+                # The blanket "score any non-ATS role in a target metro regardless
+                # of title" carve-out only applies when a full-time/ops lane is
+                # actually active — in strict intern-only mode it would otherwise
+                # route full-time search-sourced roles into the (paid) Claude
+                # fallback in score_roles, defeating the point of going intern-only.
+                metro_roles = [r for r in fresh
+                               if r.metro and r.id not in picked
+                               and (in_active_track(r.title, r.department, mode)
+                                    or (mode != "intern" and (r.source or "ats") != "ats"))]
+                metro_roles = metro_roles[: settings.score_max_metro]
+                to_score += metro_roles
+                totals["metro"] = len(metro_roles)
 
-            log.info("track filter (%s): %d internships + %d full-time PM + %d ops/strategy "
-                     "+ %d adjacent-tech + %d target-metro (uncapped) of %d new/changed",
-                     mode, totals.get("interns", 0), totals.get("fulltime", 0),
-                     totals.get("ops", 0), totals.get("tech", 0),
-                     totals.get("metro", 0), len(fresh))
-            if to_score:
-                score_cost = score_roles(db, to_score)
+            if settings.scoring_enabled:
+                log.info("track filter (%s): %d internships + %d full-time PM + %d ops/strategy "
+                         "+ %d adjacent-tech + %d target-metro (uncapped) of %d new/changed",
+                         mode, totals.get("interns", 0), totals.get("fulltime", 0),
+                         totals.get("ops", 0), totals.get("tech", 0),
+                         totals.get("metro", 0), len(fresh))
+                if to_score:
+                    score_cost = score_roles(db, to_score)
+            else:
+                log.info("scoring disabled: %d of %d new/changed roles are in-track (%s)",
+                         len(relevant), len(fresh), mode)
 
-            # embed scored roles (and mark near-dups) — non-fatal if gs65 is down
+            # Embed the in-track roles and mark near-dups — non-fatal if gs65 is
+            # down. This used to be fed `to_score`, which is empty whenever
+            # scoring is off; cross-source duplicate detection would then stop
+            # silently and the feed would show the same posting from two
+            # providers. Union so the metro lane's picks are covered too.
+            to_embed = list({r.id: r for r in (relevant + to_score)}.values())
             try:
                 from embed import embed_and_dedup
-                emb = embed_and_dedup(db, to_score)
+                emb = embed_and_dedup(db, to_embed)
                 log.info("embed: %d embedded, %d duplicates marked", emb["embedded"], emb["duplicates"])
             except Exception as e:
                 log.warning("embed failed (non-fatal): %s: %s", type(e).__name__, e)
 
-            # alert on NEW postings that scored high (skip pass/low). Channels
-            # no-op when disabled, so this is safe to always call.
+            # Alert on NEW in-track postings. With scoring on, the fit floor
+            # still applies; with it off there is no fit, so every new in-track
+            # arrival is worth a push — that is the whole point of the tracker.
             new_set = set(new_role_ids)
-            alert_roles = [r for r in to_score
-                           if r.id in new_set
-                           and (r.fit_score or 0) >= settings.notify_min_fit
-                           and (r.score_tier or "").upper() != "PASS"]
+            if settings.scoring_enabled:
+                alert_roles = [r for r in to_score
+                               if r.id in new_set
+                               and (r.fit_score or 0) >= settings.notify_min_fit
+                               and (r.score_tier or "").upper() != "PASS"]
+            else:
+                alert_roles = [r for r in relevant if r.id in new_set]
             if alert_roles:
                 try:
                     from notify.deliver import deliver_alert

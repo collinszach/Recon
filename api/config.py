@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     local_llm_model: str = "gs65"
     local_llm_api_key: str = "ollama"   # Ollama ignores the value but the client needs one
     scoring_mode: str = "stub"          # "stub" | "live"
+    # Master switch for the LLM fit-scorer. False (2026-09-21, Zach's call):
+    # Recon is a tracker now — what's new, what I applied to, what I never want
+    # to see again — not a ranking engine. The scorer, its lanes and its caps
+    # stay in the tree, and fit_score/score_tier/why_fit keep their old values in
+    # the DB, so flipping this back on is all that's needed to resume scoring.
+    # Relevance is the title classifier instead (scan.intern_filter).
+    scoring_enabled: bool = False
 
     # ─── Focus: which tracks to scan/score ──────────────────
     # "intern"   -> only internships          "fulltime" -> only full-time PM roles

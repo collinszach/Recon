@@ -123,6 +123,75 @@ _INTERNATIONAL_HINT_RE = re.compile(
 # multi-region posting that also happens to say "EMEA"), don't let the hint
 # override real US state matches.
 _US_MARKER_RE = re.compile(r"\b(united\s+states|u\.s\.a?\.?)\b", re.IGNORECASE)
+# Amazon/Workday-style prefixed codes: "US-CA-Menlo Park", "US_WA_Bellevue".
+_US_PREFIX_RE = re.compile(r"\bUS[-_](" + "|".join(US_STATES) + r")\b")
+# Bare city names, the single biggest gap (2026-09-21: 5,170 of 24,757 open
+# roles had no state, and "San Francisco" alone — no state, no country — was
+# 1,023 of them; Adzuna's "City, County" form, e.g. "Pittsburgh, Allegheny
+# County", defeats the comma-abbreviation pattern the same way).
+#
+# Deliberately limited to cities whose name is unambiguous in a US job posting.
+# Ambiguous ones are left out rather than guessed: Portland (OR/ME), Columbus
+# (OH/GA), Springfield, Kansas City (MO/KS), Charleston (SC/WV), Rochester
+# (NY/MN), Aurora (CO/IL) — those still fall through to [] unless the string
+# names the state itself.
+_CITY_STATE: dict[str, str] = {
+    # Bay Area
+    "san francisco": "CA", "south san francisco": "CA", "san jose": "CA",
+    "sunnyvale": "CA", "santa clara": "CA", "mountain view": "CA", "palo alto": "CA",
+    "menlo park": "CA", "cupertino": "CA", "redwood city": "CA", "foster city": "CA",
+    "san mateo": "CA", "fremont": "CA", "oakland": "CA", "berkeley": "CA",
+    "emeryville": "CA", "milpitas": "CA", "campbell": "CA", "burlingame": "CA",
+    "pleasanton": "CA", "walnut creek": "CA", "san ramon": "CA", "livermore": "CA",
+    # SoCal + rest of CA
+    "los angeles": "CA", "santa monica": "CA", "culver city": "CA", "pasadena": "CA",
+    "el segundo": "CA", "long beach": "CA", "irvine": "CA", "costa mesa": "CA",
+    "san diego": "CA", "carlsbad": "CA", "anaheim": "CA", "torrance": "CA",
+    "burbank": "CA", "glendale": "CA", "sacramento": "CA", "hawthorne": "CA",
+    # Pacific NW
+    "seattle": "WA", "bellevue": "WA", "redmond": "WA", "kirkland": "WA",
+    "tacoma": "WA", "spokane": "WA", "everett": "WA", "renton": "WA",
+    "beaverton": "OR", "hillsboro": "OR",
+    # NYC + NE
+    "new york": "NY", "new york city": "NY", "brooklyn": "NY", "manhattan": "NY",
+    "queens": "NY", "bronx": "NY", "long island city": "NY", "albany": "NY",
+    "buffalo": "NY", "syracuse": "NY", "yonkers": "NY", "white plains": "NY",
+    "boston": "MA", "cambridge": "MA", "somerville": "MA", "waltham": "MA",
+    "burlington": "MA", "lexington": "MA", "needham": "MA", "quincy": "MA",
+    "newton": "MA", "andover": "MA", "worcester": "MA", "springfield": "MA",
+    "providence": "RI", "hartford": "CT", "stamford": "CT", "new haven": "CT",
+    "greenwich": "CT", "jersey city": "NJ", "hoboken": "NJ", "newark": "NJ",
+    "princeton": "NJ", "philadelphia": "PA", "pittsburgh": "PA",
+    # DC area
+    "washington": "DC", "arlington": "VA", "alexandria": "VA", "reston": "VA",
+    "mclean": "VA", "herndon": "VA", "tysons": "VA", "chantilly": "VA",
+    "richmond": "VA", "bethesda": "MD", "rockville": "MD", "baltimore": "MD",
+    "annapolis": "MD", "college park": "MD", "silver spring": "MD",
+    # South + Texas
+    "atlanta": "GA", "alpharetta": "GA", "savannah": "GA", "charlotte": "NC",
+    "raleigh": "NC", "durham": "NC", "cary": "NC", "greensboro": "NC",
+    "nashville": "TN", "memphis": "TN", "knoxville": "TN", "chattanooga": "TN",
+    "miami": "FL", "orlando": "FL", "tampa": "FL", "jacksonville": "FL",
+    "fort lauderdale": "FL", "boca raton": "FL", "st. petersburg": "FL",
+    "austin": "TX", "dallas": "TX", "houston": "TX", "san antonio": "TX",
+    "plano": "TX", "irving": "TX", "fort worth": "TX", "richardson": "TX",
+    "el paso": "TX", "round rock": "TX", "new orleans": "LA", "birmingham": "AL",
+    "huntsville": "AL", "louisville": "KY", "little rock": "AR",
+    # Midwest + Mountain
+    "chicago": "IL", "evanston": "IL", "naperville": "IL", "schaumburg": "IL",
+    "detroit": "MI", "ann arbor": "MI", "dearborn": "MI", "grand rapids": "MI",
+    "minneapolis": "MN", "st. paul": "MN", "bloomington": "MN", "rochester": "MN",
+    "milwaukee": "WI", "madison": "WI", "indianapolis": "IN", "cleveland": "OH",
+    "cincinnati": "OH", "dublin": "OH", "st. louis": "MO", "des moines": "IA",
+    "omaha": "NE", "denver": "CO", "boulder": "CO", "colorado springs": "CO",
+    "salt lake city": "UT", "provo": "UT", "lehi": "UT", "phoenix": "AZ",
+    "tempe": "AZ", "scottsdale": "AZ", "chandler": "AZ", "tucson": "AZ",
+    "las vegas": "NV", "reno": "NV", "boise": "ID", "albuquerque": "NM",
+}
+_CITY_RE = re.compile(
+    r"\b(" + "|".join(re.escape(c) for c in
+                      sorted(_CITY_STATE, key=len, reverse=True)) + r")\b",
+    re.IGNORECASE)
 
 
 def states_of(location: str | None) -> list[str]:
@@ -166,6 +235,18 @@ def states_of(location: str | None) -> list[str]:
     for _, code in sorted(name_hits):
         if code not in found:
             found.append(code)
+    # "US-CA-Menlo Park" — a prefixed code, not a comma pattern.
+    for m in _US_PREFIX_RE.finditer(hay):
+        code = m.group(1).upper()
+        if code not in found:
+            found.append(code)
+    # Bare city names ("San Francisco", "Sunnyvale") and Adzuna's "City, County"
+    # form, in order of appearance so multi-city postings resolve every state.
+    if not found:
+        for m in _CITY_RE.finditer(hay):
+            code = _CITY_STATE[m.group(1).lower()]
+            if code not in found:
+                found.append(code)
     if found:
         return found
     if _REMOTE_RE.search(hay) and not _REMOTE_NON_US_RE.search(hay):

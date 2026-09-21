@@ -45,6 +45,8 @@ def _ensure_schema():
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_mba BOOLEAN"))
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS state VARCHAR"))
         conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS sector VARCHAR"))
+        # "never show this employer again" (2026-09-21).
+        conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS dismissed_at TIMESTAMPTZ"))
         # APNs environment per device token; NULL until send_apns() probes for it.
         conn.execute(text("ALTER TABLE device_tokens ADD COLUMN IF NOT EXISTS environment VARCHAR"))
         # Semantic embeddings: resize column from 1536 → 1024 (mxbai-embed-large).
@@ -177,50 +179,51 @@ NEW_ARRIVAL_DAYS = 7
 
 @app.get("/api/roles")
 def list_roles(tier: str | None = None, company: str | None = None,
-               min_fit: float = 0.0, scored_only: bool = True,
+               min_fit: float = 0.0, scored_only: bool | None = None,
                track: str | None = None, metro: str | None = None,
                mba: bool | None = None, sector: str | None = None,
                states: str | None = None,   # comma-separated state/remote/international slugs — multi-select
                dedupe: bool = True, include_hidden: bool = False,
                include_unscored: bool = False,
+               limit: int = 300, since_days: int | None = None,
+               relevant_only: bool = True,
                db: Session = Depends(get_db)):
+    """The tracker feed: open roles in the tracks Zach is watching, newest first.
+
+    Relevance is the title classifier (`in_active_track`), not the scorer — with
+    `TRACK_MODE=intern` that is internships only. `scored_only`/`include_unscored`
+    are dead parameters kept so an older build of the app doesn't 500 mid-deploy;
+    pass `scored_only=false` to browse the raw set, which skips the track filter.
+    """
     import re as _re
     from scan.intern_filter import (is_internship, is_ops_strategy,
                                     in_active_track)
     q = select(Role).where(Role.status.in_(["open", "changed"]))
     if not include_hidden:
-        # Hide roles Zach marked "not for me" and cross-source near-duplicates.
+        # Hide dismissed roles, roles from dismissed companies, and cross-source
+        # near-duplicates. A dismissal is permanent: `interest`/`dismissed_at`
+        # survive re-ingest, since the scan updates postings in place.
         q = q.where((Role.interest.is_(None)) | (Role.interest != "down"))
         q = q.where(Role.is_duplicate == False)  # noqa: E712
-    if scored_only:
-        # Only scored roles are surfaced (internships + full-time PM roles are
-        # what gets scored). Pass scored_only=false to browse the raw set.
-        if include_unscored:
-            # ...but a role ingested by the latest scan and not yet scored is
-            # invisible under that rule, so a day's arrivals looked like nothing
-            # happened. Let recent ones through too. Bounded to a week so this
-            # can't drag in the entire dormant non-intern backlog, which is
-            # never scored at all while TRACK_MODE=intern and would be tens of
-            # thousands of rows with their JD text attached.
-            cutoff = datetime.now(timezone.utc) - timedelta(days=NEW_ARRIVAL_DAYS)
-            q = q.where((Role.scored_at.isnot(None)) | (Role.first_seen >= cutoff))
-            # Recency alone is not enough: a week of ingest is ~3k full-time rows
-            # that TRACK_MODE=intern will never score, so the feed filled with
-            # permanent "?" tiers (2,917 of 3,019 unscored on 2026-09-21) and
-            # buried the ~40 arrivals actually waiting on the scorer. Unscored
-            # rows are additionally held to the tracks the scorer runs — see
-            # in_active_track, shared with the runner's metro lane.
-        else:
-            q = q.where(Role.scored_at.isnot(None))
+        q = q.where(Role.company_id.notin_(
+            select(Company.id).where(Company.dismissed_at.isnot(None))))
+    if since_days:
+        q = q.where(Role.first_seen >= datetime.now(timezone.utc) - timedelta(days=since_days))
+    # The raw-browse hatch: scored_only=false skips the relevance filter below and
+    # returns everything open. Default (None) is the tracker feed.
+    raw_browse = scored_only is False
+    if raw_browse:
+        relevant_only = False
     if min_fit:
         q = q.where(Role.fit_score >= min_fit)
     if metro:
         q = q.where(Role.metro == metro)
     if mba is not None:
         q = q.where(Role.is_mba == mba)
-    rows = db.scalars(q.order_by(Role.fit_score.desc().nullslast())).all()
+    # Newest first: the tracker's question is "what arrived?", and fit_score is
+    # NULL on everything ingested since scoring was turned off.
+    rows = db.scalars(q.order_by(Role.first_seen.desc().nullslast())).all()
     _mode = "intern" if settings.intern_only else settings.track_mode
-    _track_gate = scored_only and include_unscored
     wanted_states = {s.strip() for s in states.split(",") if s.strip()} if states else None
     out = []
     for r in rows:
@@ -235,12 +238,10 @@ def list_roles(tier: str | None = None, company: str | None = None,
         # postings) — match if ANY of the role's states is in the requested set.
         if wanted_states and not (set((r.state or "").split(",")) & wanted_states):
             continue
-        if (_track_gate and r.scored_at is None
-                and not in_active_track(r.title, r.department, _mode)):
-            # Not in a track the scorer covers: it will stay unscored forever,
-            # so it is backlog, not a new arrival. Only gates the feed's
-            # include_unscored path — scored_only=false is the deliberate
-            # "show me everything raw" escape hatch and stays unfiltered.
+        if relevant_only and not in_active_track(r.title, r.department, _mode):
+            # Out of track: 24k of the ~25k open roles are full-time postings
+            # Zach isn't watching. This is the feed's whole relevance filter now
+            # that the scorer is off.
             continue
         if is_internship(r.title, r.department):
             role_track = "intern"
@@ -284,10 +285,16 @@ def list_roles(tier: str | None = None, company: str | None = None,
         for o in out:
             key = ((o["company"] or "").lower(), _norm(o["title"]))
             cur = best.get(key)
-            if cur is None or (o["fit_score"] or 0, o["posted_at"] or "") > (cur["fit_score"] or 0, cur["posted_at"] or ""):
+            # Tie-break on first_seen, then id: fit_score is NULL for everything
+            # now, and (0, posted_at) alone left the winner dependent on row
+            # order, so two consecutive requests returned different ids for the
+            # same duplicate pair.
+            def _rank(x):
+                return (x["fit_score"] or 0, x["posted_at"] or "", x["first_seen"] or "", x["id"])
+            if cur is None or _rank(o) > _rank(cur):
                 best[key] = o
-        out = sorted(best.values(), key=lambda o: (o["fit_score"] or 0), reverse=True)
-    return out
+        out = sorted(best.values(), key=lambda o: (o["first_seen"] or "", o["id"]), reverse=True)
+    return out[:limit] if limit and limit > 0 else out
 
 
 # ─── semantic role search ───────────────────────────────────
@@ -842,10 +849,106 @@ def delete_material(mat_id: int, db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 
+# ─── dismissals ─────────────────────────────────────────────
+# "Wipe it away and never show it again", per role and per employer. Both are
+# permanent and survive re-ingest: the scan updates postings in place, so it
+# never clears `interest`, and a dismissed company keeps being scanned (cheaper
+# than special-casing intake) but never reaches the feed.
+
+
+def _role_out_min(r: Role) -> dict:
+    """The compact shape the dismissed list returns (no JD text)."""
+    return {"id": r.id, "title": r.title,
+            "company": r.company.name if r.company else None,
+            "company_id": r.company_id,
+            "location": r.location, "metro": r.metro, "state": r.state,
+            "url": r.url, "source": r.source,
+            "first_seen": r.first_seen.isoformat() if r.first_seen else None,
+            "dismissed_at": r.interest_at.isoformat() if r.interest_at else None}
+
+
+@app.post("/api/admin/backfill-descriptions")
+def backfill_descriptions(limit: int = 50, source: str | None = None,
+                          db: Session = Depends(get_db)):
+    """Re-fetch JD text for open roles stored without one (see scan/jd_backfill.py).
+
+    Best-effort: returns per-source attempted/filled counts so the real success
+    rate is visible. Re-runnable; never overwrites a longer description.
+    """
+    from scan.jd_backfill import backfill
+    return backfill(db, limit=limit, source=source)
+
+
+@app.get("/api/roles/dismissed")
+def list_dismissed_roles(limit: int = 200, db: Session = Depends(get_db)):
+    """What Zach wiped, newest first — the undo list."""
+    rows = db.scalars(
+        select(Role).where(Role.interest == "down")
+        .order_by(Role.interest_at.desc().nullslast()).limit(limit)).all()
+    return [_role_out_min(r) for r in rows]
+
+
+@app.post("/api/roles/{role_id}/dismiss")
+def dismiss_role(role_id: int, db: Session = Depends(get_db)):
+    role = db.get(Role, role_id)
+    if not role:
+        raise HTTPException(404, "role not found")
+    role.interest = "down"
+    role.interest_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"status": "ok", "id": role.id, "interest": role.interest}
+
+
+@app.post("/api/roles/{role_id}/undismiss")
+def undismiss_role(role_id: int, db: Session = Depends(get_db)):
+    role = db.get(Role, role_id)
+    if not role:
+        raise HTTPException(404, "role not found")
+    role.interest = None
+    role.interest_at = None
+    db.commit()
+    return {"status": "ok", "id": role.id, "interest": None}
+
+
+@app.post("/api/companies/{company_id}/dismiss")
+def dismiss_company(company_id: int, db: Session = Depends(get_db)):
+    """Never show this employer again. Returns how many open roles just left
+    the feed, so the app can say so rather than silently emptying."""
+    co = db.get(Company, company_id)
+    if not co:
+        raise HTTPException(404, "company not found")
+    co.dismissed_at = datetime.now(timezone.utc)
+    n = db.scalar(select(func.count(Role.id)).where(
+        Role.company_id == co.id, Role.status.in_(["open", "changed"])))
+    db.commit()
+    return {"status": "ok", "id": co.id, "company": co.name,
+            "dismissed_at": co.dismissed_at.isoformat(), "roles_hidden": n or 0}
+
+
+@app.post("/api/companies/{company_id}/undismiss")
+def undismiss_company(company_id: int, db: Session = Depends(get_db)):
+    co = db.get(Company, company_id)
+    if not co:
+        raise HTTPException(404, "company not found")
+    co.dismissed_at = None
+    db.commit()
+    return {"status": "ok", "id": co.id, "company": co.name, "dismissed_at": None}
+
+
+@app.get("/api/companies/dismissed")
+def list_dismissed_companies(db: Session = Depends(get_db)):
+    rows = db.scalars(select(Company).where(Company.dismissed_at.isnot(None))
+                      .order_by(Company.dismissed_at.desc())).all()
+    return [{"id": c.id, "name": c.name,
+             "dismissed_at": c.dismissed_at.isoformat() if c.dismissed_at else None}
+            for c in rows]
+
+
 @app.post("/api/roles/{role_id}/feedback")
 def role_feedback(role_id: int, body: dict, db: Session = Depends(get_db)):
     """Record Zach's interest in a role: {"value": "up" | "down" | null}.
-    "down" hides it from the feed; both signals calibrate future scoring."""
+    "down" is a dismissal (see /dismiss, which is the same thing under a name
+    that matches what the app calls it)."""
     role = db.get(Role, role_id)
     if not role:
         raise HTTPException(404, "role not found")
