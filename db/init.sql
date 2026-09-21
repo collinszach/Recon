@@ -136,6 +136,9 @@ CREATE TABLE IF NOT EXISTS device_tokens (
     id           SERIAL PRIMARY KEY,
     token        TEXT NOT NULL UNIQUE,
     platform     TEXT NOT NULL DEFAULT 'ios',
+    -- which APNs environment issued this token: 'sandbox' | 'production'.
+    -- NULL = not yet known; send_apns() probes both hosts and records what worked.
+    environment  TEXT,
     created_at   TIMESTAMPTZ DEFAULT now()
 );
 

@@ -45,6 +45,8 @@ def _ensure_schema():
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_mba BOOLEAN"))
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS state VARCHAR"))
         conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS sector VARCHAR"))
+        # APNs environment per device token; NULL until send_apns() probes for it.
+        conn.execute(text("ALTER TABLE device_tokens ADD COLUMN IF NOT EXISTS environment VARCHAR"))
         # Semantic embeddings: resize column from 1536 → 1024 (mxbai-embed-large).
         # Safe because the column is all-NULL at this point — the USING clause
         # just produces NULL for every row (no data loss).
