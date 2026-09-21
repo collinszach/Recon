@@ -88,8 +88,13 @@ final class Store: ObservableObject {
         if hadCache { isOffline = true }
     }
 
+    /// "just now" / "4m ago" — bare, so callers can phrase it ("synced …",
+    /// "Showing data from …"). RelativeDateTimeFormatter renders a
+    /// just-finished sync as "in 0 sec.", which reads as a bug.
     var lastSyncedText: String? {
         guard let d = lastSynced else { return nil }
+        let age = Date().timeIntervalSince(d)
+        if age < 60 { return "just now" }
         let f = RelativeDateTimeFormatter(); f.unitsStyle = .short
         return f.localizedString(for: d, relativeTo: Date())
     }

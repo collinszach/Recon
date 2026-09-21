@@ -78,6 +78,18 @@ struct Role: Codable, Identifiable, Hashable {
 
     var pay: String { tcEstimate?.isEmpty == false ? tcEstimate! : "Pay not listed" }
     var summary: String { whyFit ?? "Not yet summarized." }
+    /// First readable sentence of the JD, for the row preview. Skips the
+    /// boilerplate headers ATS exports start with ("About the role", a bare
+    /// company name) and gives up rather than showing a fragment.
+    var blurb: String? {
+        guard let d = description?
+            .replacingOccurrences(of: "\r", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines), !d.isEmpty else { return nil }
+        let line = d.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { $0.count > 40 }
+        return line.map { String($0.prefix(160)) }
+    }
     var fitText: String { fitScore.map { String(format: "%.1f", $0) } ?? "–" }
 
     /// Every state/remote/international code this role lists (a multi-location
@@ -88,6 +100,12 @@ struct Role: Codable, Identifiable, Hashable {
     /// now that there is no fit score to lead with.
     var firstSeenText: String? {
         guard let d = firstSeenDate else { return nil }
+        // Calendar days, not elapsed hours: `ago()` calls anything under 24h
+        // "today", so a role first seen at 9pm yesterday read "today" while
+        // sitting under a "Yesterday" heading.
+        let cal = Calendar.current
+        if cal.isDateInToday(d) { return "today" }
+        if cal.isDateInYesterday(d) { return "yesterday" }
         return Self.ago(d)
     }
 

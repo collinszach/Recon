@@ -25,18 +25,24 @@ struct RoleRow: View {
                 }
                 Text(role.title).font(.callout).foregroundStyle(Theme.ink).lineLimit(2)
                 HStack(spacing: 10) {
-                    Label(role.pay, systemImage: "dollarsign.circle")
-                        .font(.caption).foregroundStyle(Theme.green).lineLimit(1)
                     if let loc = role.location, !loc.isEmpty {
                         Label(loc, systemImage: "mappin.and.ellipse")
                             .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
                     }
-                    if let posted = role.postedText {
-                        Label(posted, systemImage: "clock")
-                            .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                    // Pay only when there is one. "Pay not listed" was on
+                    // essentially every row — a whole line spent saying nothing.
+                    if let pay = role.tcEstimate, !pay.isEmpty {
+                        Label(pay, systemImage: "dollarsign.circle")
+                            .font(.caption).foregroundStyle(Theme.green).lineLimit(1)
                     }
                 }
-                Text(role.summary).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(2)
+                // The JD's opening line, when there is one. This used to be
+                // `role.summary` — the scorer's why_fit — which on the old
+                // rule-scored internships is the canned "Rule-based heuristic
+                // score — no strong signal either way." repeated on every card.
+                if let blurb = role.blurb {
+                    Text(blurb).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(2)
+                }
             }
             .padding(.leading, 12)
         }

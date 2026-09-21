@@ -24,8 +24,15 @@ struct TodayView: View {
         }
     }
 
-    private var inFlight: [AppItem] {
-        store.apps.filter { $0.stage != "closed" }
+    /// Actually applied — not "watching", which just means saved. The two used
+    /// to be lumped together as "in flight", so the dashboard claimed 35
+    /// applications when none had been sent.
+    private var applied: [AppItem] {
+        store.apps.filter { ["applied", "screen", "onsite", "offer"].contains($0.stage) }
+    }
+    /// Saved but not yet sent: the actual next thing to do.
+    private var saved: [AppItem] {
+        store.apps.filter { ["watching", "drafting"].contains($0.stage) }
     }
 
     var body: some View {
@@ -33,44 +40,27 @@ struct TodayView: View {
             VStack(alignment: .leading, spacing: 16) {
                 if let err = store.error { ErrorBanner(message: err) }
 
-                SectionHeader(title: "Recon",
-                              eyebrow: "Summer 2027 internships",
-                              trailing: store.lastSyncedText.map { "synced \($0)" })
+                // One subtitle line under the nav title — the old SectionHeader
+                // put a second heading ("Recon") under the first ("Dashboard"),
+                // which read as two competing titles for the same screen.
+                HStack(spacing: 6) {
+                    Text("Summer 2027 internships")
+                        .font(.caption.weight(.semibold)).foregroundStyle(Theme.rust)
+                        .textCase(.uppercase)
+                    Spacer()
+                    if let sync = store.lastSyncedText {
+                        Text(sync).font(.caption).foregroundStyle(Theme.inkSoft)
+                    }
+                }
 
                 HStack(spacing: 10) {
-                    Stat(num: "\(store.newThisWeek.count)", label: "new this week", color: Theme.gold)
-                    Stat(num: "\(inFlight.count)", label: "in flight", color: Theme.green)
-                    Stat(num: "\(store.dismissedCount)", label: "wiped", color: Theme.inkSoft)
+                    Stat(num: "\(store.newThisWeek.count)", label: "new · 7d", color: Theme.gold)
+                    Stat(num: "\(applied.count)", label: "applied", color: Theme.green)
+                    Stat(num: "\(saved.count)", label: "saved", color: Theme.inkSoft)
                 }
 
                 if store.totalNudgeCount > 0 {
                     FollowUpsSection()
-                }
-
-                // Applications, the half of the tracker that isn't intake.
-                SectionHeader(title: "Applied",
-                              trailing: inFlight.isEmpty ? nil : "\(inFlight.count)")
-                if inFlight.isEmpty {
-                    Text("Nothing in flight. Swipe right on a role — or tap Track on one — and it lands here.")
-                        .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
-                } else {
-                    ForEach(inFlight.prefix(6)) { app in
-                        HStack(spacing: 10) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(app.companyName ?? "—")
-                                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
-                                Text(app.roleTitle ?? "—")
-                                    .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
-                            }
-                            Spacer()
-                            Pill(text: app.stage.capitalized, color: Theme.green)
-                        }
-                        .reconCard()
-                    }
-                    if inFlight.count > 6 {
-                        Text("+ \(inFlight.count - 6) more in Pipeline")
-                            .font(.caption).foregroundStyle(Theme.inkSoft)
-                    }
                 }
 
                 // New arrivals, grouped by day — the "did the scan find anything"
@@ -103,11 +93,51 @@ struct TodayView: View {
                         }
                     }
                 }
+                // Applications, the half of the tracker that isn't intake.
+                // Applied and saved are separate on purpose: "watching" is a
+                // bookmark, not an application, and merging them made the
+                // dashboard report 35 applications that had never been sent.
+                if !applied.isEmpty {
+                    SectionHeader(title: "Applied", trailing: "\(applied.count)")
+                    ForEach(applied.prefix(5)) { app in appRow(app, tint: Theme.green) }
+                    if applied.count > 5 {
+                        Text("+ \(applied.count - 5) more in Pipeline")
+                            .font(.caption).foregroundStyle(Theme.inkSoft)
+                    }
+                }
+
+                SectionHeader(title: "Saved — not applied yet",
+                              trailing: saved.isEmpty ? nil : "\(saved.count)")
+                if saved.isEmpty {
+                    Text("Nothing saved. Swipe right on a role — or tap Keep on one — and it lands here.")
+                        .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
+                } else {
+                    ForEach(saved.prefix(5)) { app in appRow(app, tint: Theme.gold) }
+                    if saved.count > 5 {
+                        Text("+ \(saved.count - 5) more in Pipeline")
+                            .font(.caption).foregroundStyle(Theme.inkSoft)
+                    }
+                }
+
             }
             .padding(16)
         }
         .navigationDestination(for: Role.self) { RoleDetailView(role: $0, store: store) }
         .scrollContentBackground(.hidden)
+    }
+
+    private func appRow(_ app: AppItem, tint: Color) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(app.companyName ?? "—")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                Text(app.roleTitle ?? "—")
+                    .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+            }
+            Spacer()
+            Pill(text: app.stage.capitalized, color: tint)
+        }
+        .reconCard()
     }
 }
 
