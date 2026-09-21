@@ -144,18 +144,24 @@ behind a Cloudflare Tunnel. See `SPEC.md` for the full spec.
   - **Merged to `main` (PR #1, merge commit `5f5f20b`)** — the repo's first PR; earlier work
     went straight to `main`. Merge commit, not squash, so the APNs fix (`ad991df`) stays
     revertable without touching the feed fix (`8a32be6`).
-  - **Merged ≠ verified, and ≠ live. Two things are still open:**
-    1. **The iOS changes have never been compiled.** No Swift toolchain in the session
-       container, and this repo runs **no CI at all** (no `.github/workflows`, nothing at
-       root), so nothing caught it and nothing will. The Swift on `main` is reviewed-by-eye
-       only. `xcodebuild` is the real gate — run it before trusting the app side.
-    2. **The NUC is still running the old image.** The session container has no Tailscale,
-       no route to `100.91.198.28` (`:8010` and `:22` both time out), no `ssh` binary and no
-       key, so deploying from a Claude web session is structurally impossible — not a
-       permissions problem to retry. Needs a machine on the tailnet:
-       `ssh zach@100.91.198.28 'cd ~/recon && git pull && docker compose -f
-       docker-compose.yml -f docker-compose.prod.yml up --build -d'`. The NUC has its own
-       clone, so `git pull` first or `--build` just rebuilds the same old source.
+  - **iOS build: `BUILD SUCCEEDED`** (2026-09-21, Xcode on Zach's Mac, xcodegen 2.46.0).
+    The Swift on `main` compiles — `Set<Int>` Codable round-trip for the persisted rating
+    sets, implicit `self` on `interest(of:)` inside `feed`'s filter closure, and the added
+    `if` branch in `TodayView`'s ViewBuilder all type-check. Note this had to be run by hand:
+    the repo has **no CI at all** (no `.github/workflows`, nothing at root), so no push will
+    ever tell you the app stopped compiling. Build before trusting any iOS change.
+    - Gotcha worth keeping: `~/Projects/Recon` on the Mac exists but has **no `ios/`**
+      directory, so `cd ios` there silently leaves you in whatever directory you were in
+      (this cost two builds that were actually run from `~/Projects/Atlas`, a different
+      repo). Clone fresh, or verify `git remote -v` says `collinszach/Recon` AND `ios/`
+      exists, before building. `ios/` has been in the repo since `45de4ce` (2026-06-16).
+  - **Still open: the NUC is running the old image.** The session container has no Tailscale,
+    no route to `100.91.198.28` (`:8010` and `:22` both time out), no `ssh` binary and no key,
+    so deploying from a Claude web session is structurally impossible — not a permissions
+    problem to retry. The NUC is also Linux/N95, so it can never build the iOS app either.
+    Needs a machine on the tailnet: `ssh zach@100.91.198.28 'cd ~/recon && git pull &&
+    docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d'`. The NUC
+    has its own clone, so `git pull` first or `--build` just rebuilds the same old source.
   - **Post-deploy check that actually proves it landed** (`/health` only proves the server is
     up): `curl -s '…:8010/api/roles?include_unscored=true' | jq length` should be ≥
     `curl -s '…:8010/api/roles' | jq length`. Equal means either nothing arrived in 7 days or
