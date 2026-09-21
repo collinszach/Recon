@@ -200,6 +200,53 @@ behind a Cloudflare Tunnel. See `SPEC.md` for the full spec.
     requests (3 of 638 differed, same titles, different ids). Harmless for the feed, but it
     means role ids are not stable across refreshes for tied dupes — don't build anything that
     assumes they are.
+- **2026-09-21 — Recon is a tracker, not a scorer (`3c90be1`, `e61f7af`):**
+  - **Why:** the fit-scorer shaped everything (A/B/C/pass, feed sorted by fit, unscored
+    invisible) and two of the day's three fixes were fighting that shape. Zach's call: drop
+    scoring, keep the question "what's new, what did I apply to, what do I never want to see
+    again". **`SCORING_ENABLED=false`** is the switch; the scorer, its lanes, its caps and the
+    `fit_score`/`score_tier`/`why_fit` columns and values all stay, so flipping it back on
+    resumes scoring with nothing to restore.
+  - **Two things silently keyed off the scorer's output** and would have broken on their own:
+    `embed_and_dedup()` took `to_score` (empty with scoring off → cross-source dedupe stops and
+    the same posting shows up twice), and new-role alerts thresholded on `fit >= NOTIFY_MIN_FIT`
+    (no fit → no alerts ever). Both now key off the in-track set. **If you turn another stage
+    off, check what else was reading its output** — nothing here would have failed loudly.
+  - **Relevance is now `in_active_track`**, not `scored_at`: 653 open internships out of 24,757
+    open roles. Feed is `first_seen DESC` with `limit`/`since_days`. `scored_only` and
+    `include_unscored` are accepted-but-dead, kept so an older build of the app doesn't 500
+    mid-deploy — delete them once the app on Zach's phone is past this version.
+  - **Dismissals are permanent** and survive re-ingest (the scan updates postings in place and
+    never clears `interest`): `POST /api/roles/{id}/dismiss` and `POST /api/companies/{id}/dismiss`
+    (new `companies.dismissed_at`), both with an undismiss, plus `/api/roles/dismissed` and
+    `/api/companies/dismissed` behind the app's "Wiped & kept" screen. A dismissed company keeps
+    getting scanned — cheaper than special-casing intake, and it means un-dismissing is instant.
+  - **The search ingest was throwing away every job description.** Both `Role(...)` calls in
+    `scan/search_runner.py` passed `description_hash` but never `description`, so all 1,159
+    Adzuna/JSearch/Muse/USAJobs roles stored a *hash of text that was discarded* — 138 of the 653
+    internships had no JD. Fixed at both sites; `POST /api/admin/backfill-descriptions?limit=N`
+    re-fetches the rest from the posting URL (best-effort — bot walls, redirects, dead postings —
+    so it reports a per-source success rate, never trades down, and is re-runnable).
+  - **Locations:** 5,170 open roles had no state. `"San Francisco"` with no state or country was
+    1,023 of them, and Adzuna's `"Pittsburgh, Allegheny County"` defeats the comma-abbreviation
+    pattern the same way. `geo.states_of` now falls back to a city table and handles Amazon's
+    `"US-CA-Menlo Park"` prefix. **Ambiguous cities are deliberately unresolved** — Portland,
+    Columbus, Springfield, Kansas City, Charleston, Rochester, Aurora — don't "fix" them by
+    guessing a state; the existing `"Amsterdam, NH" → international` guard still has to hold.
+  - **iOS:** Today → Dashboard (new this week / in flight / wiped, follow-ups, applications,
+    arrivals grouped by day). Swipe-to-wipe, long-press for "never show this employer", the
+    rating deck becomes a triage deck (right = track, left = wipe), RatedRolesView → "Wiped &
+    kept". `TierChip`/`FitBadge` deleted; the row accent signals recency now. `Role.tier` stays
+    in the Swift model so a payload cached before the switch still decodes.
+  - **iOS build: `BUILD SUCCEEDED`** (Xcode 26.4, iPhone 17 Pro sim — note the destination in the
+    older note, "iPhone 16", no longer exists on this machine; `xcrun simctl list devices
+    available` first). Still **no CI**, so nothing but this will tell you the app stopped building.
+  - **NOT YET DEPLOYED as of this commit.** `git push` landed, but `ssh zach@100.91.198.28` now
+    hits *"Tailscale SSH requires an additional check — to authenticate, visit …"*, an
+    interactive browser re-auth that a tool-driven session can't complete. Deploy is:
+    `ssh zach@100.91.198.28 'cd ~/recon && git pull && docker compose -f docker-compose.yml -f
+    docker-compose.prod.yml up --build -d api worker'`. **Nothing below the ingest fixes has been
+    verified against the live DB** — the numbers above come from the pre-deploy payload.
 - **Deployed:** `zach@100.91.198.28` (Tailscale), `~/recon`, via
   `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`. The NUC is shared,
   so the prod overlay publishes **only the API on host port 8010** (8000/6379 were taken) and
