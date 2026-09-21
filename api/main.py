@@ -186,7 +186,7 @@ def list_roles(tier: str | None = None, company: str | None = None,
                dedupe: bool = True, include_hidden: bool = False,
                include_unscored: bool = False,
                limit: int = 300, since_days: int | None = None,
-               relevant_only: bool = True,
+               relevant_only: bool = True, us_only: bool = True,
                db: Session = Depends(get_db)):
     """The tracker feed: open roles in the tracks Zach is watching, newest first.
 
@@ -196,6 +196,7 @@ def list_roles(tier: str | None = None, company: str | None = None,
     pass `scored_only=false` to browse the raw set, which skips the track filter.
     """
     import re as _re
+    from scan.geo import is_us
     from scan.intern_filter import (is_internship, is_ops_strategy,
                                     in_active_track)
     q = select(Role).where(Role.status.in_(["open", "changed"]))
@@ -237,6 +238,11 @@ def list_roles(tier: str | None = None, company: str | None = None,
         # Role.state may hold multiple comma-joined codes (multi-location
         # postings) — match if ANY of the role's states is in the requested set.
         if wanted_states and not (set((r.state or "").split(",")) & wanted_states):
+            continue
+        if us_only and not is_us(r.location, r.state):
+            # Zach is not relocating abroad. A posting with a US leg still
+            # counts (see geo.is_us), and an unparseable location is kept
+            # rather than hidden.
             continue
         if relevant_only and not in_active_track(r.title, r.department, _mode):
             # Out of track: 24k of the ~25k open roles are full-time postings

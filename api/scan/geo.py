@@ -118,7 +118,31 @@ _INTERNATIONAL_HINT_RE = re.compile(
     r"united\s+arab\s+emirates|\buae\b|dubai|abu\s+dhabi|south\s+korea|seoul|taiwan|taipei|"
     r"vietnam|philippines|indonesia|thailand|malaysia|new\s+zealand|"
     r"mexico(?!\s*,?\s*missouri)|brazil|argentina|colombia(?!\s*,?\s*(sc|south\s+carolina))|"
+    # Added 2026-09-21 after US-only filtering: the list above missed whole
+    # regions, so "Istanbul, Turkey", "Bucharest, Romania" and "Libreville
+    # Gabon" came back unresolved and sat in a US-only feed. Country names
+    # only, plus cities that can't be confused with a US one — no "Athens"
+    # (GA), "Lima" (OH), "Birmingham" (AL) or "Cambridge" (MA).
+    r"turkey|t\u00fcrkiye|istanbul|romania|bucharest|bulgaria|hungary|budapest|"
+    r"czech(ia|\s+republic)?|prague|slovakia|bratislava|slovenia|ljubljana|croatia|zagreb|"
+    r"serbia|belgrade|ukraine|kyiv|kiev|estonia|tallinn|latvia|\briga\b|lithuania|vilnius|"
+    r"iceland|reykjavik|luxembourg|\bmalta\b|cyprus|greece(?!\s*,?\s*(ny|new\s+york))|"
+    r"gabon|nigeria|lagos|kenya|nairobi|south\s+africa|johannesburg|cape\s+town|"
+    r"egypt|cairo|morocco|casablanca|tunisia|ghana|accra|ethiopia|"
+    r"saudi\s+arabia|riyadh|jeddah|qatar|doha|kuwait|bahrain|\boman\b|jordan(?=\s*,)|"
+    r"pakistan|karachi|lahore|bangladesh|dhaka|sri\s+lanka|colombo|nepal|kathmandu|"
+    r"bengaluru|bangalore|hyderabad(?!\s*,?\s*(al|alabama))|\bpune\b|chennai|mumbai|"
+    r"gurugram|gurgaon|noida|kolkata|ahmedabad|\bdelhi\b|"
+    r"auckland|wellington(?=\s*,?\s*(nz|new\s+zealand))|christchurch|"
+    r"peru(?!\s*,?\s*(in|indiana|il|illinois))|chile|uruguay|montevideo|ecuador|quito|"
+    r"\bpanama\b|costa\s+rica|guatemala|el\s+salvador|honduras|bolivia|paraguay|"
+    r"kazakhstan|uzbekistan|azerbaijan|armenia|\brussia\b|moscow|"
     r"emea|apac|latam)\b", re.IGNORECASE)
+# Adzuna renders US towns as "City, Some County" — no state, no country. The
+# county suffix is itself the US signal, and without it these looked exactly
+# like the unresolved foreign strings above ("Lincoln, Lancaster County" vs
+# "Bucharest, Romania").
+_US_COUNTY_RE = re.compile(r",\s*[A-Za-z .'\-]+\s+(County|Parish|Borough)\b", re.IGNORECASE)
 # Explicit US marker — when present alongside an international hint (a genuine
 # multi-region posting that also happens to say "EMEA"), don't let the hint
 # override real US state matches.
@@ -195,6 +219,32 @@ _CITY_RE = re.compile(
 
 
 def states_of(location: str | None) -> list[str]:
+    """Resolve each segment of a multi-location posting independently, then
+    union the results in order.
+
+    Segment-wise matters for the international guard: "Atlanta, GA; London, UK"
+    is a real US role with a second office, but evaluating the whole string at
+    once let the "UK" hint short-circuit the entire posting to international —
+    so a US-only feed would hide it. Splitting also keeps the case the guard
+    exists for: "Amsterdam, NH" is one segment, hint and abbreviation together,
+    and still resolves to international (Lucid's Netherlands office, 2026-08-16).
+    """
+    if not location:
+        return []
+    parts = [p for p in re.split(r"[;|\n]+", location) if p.strip()]
+    if len(parts) < 2:
+        return _states_of_one(location)
+    found: list[str] = []
+    for part in parts:
+        for code in _states_of_one(part):
+            if code not in found:
+                found.append(code)
+    # A posting with a US leg is a US posting; keep "international" alongside so
+    # the facet still shows the other offices.
+    return found
+
+
+def _states_of_one(location: str | None) -> list[str]:
     """ALL US state codes present in a location string, in first-occurrence
     order, or ['remote'] / ['international'] / [] (unparseable).
 
@@ -290,3 +340,23 @@ def metro_of(location: str | None) -> str | None:
     if _REMOTE_RE.search(hay) and not _REMOTE_NON_US_RE.search(hay):
         return "remote"
     return None
+
+
+def is_us(location: str | None, state: str | None = None) -> bool:
+    """Is this role in the US (or US-remote)?
+
+    `state` is the stored comma-joined result of states_of(); pass it to avoid
+    re-parsing. Unresolvable locations ("3 Locations", "TAURUS") count as US —
+    a US-only feed should fail toward showing you something rather than hiding
+    a real posting on a string nobody can parse.
+    """
+    codes = {c for c in (state or "").split(",") if c}
+    if codes & set(US_STATES) or "remote" in codes:
+        return True          # a multi-region posting with a US leg still counts
+    if "international" in codes:
+        return False
+    if not location:
+        return True
+    if _US_COUNTY_RE.search(location):
+        return True
+    return not (_INTERNATIONAL_HINT_RE.search(location) and not _US_MARKER_RE.search(location))
