@@ -874,6 +874,20 @@ def _role_out_min(r: Role) -> dict:
             "dismissed_at": r.interest_at.isoformat() if r.interest_at else None}
 
 
+@app.post("/api/admin/discover-workday")
+def discover_workday_boards(limit: int = 25, only_with_roles: bool = True,
+                            apply: bool = False, db: Session = Depends(get_db)):
+    """Find aggregator-only companies' Workday boards (see scan/workday_discovery.py).
+
+    Proposes by default: Workday tenants are first-come names ("emerson" is
+    Emerson College, not Emerson Electric) and the API offers nothing to verify
+    the employer against, so each proposal carries sample postings and flagged
+    ones are never auto-applied.
+    """
+    from scan.workday_discovery import discover
+    return discover(db, limit=limit, only_with_roles=only_with_roles, apply=apply)
+
+
 @app.post("/api/admin/merge-shadow-companies")
 def merge_shadow_companies(dry_run: bool = True, db: Session = Depends(get_db)):
     """Fold aggregator duplicates into the company Recon already pulls directly
