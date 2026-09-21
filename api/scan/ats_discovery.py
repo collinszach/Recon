@@ -177,6 +177,11 @@ def discover(db: Session, limit: int = 40, only_with_roles: bool = True,
         resolved.append({"company": co.name, "from": was, "ats": ats,
                          "slug": slug, "postings": n})
         log.info("ats discovery: %s %s -> %s:%s (%d postings)", co.name, was, ats, slug, n)
+        # Commit as we go. A long run is minutes of probing, and committing only
+        # at the end meant an API restart (or a client timeout) threw away every
+        # resolution it had already found — which is exactly what happened on
+        # the first 120-company batch.
+        db.commit()
 
     db.commit()
     return {"checked": checked, "resolved": len(resolved), "details": resolved}
