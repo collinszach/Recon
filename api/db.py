@@ -190,6 +190,10 @@ class DeviceToken(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     token: Mapped[str] = mapped_column(String, unique=True)
     platform: Mapped[str] = mapped_column(String, default="ios")
+    # APNs environment that issued this token: "sandbox" | "production" | None.
+    # A token is only valid against its own host, and the two are indistinguishable
+    # by inspection, so None means "unknown" and send_apns() learns it by probing.
+    environment: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

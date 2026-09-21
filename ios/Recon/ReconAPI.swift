@@ -102,8 +102,12 @@ struct ReconAPI {
     }
 
     // ---- reads ----
+    /// include_unscored pulls in postings from the last week that the scorer
+    /// hasn't graded yet. Without it the feed only ever showed already-scored
+    /// roles, so a scan's fresh arrivals stayed invisible until the next
+    /// scoring pass — which looked exactly like the scan having found nothing.
     func roles(minFit: Double = 0) async throws -> [Role] {
-        try await get("api/roles?min_fit=\(minFit)", as: [Role].self)
+        try await get("api/roles?min_fit=\(minFit)&include_unscored=true", as: [Role].self)
     }
     /// Includes roles marked "not for me" (normally filtered out server-side),
     /// so the ratings review screen can show — and undo — them.

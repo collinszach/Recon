@@ -45,6 +45,8 @@ def _ensure_schema():
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_mba BOOLEAN"))
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS state VARCHAR"))
         conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS sector VARCHAR"))
+        # APNs environment per device token; NULL until send_apns() probes for it.
+        conn.execute(text("ALTER TABLE device_tokens ADD COLUMN IF NOT EXISTS environment VARCHAR"))
         # Semantic embeddings: resize column from 1536 → 1024 (mxbai-embed-large).
         # Safe because the column is all-NULL at this point — the USING clause
         # just produces NULL for every row (no data loss).
@@ -169,6 +171,10 @@ def health():
 
 
 # ─── roles ──────────────────────────────────────────────────
+# How far back "recently arrived, not yet scored" reaches (see include_unscored).
+NEW_ARRIVAL_DAYS = 7
+
+
 @app.get("/api/roles")
 def list_roles(tier: str | None = None, company: str | None = None,
                min_fit: float = 0.0, scored_only: bool = True,
@@ -176,6 +182,7 @@ def list_roles(tier: str | None = None, company: str | None = None,
                mba: bool | None = None, sector: str | None = None,
                states: str | None = None,   # comma-separated state/remote/international slugs — multi-select
                dedupe: bool = True, include_hidden: bool = False,
+               include_unscored: bool = False,
                db: Session = Depends(get_db)):
     import re as _re
     from scan.intern_filter import is_internship, is_ops_strategy
@@ -187,7 +194,17 @@ def list_roles(tier: str | None = None, company: str | None = None,
     if scored_only:
         # Only scored roles are surfaced (internships + full-time PM roles are
         # what gets scored). Pass scored_only=false to browse the raw set.
-        q = q.where(Role.scored_at.isnot(None))
+        if include_unscored:
+            # ...but a role ingested by the latest scan and not yet scored is
+            # invisible under that rule, so a day's arrivals looked like nothing
+            # happened. Let recent ones through too. Bounded to a week so this
+            # can't drag in the entire dormant non-intern backlog, which is
+            # never scored at all while TRACK_MODE=intern and would be tens of
+            # thousands of rows with their JD text attached.
+            cutoff = datetime.now(timezone.utc) - timedelta(days=NEW_ARRIVAL_DAYS)
+            q = q.where((Role.scored_at.isnot(None)) | (Role.first_seen >= cutoff))
+        else:
+            q = q.where(Role.scored_at.isnot(None))
     if min_fit:
         q = q.where(Role.fit_score >= min_fit)
     if metro:

@@ -32,9 +32,13 @@ struct TodayView: View {
                 let newToday = store.internFeed.filter { $0.firstSeenIsToday }
                 if !newToday.isEmpty {
                     SectionHeader(title: "New today", trailing: "\(newToday.count)")
-                    ForEach(newToday.prefix(5)) { role in
+                    ForEach(newToday.prefix(10)) { role in
                         NavigationLink(value: role) { RoleRow(role: role, isNew: true) }
                             .buttonStyle(.plain)
+                    }
+                    if newToday.count > 10 {
+                        Text("+ \(newToday.count - 10) more in Roles")
+                            .font(.caption).foregroundStyle(Theme.inkSoft)
                     }
                 }
 
