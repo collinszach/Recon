@@ -874,6 +874,21 @@ def _role_out_min(r: Role) -> dict:
             "dismissed_at": r.interest_at.isoformat() if r.interest_at else None}
 
 
+@app.post("/api/admin/discover-ats")
+def discover_ats(limit: int = 40, only_with_roles: bool = True,
+                 recheck_broken: bool = True, db: Session = Depends(get_db)):
+    """Resolve aggregator-invented companies to their real ATS board.
+
+    734 of ~1,000 companies exist only because Adzuna returned a row for them,
+    so Recon sees a sampled slice instead of the company's board. This promotes
+    the ones whose board can be found to a direct pull, and re-checks configured
+    boards that have started 404ing. See scan/ats_discovery.py.
+    """
+    from scan.ats_discovery import discover
+    return discover(db, limit=limit, only_with_roles=only_with_roles,
+                    recheck_broken=recheck_broken)
+
+
 @app.post("/api/admin/backfill-descriptions")
 def backfill_descriptions(limit: int = 50, source: str | None = None,
                           db: Session = Depends(get_db)):
