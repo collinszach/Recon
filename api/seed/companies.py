@@ -164,7 +164,7 @@ SEED = [
     ("Shield AI",          "B", "lever",      "shieldai",       "https://shield.ai/careers/", "Defense/AI · autonomous aircraft (Hivemind)"),
     ("Saronic",            "B", "ashby",      "saronic",        "https://www.saronic.com/careers", "Defense/Hardware · autonomous naval vessels"),
     ("Epirus",             "B", "greenhouse", "epirus",         "https://www.epirusinc.com/careers", "Defense/Hardware · directed-energy systems"),
-    ("Mach Industries",    "B", "ashby",      "mach",           "https://www.machindustries.com/careers", "Defense/Hardware · advanced defense manufacturing"),
+    ("Mach Industries",    "B", "greenhouse", "machindustries", "https://www.machindustries.com/careers", "Defense/Hardware · advanced defense manufacturing (moved off ashby:mach, 2026-09-21)"),
     ("Rocket Lab",         "B", "greenhouse", "rocketlab",      "https://www.rocketlabusa.com/careers/", "Defense/Space · launch + space systems"),
     ("Helsing",            "B", "greenhouse", "helsing",        "https://helsing.ai/jobs", "Defense/AI · AI for defense (Europe — location tradeoff)"),
     ("Primer",             "C", "ashby",      "primer",         "https://primer.ai/careers/", "Defense/AI&Data · NLP for national security"),
@@ -250,7 +250,7 @@ SEED = [
     ("Snyk",               "B", "ashby",      "snyk",           "https://snyk.io/careers/", "Security · dev-first application security (board thin as of 2026-07-07, endpoint live)"),
     # ── Resolved: Lever ──────────────────────────────────────────────────
     ("Spotify",            "B", "lever",      "spotify",        "https://www.lifeatspotify.com/", "Platform · audio streaming, product-craft brand"),
-    ("Atlassian",          "B", "lever",      "atlassian",      "https://www.atlassian.com/company/careers", "Platform · Jira/Confluence, dev collaboration tools (board thin as of 2026-07-07, endpoint live)"),
+    ("Atlassian",          "B", "atlassian",  "atlassian",      "https://www.atlassian.com/company/careers", "Platform · Jira/Confluence — moved off Lever to iCIMS; parsers/atlassian.py reads their own JSON feed (2026-09-21)"),
     # ── Resolved: Workday ────────────────────────────────────────────────
     ("Palo Alto Networks", "B", "workday",    "paloaltonetworks:wd5:panwexternalcareers", "https://jobs.paloaltonetworks.com/en", "Security · network/cloud security platform"),
     ("Visa",               "B", "workday",    "visa:wd5:Visa",  "https://corporate.visa.com/en/careers.html", "Finance · global payments network"),
