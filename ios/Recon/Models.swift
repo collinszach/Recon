@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// A scored role (internship) from GET /api/roles.
 struct Role: Codable, Identifiable, Hashable {
@@ -675,5 +676,52 @@ struct MailProposal: Codable, Identifiable, Hashable {
     var actionLabel: String? {
         guard let s = proposedStage else { return nil }
         return "Move to \(s.capitalized)"
+    }
+}
+
+
+// ── Application portals ─────────────────────────────────────
+/// Which ATS a posting's apply link leads to, and therefore how much of the
+/// form Recon can realistically fill. Named honestly: a Workday wizard is not
+/// a Greenhouse form, and the card says so before you open it.
+enum Portal {
+    case greenhouse, lever, ashby, workday, icims, other
+
+    var label: String {
+        switch self {
+        case .greenhouse: return "Greenhouse"
+        case .lever:      return "Lever"
+        case .ashby:      return "Ashby"
+        case .workday:    return "Workday"
+        case .icims:      return "iCIMS"
+        case .other:      return "Company site"
+        }
+    }
+    /// Multi-step wizards behind a login: fillable a step at a time, never in
+    /// one pass.
+    var multiStep: Bool {
+        switch self {
+        case .workday, .icims: return true
+        default: return false
+        }
+    }
+    var tint: Color {
+        switch self {
+        case .greenhouse, .lever, .ashby: return Theme.green
+        case .workday, .icims:            return Theme.gold
+        case .other:                      return Theme.inkSoft
+        }
+    }
+}
+
+extension Role {
+    var portal: Portal {
+        let u = (url ?? "").lowercased()
+        if u.contains("greenhouse") { return .greenhouse }
+        if u.contains("lever.co") { return .lever }
+        if u.contains("ashbyhq") { return .ashby }
+        if u.contains("myworkdayjobs") || u.contains("myworkday") { return .workday }
+        if u.contains("icims") { return .icims }
+        return .other
     }
 }

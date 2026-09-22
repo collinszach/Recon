@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		07B649ADC822D8B65D89CFCD /* ApplyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83AB31063F2242EA600039F8 /* ApplyView.swift */; };
 		08AC936BC598B07CE867B195 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E9375FB210A231D2C01F7E31 /* Assets.xcassets */; };
 		0E828A7AE1F9CF1A8BCE66DB /* ConnectionBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6D4386BF07A6CAF63231D0A /* ConnectionBanner.swift */; };
 		49FE789BAC065AF26C2076C2 /* InterviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7085DDB2C4B0F6836C7033EE /* InterviewView.swift */; };
@@ -29,6 +30,7 @@
 		9DDEA06D0EB1E46DEF05CC3B /* CurriculumData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A962BF4AC58831091B17184 /* CurriculumData.swift */; };
 		9F3E555B72F7701144860E83 /* NetworkingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7522525FB20009795EC02842 /* NetworkingView.swift */; };
 		A219082A8BFDB1DBA1E98DF9 /* MaterialsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6821D598F84C4FEF25F86BC5 /* MaterialsView.swift */; };
+		C00C1D82D99E7390E0F10D59 /* AutofillWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 949E93EE7D40B48D234BF84A /* AutofillWebView.swift */; };
 		C7C29FC63C967D104B0557CD /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = CECF1C27E840019FA2318A80 /* Config.swift */; };
 		C9E461B04F9A903CD6A62CCB /* OutreachView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90025B482BF866FEDC4EE6C7 /* OutreachView.swift */; };
 		E9C52D468CB0219C5EBA10DC /* RolesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8087971EA041AC04E15E2BD /* RolesView.swift */; };
@@ -54,9 +56,11 @@
 		7085DDB2C4B0F6836C7033EE /* InterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterviewView.swift; sourceTree = "<group>"; };
 		7522525FB20009795EC02842 /* NetworkingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkingView.swift; sourceTree = "<group>"; };
 		76BA873DE6B0360D7C07241B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		83AB31063F2242EA600039F8 /* ApplyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplyView.swift; sourceTree = "<group>"; };
 		86F3AAF5ECE2BBD181C2CCB9 /* Recon.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Recon.entitlements; sourceTree = "<group>"; };
 		8ADA461DA6E79A1B1FFEF1C0 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
 		90025B482BF866FEDC4EE6C7 /* OutreachView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutreachView.swift; sourceTree = "<group>"; };
+		949E93EE7D40B48D234BF84A /* AutofillWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutofillWebView.swift; sourceTree = "<group>"; };
 		977EA2656415D2003F53FABA /* Cache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cache.swift; sourceTree = "<group>"; };
 		9D3678E34E3D51F0A0A375DE /* ResumeChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResumeChatView.swift; sourceTree = "<group>"; };
 		9EF14321F35C4BFF97D597A1 /* TailorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TailorView.swift; sourceTree = "<group>"; };
@@ -86,7 +90,9 @@
 		3AC311F3915523FC13A017AB /* Recon */ = {
 			isa = PBXGroup;
 			children = (
+				83AB31063F2242EA600039F8 /* ApplyView.swift */,
 				E9375FB210A231D2C01F7E31 /* Assets.xcassets */,
+				949E93EE7D40B48D234BF84A /* AutofillWebView.swift */,
 				977EA2656415D2003F53FABA /* Cache.swift */,
 				CECF1C27E840019FA2318A80 /* Config.swift */,
 				B6D4386BF07A6CAF63231D0A /* ConnectionBanner.swift */,
@@ -209,6 +215,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				07B649ADC822D8B65D89CFCD /* ApplyView.swift in Sources */,
+				C00C1D82D99E7390E0F10D59 /* AutofillWebView.swift in Sources */,
 				9CD0E9FAF72E8591772EB2DB /* Cache.swift in Sources */,
 				C7C29FC63C967D104B0557CD /* Config.swift in Sources */,
 				0E828A7AE1F9CF1A8BCE66DB /* ConnectionBanner.swift in Sources */,

@@ -12,6 +12,9 @@ struct ContentView: View {
             NavTab(title: "Roles", store: store, showSettings: $showSettings) { RolesView() }
                 .tabItem { Label("Roles", systemImage: "dot.radiowaves.left.and.right") }
 
+            NavTab(title: "Apply", store: store, showSettings: $showSettings) { ApplyView() }
+                .tabItem { Label("Apply", systemImage: "square.and.pencil") }
+
             NavTab(title: "Pipeline", store: store, showSettings: $showSettings) { PipelineView() }
                 .tabItem { Label("Pipeline", systemImage: "rectangle.stack") }
 

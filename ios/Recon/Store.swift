@@ -14,6 +14,17 @@ final class Store: ObservableObject {
     /// Replies Recon found, each waiting on a yes/no. Nothing moves until one
     /// is accepted.
     @Published var mailProposals: [MailProposal] = []
+    /// Flat contact/EEO profile used to fill application forms in-app. Same
+    /// payload the Chrome extension uses, so the two can't drift.
+    @Published var autofillProfile: [String: String] = [:]
+    @Published var resumeOnFile = false
+
+    /// Enough of a profile to be worth pressing Fill.
+    var autofillReady: Bool {
+        ["first_name", "last_name", "email"].allSatisfy {
+            !(autofillProfile[$0] ?? "").isEmpty
+        }
+    }
     @Published var companies: [Company] = []
     @Published var contacts: [Contact] = []
 
@@ -51,6 +62,7 @@ final class Store: ObservableObject {
         contacts = Cache.load([Contact].self, "contacts") ?? []
         recentBoards = Cache.load([ConnectedBoard].self, "recentBoards") ?? []
         mailProposals = Cache.load([MailProposal].self, "mailProposals") ?? []
+        autofillProfile = Cache.load([String: String].self, "autofillProfile") ?? [:]
         resume = Cache.load(ResumeData.self, "resume")
         lastSynced = Cache.load(Date.self, "lastSynced")
         newSince = Cache.load(Date.self, "newSince")
@@ -308,6 +320,9 @@ final class Store: ObservableObject {
             Cache.save(recentBoards, "recentBoards")
             mailProposals = (try? await api.mailProposals()) ?? mailProposals
             Cache.save(mailProposals, "mailProposals")
+            autofillProfile = (try? await api.autofillProfile()) ?? autofillProfile
+            Cache.save(autofillProfile, "autofillProfile")
+            resumeOnFile = (try? await api.resumeOnFile()) ?? resumeOnFile
             Cache.save(roles, "roles"); Cache.save(brief, "brief"); Cache.save(apps, "apps")
             markSynced()
             newSince = prevSync; Cache.save(newSince, "newSince")
@@ -319,8 +334,8 @@ final class Store: ObservableObject {
         loading = false
     }
 
-    func track(_ role: Role) async {
-        do { let item = try await api.track(roleId: role.id); apps.insert(item, at: 0) }
+    func track(_ role: Role, stage: String = "watching") async {
+        do { let item = try await api.track(roleId: role.id, stage: stage); apps.insert(item, at: 0) }
         catch { enqueue(.init(roleId: role.id, kind: .track)) }
     }
 

@@ -108,6 +108,17 @@ struct ReconAPI {
     func roles(limit: Int = 300) async throws -> [Role] {
         try await get("api/roles?limit=\(limit)", as: [Role].self)
     }
+    /// The flat profile the in-app form filler writes into application forms.
+    func autofillProfile() async throws -> [String: String] {
+        // Values arrive as mixed types (bools for EEO answers); normalise to
+        // strings so the injected script has one thing to reason about.
+        let raw = try await get("api/autofill/profile", as: [String: AnyCodableValue].self)
+        return raw.compactMapValues { $0.stringValue }
+    }
+    func resumeOnFile() async throws -> Bool {
+        struct Meta: Decodable { let present: Bool }
+        return try await get("api/resume/file/meta", as: Meta.self).present
+    }
     /// Replies Recon found, waiting on a yes/no.
     func mailProposals() async throws -> [MailProposal] {
         try await get("api/mail/proposals?status=pending", as: [MailProposal].self)
@@ -292,5 +303,21 @@ struct ReconAPI {
     }
     func researchStartupContacts(id: Int) async throws -> NetworkingPlan {
         try await send("POST", "api/startups/\(id)/contacts/research", body: EmptyBody(), as: NetworkingPlan.self)
+    }
+}
+
+
+/// Minimal any-value decoder: the autofill profile mixes strings, bools and
+/// numbers, and the form filler only ever wants text.
+struct AnyCodableValue: Decodable {
+    let stringValue: String?
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() { stringValue = nil }
+        else if let s = try? c.decode(String.self) { stringValue = s }
+        else if let b = try? c.decode(Bool.self) { stringValue = b ? "Yes" : "No" }
+        else if let i = try? c.decode(Int.self) { stringValue = String(i) }
+        else if let d = try? c.decode(Double.self) { stringValue = String(d) }
+        else { stringValue = nil }
     }
 }
