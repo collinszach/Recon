@@ -44,6 +44,27 @@ patterns. `extension/tests/` runs 78 real labels from six employers through the
 matcher **and through the rules lifted out of `AutofillWebView.swift`**, so the
 two clients cannot drift again — that drift is what caused the first bug.
 
+### The job descriptions had no structure
+
+Separate from autofill, same shape of bug. Of 85 descriptions in the feed, **3**
+contained a single newline. A 6,000-character Rocket Lab posting had 0 newlines
+and 59 literal `&nbsp;`, so its headings, paragraphs and bullets ran together.
+
+`parsers/greenhouse.py` turned every tag *and* every newline into a space, and
+unescaped once — but Greenhouse double-escapes its `content` (`&lt;div
+class=&quot;`), so entities survived tag-stripping and reached the reader. The
+function's own comment explained it: *"keep a light text version for
+hashing/scoring"*, true until a person started reading it.
+
+`scan/jd_backfill.py` already had a correct block-aware `html_to_text` the
+parsers never used. It now lives in `parsers/base.py` as the one implementation.
+Also fixed: atlassian joined its sections with a blank line then flattened it
+back out, amazon joined with a space, and workday stored `"Malvern, PA 180420"`
+— a location and a requisition id — as a description.
+
+Live after deploy: **3 → 52** descriptions with structure, **0** entities, and
+the 18 Workday junk descriptions are NULL.
+
 ### What now works
 
 **Comboboxes are selected, not deferred.** Greenhouse builds Country, School,
@@ -83,12 +104,35 @@ end to end including its dropdowns.
   so it inherits the fixes, but its adapters are exercised by nothing.
 - **Workday steps 4–7** (Application Questions ×2, Voluntary Disclosures,
   Review). The session expired before reaching them.
-- **`adapters/workday.js` is still wrong and unfixed.** Its `ID_MAP` matches
-  `data-automation-id` on the element; GM's inputs have none — it's on a wrapper
-  three levels up under a different scheme (`formField-legalName--firstName`, not
-  `legalNameSection_firstName`). Not one entry matches, so its first pass fills
-  nothing there. The input `name` is the clean key. Documented, not rewritten —
-  I wanted a second signed-in tenant before changing strategy on one data point.
+- **`adapters/workday.js` was rewired** (2026-09-22) to resolve fields by the
+  input `name` first, then the element's own automation id, then a `formField-*`
+  id on an ancestor, normalising every spelling onto plain words. 21 identities
+  from the live GM form are pinned in the test. **It has not been run against a
+  live Workday form since** — the session expired before I could.
+- **The tailnet is broken and it is not Recon's fault.** See below.
+
+## The tailnet outage (open, 2026-09-22)
+
+Every real host port on the NUC is unreachable from off-LAN — Recon, atlas and
+koastcast alike. Only what tailscaled terminates *itself* answers: SSH, and the
+`serve` listener bound to `100.91.198.28:443`. Anything bound to `0.0.0.0`
+(nginx :80, recon-api :8010) is dead over the tailnet.
+
+`tcpdump -ni tailscale0 port 8010` proves the packets arrive: SYNs from the Mac
+land and retransmit with **no SYN-ACK and no RST**. Silence means a firewall
+`DROP` after arrival, not a closed port and not a routing failure.
+
+Ruled out: the tailnet IPv4 (assigned), ufw's config (`Anywhere on tailscale0
+ALLOW IN` is present, and an explicit `80 ALLOW IN from 100.0.0.0/8` also fails),
+the tailnet ACL (`0.0.0.0/0`, all ports), Docker (plain nginx fails too),
+`ShieldsUp` (false), `NetfilterMode` (2), `rp_filter` (2, loose).
+
+Next step is `sudo ufw reload`, then `sudo iptables -vnL INPUT --line-numbers`
+and `-vnL ts-input` to see which chain's counters are climbing.
+
+**Workaround that needs no root:** `ssh -N -L 8010:localhost:8010
+zach@100.91.198.28`, then point the app's Custom endpoint at
+`http://127.0.0.1:8010`. That is how the JD fix was verified in the simulator.
 
 ## Gotchas worth keeping
 
@@ -118,13 +162,14 @@ end to end including its dropdowns.
 
 ## What I'd do next
 
-1. **Fix `adapters/workday.js` to match on the input `name`.** Its main pass is
-   dead code on at least one real tenant. Cheapest real win left.
+1. **Fix the tailnet.** It is the only thing actively costing anything, and it
+   is broader than this project. See the section above — the diagnosis is done,
+   it needs root to finish.
 2. **Put the Chrome extension in front of a Greenhouse form.** It is the half of
-   the product that has never been tested, and it is where the Workday adapters
-   live.
-3. **Finish the Workday survey** (steps 4–7) next time you are genuinely applying
-   and already signed in — not as an exercise.
+   the product that has never been tested, it is where the Workday adapters
+   live, and it inherited every fix made today without exercising any of them.
+3. **Run the rewired Workday adapter against a live form**, next time you are
+   genuinely applying and already signed in — not as an exercise.
 4. `discipline` is empty in the profile; "Please confirm your City and State"
    still fills only the city.
 
