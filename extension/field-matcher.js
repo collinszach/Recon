@@ -299,6 +299,76 @@ window.ReconAutofill = window.ReconAutofill || {};
     return { ok: true, value: chosen };
   };
 
+  /// Workday's field identity, normalised across two naming schemes.
+  ///
+  /// The adapter used to match `data-automation-id` on the element itself,
+  /// premised on those ids being "stable across tenants". On GM (surveyed
+  /// 2026-09-22, signed in) the inputs carry **no** `data-automation-id` at all:
+  /// it sits on a wrapper three levels up, and under a different scheme —
+  /// `formField-legalName--firstName`, not `legalNameSection_firstName`. Not one
+  /// ID_MAP entry matched, so the adapter's first pass filled nothing there.
+  ///
+  /// The input's `name` is the clean, stable key (`addressLine1`, `city`,
+  /// `postalCode`, `legalName--firstName`). Normalising collapses every spelling
+  /// — camelCase, `--`, `_`, the `formField-` prefix — onto plain words.
+  ns.normaliseAutomationKey = function (raw) {
+    return String(raw == null ? "" : raw)
+      .replace(/^formField-/i, "")
+      .replace(/[-_]+/g, " ")
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      // and the letter/digit boundary, or "addressLine1" normalises to
+      // "address line1" and never matches "address line 1".
+      .replace(/([a-zA-Z])([0-9])/g, "$1 $2")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  };
+
+  // Matched against the normalised key. Order matters: "preferred name first
+  // name" must be claimed before anything looking for "first name".
+  const WORKDAY_KEY_MAP = [
+    [/\bpreferred name (first name|given name)\b/, "preferred_name"],
+    [/\bmiddle name\b/, null],
+    [/\b(legal name )?first name\b|\bgiven name\b/, "first_name"],
+    [/\b(legal name )?last name\b|\bfamily name\b/, "last_name"],
+    [/\baddress line 2\b/, null],
+    [/\baddress line 1\b|^address$/, "address_line1"],
+    [/\bcountry region\b|\bregion subdivision\b|^state$/, "state"],
+    [/\bpostal code\b|^zip( code)?$/, "zip_code"],
+    [/^city$|\baddress city\b/, "city"],
+    [/\bcountry phone code\b|\bphone code\b/, "phone_country_code"],
+    [/\bphone (device )?type\b/, "phone_device_type"],
+    [/\bphone extension\b|^extension$/, "phone_extension"],
+    [/\bphone number\b|^phone$/, "phone"],
+    [/^country$|\bcountry dropdown\b/, "country"],
+    [/^email( address)?$/, "email"],
+    [/\bsource\b|\bhow did you hear\b/, "how_heard"],
+    [/\blinked ?in\b/, "linkedin_url"],
+    [/\bschool\b|\buniversity\b/, "school"],
+    [/\bdegree\b/, "degree"],
+    [/\bfield of study\b|\bdiscipline\b/, "discipline"],
+    [/\bgender\b/, "gender"],
+    [/\bethnicity\b|\brace\b|\bhispanic\b/, "race_ethnicity"],
+    [/\bveteran\b/, "veteran_status"],
+    [/\bdisabilit/, "disability_status"],
+  ];
+
+  /// Resolve a profile key from an element's identity candidates.
+  ///
+  /// `website` is deliberately absent from the map. Workday's honeypot is
+  /// `name="website"`, so keying off the name attribute — which is the whole
+  /// point of this change — would hand it a portfolio URL and flag the
+  /// application as a bot. Trap-shaped candidates are refused outright.
+  ns.workdayProfileKey = function (candidates) {
+    for (const raw of candidates || []) {
+      if (ns.looksLikeTrapText(raw)) return null;
+      const k = ns.normaliseAutomationKey(raw);
+      if (!k) continue;
+      for (const [re, key] of WORKDAY_KEY_MAP) if (re.test(k)) return key;
+    }
+    return null;
+  };
+
   ns.fillField = function (el, value) {
     if (value === null || value === undefined || value === "") return false;
     if (ns.isCombobox(el)) return false;

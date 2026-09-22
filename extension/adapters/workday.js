@@ -24,33 +24,29 @@ window.ReconAutofill.adapters = window.ReconAutofill.adapters || [];
  * clicks Submit.
  */
 (function (ns) {
-  // data-automation-id (or a prefix of one) -> profile key.
-  const ID_MAP = [
-    [/^legalNameSection_firstName$/i, "first_name"],
-    [/^legalNameSection_lastName$/i, "last_name"],
-    [/^legalNameSection_middleName$/i, null],
-    [/^addressSection_addressLine1$/i, "address_line1"],
-    [/^addressSection_addressLine2$/i, null],
-    [/^addressSection_city$/i, "city"],
-    [/^addressSection_countryRegion$/i, "state"],
-    [/^addressSection_postalCode$/i, "zip_code"],
-    [/^addressSection_country$/i, "country"],
-    [/^country$|^countryDropdown$/i, "country"],
-    [/^email$|^emailAddress$/i, "email"],
-    [/^phone-?number$|^phoneNumber$/i, "phone"],
-    [/^source--dropdown$|^source$/i, "how_heard"],
-    [/^linkedinQuestion|linkedin/i, "linkedin_url"],
-    [/^websiteQuestion|^website/i, "portfolio_url"],
-    [/gender/i, "gender"],
-    [/ethnicity|^race/i, "race_ethnicity"],
-    [/veteran/i, "veteran_status"],
-    [/disability/i, "disability_status"],
-  ];
-
-  function profileKeyForId(autoId) {
-    for (const [re, key] of ID_MAP) if (re.test(autoId)) return key;
-    return null;
+  /// Every string that might identify this field, best first.
+  ///
+  /// The `name` attribute leads because it is the only one GM's inputs actually
+  /// carry — `legalName--firstName`, `addressLine1`, `postalCode`. The
+  /// element's own `data-automation-id` comes next for tenants that set it, then
+  /// the `formField-*` id on a wrapper up to four levels up, which is where GM
+  /// keeps it. The mapping itself lives in field-matcher.js so it can be tested
+  /// without a browser.
+  function idCandidates(el) {
+    const out = [];
+    const push = (v) => { if (v) out.push(String(v)); };
+    push(el.getAttribute("name"));
+    push(el.getAttribute("data-automation-id"));
+    push(el.id);
+    let n = el.parentElement;
+    for (let i = 0; i < 4 && n; i++, n = n.parentElement) {
+      const aid = n.getAttribute && n.getAttribute("data-automation-id");
+      if (aid) { push(aid); break; }
+    }
+    return out;
   }
+
+  const profileKeyForElement = (el) => ns.workdayProfileKey(idCandidates(el));
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -168,10 +164,7 @@ window.ReconAutofill.adapters = window.ReconAutofill.adapters || [];
       const fields = ns.genericExtract(document);
       for (const f of fields) {
         if (f.profileKey) continue;
-        const autoId = f.el.getAttribute("data-automation-id") || "";
-        if (!autoId) continue;
-        const key = profileKeyForId(autoId) ||
-          ns.matchProfileKey(autoId.replace(/([a-z])([A-Z])/g, "$1 $2"));
+        const key = profileKeyForElement(f.el);
         if (key) {
           f.profileKey = key;
           f.kind = ns.looksLikeEssay(f.label, f.el) ? "essay" : "structured";
@@ -189,9 +182,15 @@ window.ReconAutofill.adapters = window.ReconAutofill.adapters || [];
       const report = [];
       const seen = new Set();
 
-      for (const el of document.querySelectorAll("[data-automation-id]")) {
+      // Not just [data-automation-id] any more: GM's inputs have none. Walking
+      // the real controls also means isHoneypot() gets a say, which matters now
+      // that `name` is a matching key — Workday's bot trap is name="website".
+      const controls = document.querySelectorAll(
+        "input:not([type=hidden]), select, textarea, [role='combobox'], [data-automation-id]");
+      for (const el of controls) {
+        if (ns.isHoneypot(el)) continue;
         const autoId = el.getAttribute("data-automation-id") || "";
-        const key = profileKeyForId(autoId);
+        const key = profileKeyForElement(el);
         if (!key || seen.has(el)) continue;
         const value = profile[key];
         const label = labelFor(el);

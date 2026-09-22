@@ -87,6 +87,45 @@ for (const [list, key, value, expected] of pickCases) {
 }
 console.log(`field-matcher: ${pickCases.length} option-picking cases OK`);
 
+// ── Workday field identity ────────────────────────────────────────────────────
+// Real identities captured from GM's My Information step, signed in, 2026-09-22.
+// The inputs carry no data-automation-id; it lives on a wrapper three levels up
+// under a different naming scheme. All three spellings must land on one key.
+const workdayCases = [
+  [["legalName--firstName"], "first_name"],
+  [["formField-legalName--firstName"], "first_name"],
+  [["legalNameSection_firstName"], "first_name"],          // the older scheme
+  [["preferredName--firstName"], "preferred_name"],        // before first_name
+  [["legalName--middleName"], null],
+  [["addressLine1"], "address_line1"],
+  [["addressLine2"], null],
+  [["city"], "city"],
+  [["countryRegion"], "state"],                            // Workday calls state this
+  [["postalCode"], "zip_code"],
+  [["country"], "country"],
+  [["phoneNumber"], "phone"],
+  [["phoneType"], "phone_device_type"],                    // not the phone number
+  [["countryPhoneCode"], "phone_country_code"],
+  [["phoneExtension"], "phone_extension"],
+  [["education-7--fieldOfStudy"], "discipline"],
+  [["education-7--degree"], "degree"],
+  [["education-7--school"], "school"],
+  // The honeypot. Keying off `name` is the point of this change, and the trap's
+  // name is "website" — it must never resolve to a profile key.
+  [["website", "beecatcher"], null],
+  [["beecatcher"], null],
+  [[], null],
+];
+
+for (const [cands, expected] of workdayCases) {
+  const got = ns.workdayProfileKey(cands);
+  if (got !== expected) {
+    failed++;
+    console.log(`  FAIL  workdayProfileKey(${JSON.stringify(cands)}) expected ${expected}, got ${got}`);
+  }
+}
+console.log(`field-matcher: ${workdayCases.length} Workday identity cases OK`);
+
 // ── the iOS port ──────────────────────────────────────────────────────────────
 // ios/Recon/AutofillWebView.swift carries its own copy of these rules, inlined as
 // a JS string. That copy is the one that drifted: it concatenated id/name into the
