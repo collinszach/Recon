@@ -155,7 +155,9 @@ def poll(db: Session, limit: int | None = None) -> dict:
         # invite you already answered and attended is not an invitation any
         # more — and 13 days of silence after your reply is the actual next
         # action.
-        if th["awaiting"] == "them" and row.last_outbound_at:
+        # row.awaiting, not th["awaiting"]: the out-of-thread reply above may
+        # have corrected it, and the explanation has to agree with the state.
+        if row.awaiting == "them" and row.last_outbound_at:
             days = (datetime.now(timezone.utc) - row.last_outbound_at).days
             base = f"{why}. " if app else "No application in Recon matches this. "
             row.evidence = (f"{base}You replied {days} day{'s' if days != 1 else ''} ago "
