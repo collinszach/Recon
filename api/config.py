@@ -113,6 +113,22 @@ class Settings(BaseSettings):
     vapid_private_key: str = ""
     vapid_subject: str = "mailto:zakslax@gmail.com"
 
+    # ─── Gmail: know when someone replies ───────────────────
+    # Read-only (gmail.readonly): Recon can read mail and cannot send or delete
+    # it. Chosen over an app password because the NUC is a shared machine and an
+    # app password grants full mailbox control; this scope is also revocable on
+    # its own from the Google account.
+    #
+    # The refresh token is minted once, on Zach's Mac, by scripts/gmail_auth.py
+    # — that keeps the OAuth redirect on localhost where Google allows plain
+    # http, so the API never has to host a callback or be publicly reachable.
+    mail_enabled: bool = False
+    gmail_client_id: str = ""
+    gmail_client_secret: str = ""
+    gmail_refresh_token: str = ""
+    mail_lookback_days: int = 60          # how far back a poll looks
+    mail_max_messages: int = 60           # cap per poll (quota + N95 politeness)
+
     # ─── Notifications: email ───────────────────────────────
     notify_email_enabled: bool = False
     smtp_host: str = ""

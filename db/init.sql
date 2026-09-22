@@ -16,6 +16,25 @@ CREATE TABLE IF NOT EXISTS companies (
     created_at      TIMESTAMPTZ DEFAULT now()
 );
 
+-- ─── mail: proposals from Gmail (Recon proposes, Zach decides) ──
+CREATE TABLE IF NOT EXISTS mail_messages (
+    id              SERIAL PRIMARY KEY,
+    message_id      TEXT NOT NULL UNIQUE,
+    thread_id       TEXT,
+    application_id  INTEGER REFERENCES applications(id) ON DELETE SET NULL,
+    from_addr       TEXT,
+    subject         TEXT,
+    snippet         TEXT,
+    received_at     TIMESTAMPTZ,
+    kind            TEXT,                       -- ack|screen|rejection|offer|info_request|other
+    proposed_stage  TEXT,
+    confidence      TEXT,
+    evidence        TEXT,
+    status          TEXT DEFAULT 'pending',     -- pending|accepted|dismissed|unmatched
+    created_at      TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_mail_status ON mail_messages(status);
+
 -- ─── résumé file (autofill extension attaches this to applications) ──
 CREATE TABLE IF NOT EXISTS resume_file (
     id            SERIAL PRIMARY KEY,

@@ -105,6 +105,40 @@ class ResumeFile(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class MailMessage(Base):
+    """A Gmail message Recon has looked at, and what it thinks it means.
+
+    One row per message so a poll is idempotent — re-reading the same thread
+    never creates a second proposal. `status` drives the workflow:
+      pending   – matched to an application, waiting for Zach to accept/dismiss
+      accepted  – he accepted; the application moved and an event was logged
+      dismissed – he rejected the reading; never proposed again
+      unmatched – looked at, belongs to no application (kept so we don't
+                  re-classify it every poll)
+
+    Recon proposes, it does not move applications on its own: a "we have
+    received your application" auto-acknowledgement reads a lot like a recruiter
+    reply, and a tracker that lies about your pipeline is worse than one that
+    asks.
+    """
+    __tablename__ = "mail_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    message_id: Mapped[str] = mapped_column(String, unique=True)
+    thread_id: Mapped[str | None] = mapped_column(String)
+    application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"))
+    from_addr: Mapped[str | None] = mapped_column(String)
+    subject: Mapped[str | None] = mapped_column(Text)
+    snippet: Mapped[str | None] = mapped_column(Text)
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    kind: Mapped[str | None] = mapped_column(String)          # ack|screen|rejection|offer|info_request|other
+    proposed_stage: Mapped[str | None] = mapped_column(String)
+    confidence: Mapped[str | None] = mapped_column(String)    # high|medium|low
+    evidence: Mapped[str | None] = mapped_column(Text)        # why it read the message this way
+    status: Mapped[str] = mapped_column(String, default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    application: Mapped["Application | None"] = relationship()
+
+
 class Application(Base):
     __tablename__ = "applications"
     id: Mapped[int] = mapped_column(primary_key=True)

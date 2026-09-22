@@ -206,6 +206,18 @@ def run_daily_scan() -> dict:
                 except Exception as e:
                     log.warning("alert failed: %s: %s", type(e).__name__, e)
 
+        # ── mail: proposals for anything that arrived since the last scan ──
+        # Non-fatal by design: Gmail being unreachable, or unconfigured, must
+        # never take down a scan whose real job is finding roles.
+        if settings.mail_enabled:
+            try:
+                from mail.poll import poll as poll_mail
+                mres = poll_mail(db)
+                log.info("mail poll: %s", mres)
+            except Exception as e:
+                db.rollback()
+                log.warning("mail poll failed (non-fatal): %s: %s", type(e).__name__, e)
+
         # build + persist today's brief
         brief = build_brief(db, today, totals)
 

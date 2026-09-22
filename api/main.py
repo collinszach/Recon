@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from config import settings
 from db import (
     Base, engine, SessionLocal, Company, Role, Application, ApplicationEvent, ResumeFile,
+    MailMessage,
     Contact, DailyBrief, ScanRun, PushSubscription, Resume, ResumeExperience,
     Interview, Material, AutofillProfile, DeviceToken, Startup, StartupContact,
 )
@@ -887,6 +888,90 @@ def _role_out_min(r: Role) -> dict:
             "url": r.url, "source": r.source,
             "first_seen": r.first_seen.isoformat() if r.first_seen else None,
             "dismissed_at": r.interest_at.isoformat() if r.interest_at else None}
+
+
+# ─── mail: know when someone replies ────────────────────────
+# Recon proposes, Zach decides. Nothing in this section moves an application
+# except `accept`, and that writes an ApplicationEvent so the pipeline can
+# always explain why a stage changed.
+@app.get("/api/mail/status")
+def mail_status(db: Session = Depends(get_db)):
+    from mail.gmail_client import configured
+    last = db.scalar(select(MailMessage).order_by(MailMessage.created_at.desc()))
+    counts = dict(db.execute(
+        select(MailMessage.status, func.count(MailMessage.id))
+        .group_by(MailMessage.status)).all())
+    return {"enabled": settings.mail_enabled, "configured": configured(),
+            "last_seen_at": last.created_at.isoformat() if last and last.created_at else None,
+            "counts": counts,
+            "setup": None if configured() else
+                     "run scripts/gmail_auth.py on the Mac, then set GMAIL_* in the NUC's .env"}
+
+
+@app.post("/api/mail/poll")
+def mail_poll(limit: int | None = None, db: Session = Depends(get_db)):
+    from mail.poll import poll
+    return poll(db, limit=limit)
+
+
+@app.get("/api/mail/proposals")
+def mail_proposals(status: str = "pending", limit: int = 50,
+                   db: Session = Depends(get_db)):
+    rows = db.scalars(
+        select(MailMessage).where(MailMessage.status == status)
+        .order_by(MailMessage.received_at.desc().nullslast()).limit(limit)).all()
+    out = []
+    for m in rows:
+        app_row = m.application
+        out.append({
+            "id": m.id, "kind": m.kind, "proposed_stage": m.proposed_stage,
+            "confidence": m.confidence, "evidence": m.evidence,
+            "from": m.from_addr, "subject": m.subject, "snippet": m.snippet,
+            "received_at": m.received_at.isoformat() if m.received_at else None,
+            "application_id": m.application_id,
+            "company": app_row.company_name if app_row else None,
+            "role_title": app_row.role_title if app_row else None,
+            "current_stage": app_row.stage if app_row else None,
+        })
+    return out
+
+
+@app.post("/api/mail/proposals/{proposal_id}/accept")
+def mail_accept(proposal_id: int, stage: str | None = None,
+                db: Session = Depends(get_db)):
+    """Accept a proposal: move the application and log why.
+
+    `stage` overrides the proposal — an acknowledgement proposes no move, but
+    Zach may still want to mark something from it.
+    """
+    m = db.get(MailMessage, proposal_id)
+    if not m:
+        raise HTTPException(404, "proposal not found")
+    target = stage or m.proposed_stage
+    m.status = "accepted"
+    moved = None
+    if target and m.application_id:
+        app_row = db.get(Application, m.application_id)
+        if app_row and app_row.stage != target:
+            db.add(ApplicationEvent(
+                application_id=app_row.id, from_stage=app_row.stage, to_stage=target,
+                note=f"From email: {(m.subject or '')[:120]} — {m.evidence or ''}"[:500]))
+            app_row.stage = target
+            if target == "applied" and not app_row.applied_at:
+                app_row.applied_at = datetime.now(timezone.utc)
+            moved = target
+    db.commit()
+    return {"status": "ok", "id": m.id, "moved_to": moved}
+
+
+@app.post("/api/mail/proposals/{proposal_id}/dismiss")
+def mail_dismiss(proposal_id: int, db: Session = Depends(get_db)):
+    m = db.get(MailMessage, proposal_id)
+    if not m:
+        raise HTTPException(404, "proposal not found")
+    m.status = "dismissed"
+    db.commit()
+    return {"status": "ok", "id": m.id}
 
 
 # ─── résumé file (for the autofill extension) ───────────────
