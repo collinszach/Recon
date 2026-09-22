@@ -123,6 +123,8 @@ _INTERNATIONAL_HINT_RE = re.compile(
     # Gabon" came back unresolved and sat in a US-only feed. Country names
     # only, plus cities that can't be confused with a US one — no "Athens"
     # (GA), "Lima" (OH), "Birmingham" (AL) or "Cambridge" (MA).
+    r"frankfurt|hamburg|stuttgart|cologne|d\u00fcsseldorf|dusseldorf|"
+    r"lyon|toulouse|marseille|rotterdam|utrecht|antwerp|ghent|basel|bern|"
     r"turkey|t\u00fcrkiye|istanbul|romania|bucharest|bulgaria|hungary|budapest|"
     r"czech(ia|\s+republic)?|prague|slovakia|bratislava|slovenia|ljubljana|croatia|zagreb|"
     r"serbia|belgrade|ukraine|kyiv|kiev|estonia|tallinn|latvia|\briga\b|lithuania|vilnius|"
@@ -342,7 +344,8 @@ def metro_of(location: str | None) -> str | None:
     return None
 
 
-def is_us(location: str | None, state: str | None = None) -> bool:
+def is_us(location: str | None, state: str | None = None,
+          title: str | None = None) -> bool:
     """Is this role in the US (or US-remote)?
 
     `state` is the stored comma-joined result of states_of(); pass it to avoid
@@ -355,8 +358,19 @@ def is_us(location: str | None, state: str | None = None) -> bool:
         return True          # a multi-region posting with a US leg still counts
     if "international" in codes:
         return False
+    # Some boards give no location at all — Accenture's Workday returns NULL —
+    # and then the country is only in the title: "Internship – Technology
+    # Strategy & Transformation Luxembourg" was sitting in a US-only feed.
     if not location:
+        if title and _INTERNATIONAL_HINT_RE.search(title) and not _US_MARKER_RE.search(title):
+            return False
         return True
     if _US_COUNTY_RE.search(location):
         return True
-    return not (_INTERNATIONAL_HINT_RE.search(location) and not _US_MARKER_RE.search(location))
+    if _INTERNATIONAL_HINT_RE.search(location) and not _US_MARKER_RE.search(location):
+        return False
+    # A location that parses as nothing useful ("TAURUS") leaves the title as
+    # the only remaining signal.
+    if title and _INTERNATIONAL_HINT_RE.search(title) and not _US_MARKER_RE.search(title):
+        return False
+    return True

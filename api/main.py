@@ -259,7 +259,7 @@ def list_roles(tier: str | None = None, company: str | None = None,
         # postings) — match if ANY of the role's states is in the requested set.
         if wanted_states and not (set((r.state or "").split(",")) & wanted_states):
             continue
-        if us_only and not is_us(r.location, r.state):
+        if us_only and not is_us(r.location, r.state, r.title):
             # Zach is not relocating abroad. A posting with a US leg still
             # counts (see geo.is_us), and an unparseable location is kept
             # rather than hidden.
