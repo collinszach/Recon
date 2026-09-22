@@ -184,7 +184,10 @@ _CITY_STATE: dict[str, str] = {
     "buffalo": "NY", "syracuse": "NY", "yonkers": "NY", "white plains": "NY",
     "boston": "MA", "cambridge": "MA", "somerville": "MA", "waltham": "MA",
     "burlington": "MA", "lexington": "MA", "needham": "MA", "quincy": "MA",
-    "newton": "MA", "andover": "MA", "worcester": "MA", "springfield": "MA",
+    "newton": "MA", "andover": "MA", "worcester": "MA",
+    # No "springfield": MO and IL are both larger than the MA one, and the
+    # comment above promises ambiguous cities are left unresolved. The table
+    # said otherwise until a test caught the contradiction.
     "providence": "RI", "hartford": "CT", "stamford": "CT", "new haven": "CT",
     "greenwich": "CT", "jersey city": "NJ", "hoboken": "NJ", "newark": "NJ",
     "princeton": "NJ", "philadelphia": "PA", "pittsburgh": "PA",

@@ -1,0 +1,61 @@
+name: CI
+
+# There was no CI at all until 2026-09-22. The iOS app could stop compiling and
+# nothing would say so until someone ran xcodebuild by hand — which is exactly
+# how a whole day's Swift changes got verified, one manual build at a time.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    name: API — syntax + logic
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Deliberately no pip install: the logic under test is pure stdlib, and
+      # installing psycopg/pgvector to check a regex would trade a 10-second
+      # job for a two-minute one.
+      - name: Compile every module
+        run: python -m compileall -q api worker scripts
+      - name: Logic checks
+        run: python3 api/tests/test_logic.py
+
+  ios:
+    name: iOS — build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install xcodegen
+        run: brew install xcodegen
+      - name: Generate project
+        working-directory: ios
+        # The project file is generated, so a new .swift file that nobody
+        # regenerated for is invisible to the build — that has already happened
+        # once (ApplyView).
+        run: xcodegen generate
+      - name: Build
+        working-directory: ios
+        run: |
+          xcodebuild -project Recon.xcodeproj -scheme Recon \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build | tail -40
+
+  extension:
+    name: Extension — syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Parse every script
+        run: |
+          for f in extension/*.js extension/adapters/*.js; do
+            node --check "$f" || exit 1
+          done
+          python3 -c "import json; json.load(open('extension/manifest.json'))"
