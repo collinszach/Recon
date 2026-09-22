@@ -13,7 +13,8 @@ what the app should open.
 
 `token` is ignored — the feed is the whole company, there is no slug.
 """
-from .base import ATSParser, NormalizedRole, client, polite_delay, parse_dt
+from .base import (ATSParser, NormalizedRole, client, html_to_text,
+                   polite_delay, parse_dt)
 
 FEED = "https://www.atlassian.com/endpoint/careers/listings"
 
@@ -71,10 +72,11 @@ class AtlassianParser(ATSParser):
 
 
 def _text(job: dict) -> str:
-    """The JD, which the feed splits across three HTML fields."""
-    import html as _html
-    import re
+    """The JD, which the feed splits across three HTML fields.
+
+    The sections were already joined with a blank line, and then the old
+    `\\s+ -> " "` collapse flattened it straight back out again.
+    """
     parts = [job.get("overview"), job.get("responsibilities"), job.get("qualifications")]
     blob = "\n\n".join(p for p in parts if p)
-    text = re.sub(r"<[^>]+>", " ", _html.unescape(blob))
-    return re.sub(r"\s+", " ", text).strip()[:6000]
+    return html_to_text(blob, pre_unescape=True)[:6000]

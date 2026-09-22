@@ -103,3 +103,40 @@ if failures:
         print("  -", f)
     sys.exit(1)
 print("all logic checks passed (including eligibility)")
+
+
+# ── job-description extraction (appended 2026-09-22) ───────────────────────
+# Greenhouse JDs reached the reader as one unbroken 6,000-character paragraph
+# with literal &nbsp; in it, because the parser turned every tag and newline
+# into a space and unescaped only once. These lock the structure in.
+from parsers.base import html_to_text                    # noqa: E402
+
+# Shaped like a real Greenhouse `content`: HTML that is itself escaped, so its
+# entities are escaped twice.
+GH = ("&lt;div&gt;&lt;p&gt;&lt;strong&gt;ABOUT ROCKET LAB&lt;/strong&gt;&lt;/p&gt;"
+      "&lt;p&gt;We move fast.&amp;nbsp;Come shape the future.&lt;/p&gt;"
+      "&lt;p&gt;WHAT YOU&amp;rsquo;LL DO&lt;/p&gt;"
+      "&lt;ul&gt;&lt;li&gt;Sourcing&lt;/li&gt;&lt;li&gt;Supplier relationships&lt;/li&gt;&lt;/ul&gt;"
+      "&lt;/div&gt;")
+gh = html_to_text(GH, pre_unescape=True)
+
+check("gh: heading on its own line", gh.splitlines()[0], "ABOUT ROCKET LAB")
+check("gh: paragraphs survive", gh.count("\n") >= 4, True)
+check("gh: no literal entity", "&nbsp;" in gh or "&rsquo;" in gh, False)
+check("gh: no non-breaking space", "\u00a0" in gh, False)
+check("gh: bullets are separate lines", "Sourcing" in gh.splitlines(), True)
+check("gh: apostrophe unescaped", "YOU\u2019LL DO" in gh, True)
+# The space that &nbsp; became must not glue two sentences together.
+check("gh: nbsp became a space", "fast. Come shape" in gh, True)
+
+# The backfill path fetches live pages, whose HTML is not double-escaped.
+PLAIN = "<div><h2>Role</h2><p>One.</p><br><p>Two &amp; three.</p></div>"
+pl = html_to_text(PLAIN)
+check("plain: heading split", pl.splitlines()[0], "Role")
+check("plain: ampersand unescaped", "Two & three." in pl, True)
+check("plain: no tags left", "<" in pl, False)
+
+# Tags that carry no block meaning must not invent line breaks.
+check("inline tags don't break", html_to_text("<p>a <strong>b</strong> c</p>"), "a b c")
+
+print("all logic checks passed (including JD extraction)")

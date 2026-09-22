@@ -20,19 +20,13 @@ from sqlalchemy import func, select, or_
 from sqlalchemy.orm import Session
 
 from db import Role
+from parsers.base import html_to_text
 
 log = logging.getLogger("recon.jd_backfill")
 
 # A description this short is a teaser, not a JD (Adzuna truncates to ~200).
 MIN_USEFUL = 200
 MAX_STORED = 4000        # same cap the ingest paths use
-
-_DROP_RE = re.compile(r"<(script|style|noscript|svg|head)[^>]*>.*?</\1>",
-                      re.IGNORECASE | re.DOTALL)
-_BREAK_RE = re.compile(r"</(p|div|li|tr|h[1-6])>|<br\s*/?>", re.IGNORECASE)
-_TAG_RE = re.compile(r"<[^>]+>")
-_WS_RE = re.compile(r"[ \t\r\f\v]+")
-_NL_RE = re.compile(r"\n{3,}")
 
 # Pages that came back as a bot wall / login / expired posting rather than a JD.
 # Checked against the extracted text, which is why they're plain phrases.
@@ -41,19 +35,6 @@ _JUNK_RE = re.compile(
     r"are\s+you\s+a\s+robot|sign\s+in\s+to\s+continue|this\s+job\s+is\s+no\s+longer|"
     r"job\s+not\s+found|page\s+not\s+found|has\s+been\s+filled)", re.IGNORECASE)
 
-
-def html_to_text(html: str) -> str:
-    """Crude but dependency-free: drop scripts, turn block ends into newlines,
-    strip the remaining tags, unescape the handful of entities that matter."""
-    t = _DROP_RE.sub(" ", html)
-    t = _BREAK_RE.sub("\n", t)
-    t = _TAG_RE.sub(" ", t)
-    for ent, ch in (("&nbsp;", " "), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"),
-                    ("&quot;", '"'), ("&#39;", "'"), ("&rsquo;", "'"), ("&mdash;", "—")):
-        t = t.replace(ent, ch)
-    t = _WS_RE.sub(" ", t)
-    t = "\n".join(line.strip() for line in t.split("\n"))
-    return _NL_RE.sub("\n\n", t).strip()
 
 
 def _fetch(url: str, timeout: float) -> str | None:

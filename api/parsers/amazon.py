@@ -68,8 +68,10 @@ def _terms() -> list[str]:
 def _normalize(j: dict) -> NormalizedRole:
     path = j.get("job_path") or ""
     loc = j.get("normalized_location") or j.get("location")
-    desc = " ".join(x for x in (j.get("description_short"), j.get("basic_qualifications"),
-                                j.get("preferred_qualifications")) if x)
+    # Blank line between them: these are three distinct sections, and joined by a
+    # space the qualifications read as a continuation of the summary.
+    desc = "\n\n".join(x for x in (j.get("description_short"), j.get("basic_qualifications"),
+                                   j.get("preferred_qualifications")) if x)
     return NormalizedRole(
         ats_job_id=str(j.get("id_icims") or j.get("id") or path),
         title=j.get("title", "Untitled"),

@@ -5,7 +5,8 @@ Endpoint:
 
 `token` is the board slug, e.g. the company's greenhouse board name.
 """
-from .base import ATSParser, NormalizedRole, client, polite_delay, parse_dt
+from .base import (ATSParser, NormalizedRole, client, html_to_text,
+                   polite_delay, parse_dt)
 
 BASE = "https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true"
 
@@ -44,9 +45,13 @@ def _first_department(job: dict) -> str | None:
     return depts[0]["name"] if depts else None
 
 
-def _strip(html: str) -> str:
-    # Greenhouse returns HTML-escaped content; keep a light text version for hashing/scoring.
-    import html as _html
-    import re
-    text = re.sub(r"<[^>]+>", " ", _html.unescape(html))
-    return re.sub(r"\s+", " ", text).strip()[:6000]
+def _strip(content: str) -> str:
+    """Greenhouse delivers `content` HTML-escaped, so it needs the pre-unescape
+    pass — without it `&nbsp;` survives tag-stripping and is shown to the reader
+    verbatim, which is what happened until 2026-09-22.
+
+    This used to flatten every tag and newline into a single space. That was
+    fine while the JD was only hashed and fed to the scorer; it is now read by a
+    person, and a 6,000-character posting with no paragraph breaks is unusable.
+    """
+    return html_to_text(content, pre_unescape=True)[:6000]

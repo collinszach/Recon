@@ -155,8 +155,11 @@ def parse_posted_on(value: str | None) -> datetime | None:
 def _normalize(job: dict, tenant: str, dc: str, site: str) -> NormalizedRole:
     path = job.get("externalPath", "")
     loc = job.get("locationsText")
-    bullets = job.get("bulletFields") or []
-    description = " ".join(str(b) for b in bullets)
+    # `bulletFields` is a location and a requisition id — "Malvern, PA 180420",
+    # "R00358081 Amsterdam". Stored as a description it renders under a heading
+    # claiming to be the job description, which is worse than showing nothing;
+    # it was 18 of the 85 descriptions in the feed. The real JD for a Workday
+    # posting is behind its own fetch, which scan/jd_backfill.py handles.
     return NormalizedRole(
         ats_job_id=path or job.get("title", "Untitled"),
         title=job.get("title", "Untitled"),
@@ -164,7 +167,7 @@ def _normalize(job: dict, tenant: str, dc: str, site: str) -> NormalizedRole:
         remote_flag=bool(loc and "remote" in loc.lower()),
         department=None,
         url=PUBLIC_URL.format(tenant=tenant, dc=dc, site=site, path=path),
-        description=f"{loc or ''} {description}".strip()[:6000],
+        description="",
         posted_at=(parse_dt(job.get("startDate") or job.get("postedOnDate"))
                    or parse_posted_on(job.get("postedOn"))),
     )
