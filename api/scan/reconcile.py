@@ -68,6 +68,15 @@ def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole
                 # forcing a re-score (the hash, hence the scoring inputs, matched).
                 if not row.description and f.description:
                     row.description = f.description
+                # Same for the posting date. Workday's relative `postedOn` only
+                # started being parsed on 2026-09-21, so every row ingested
+                # before that has posted_at=NULL and would keep it until the
+                # posting's text happened to change — which for most postings is
+                # never. Without this the dashboard reads them as undated
+                # forever and "posted today" stays wrong for the boards that
+                # matter most.
+                if not row.posted_at and f.posted_at:
+                    row.posted_at = f.posted_at
                 row.status = "open"
             row.last_seen = now
 

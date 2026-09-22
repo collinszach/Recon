@@ -113,17 +113,42 @@ struct Role: Codable, Identifiable, Hashable {
         guard let d = postedDate else { return false }
         return Calendar.current.isDateInToday(d)
     }
-    /// "Posted today" / "Posted 3d ago", or the muted "Seen 3d ago · date
-    /// unknown" when the board never told us when it went up.
+    /// "Posted today" where the board dates its postings; otherwise what we do
+    /// know — "New listing · today" the day it first appears on a board we were
+    /// already watching, and "First seen 3d ago" after that. A board with no
+    /// dates still tells us when a posting showed up that wasn't there before.
     var dateLabel: String {
+        let cal = Calendar.current
         if let d = postedDate {
-            let cal = Calendar.current
             if cal.isDateInToday(d) { return "Posted today" }
             if cal.isDateInYesterday(d) { return "Posted yesterday" }
             return "Posted \(Self.ago(d))"
         }
-        if let d = firstSeenDate { return "Seen \(Self.ago(d)) · date unknown" }
+        if isBackfill == true { return "Existing listing" }
+        if firstSeenIsToday { return "New listing · today" }
+        if let d = firstSeenDate, cal.isDateInYesterday(d) { return "New listing · yesterday" }
+        if let d = firstSeenDate { return "First seen \(Self.ago(d))" }
         return "Date unknown"
+    }
+
+    /// True when this is new by either measure — the board said so, or it
+    /// appeared on a board we already knew.
+    var isNewToday: Bool {
+        if postedToday { return true }
+        return isBackfill != true && !postedIsKnown && firstSeenIsToday
+    }
+
+    /// "Summer 2027" / "Winter 2027" — the term, pulled from the title. The
+    /// single most decisive fact on an internship card after the company.
+    var termLabel: String? {
+        let t = title
+        guard let season = ["Summer", "Fall", "Winter", "Spring"].first(where: {
+            t.range(of: $0, options: .caseInsensitive) != nil
+        }) else { return nil }
+        if let m = t.range(of: "20[2-9][0-9]", options: .regularExpression) {
+            return "\(season) \(t[m])"
+        }
+        return season
     }
 
     var firstSeenText: String? {
@@ -140,23 +165,34 @@ struct Role: Codable, Identifiable, Hashable {
     /// "Posted 3d ago" from the ATS posting date, falling back to when Recon
     /// first saw it ("Seen 2d ago").
     var postedText: String? {
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let iso2 = ISO8601DateFormatter(); iso2.formatOptions = [.withInternetDateTime]
-        func parse(_ s: String?) -> Date? {
-            guard let s else { return nil }
-            return iso.date(from: s) ?? iso2.date(from: s)
-        }
-        if let d = parse(postedAt) { return "Posted \(Self.ago(d))" }
-        if let d = parse(firstSeen) { return "Seen \(Self.ago(d))" }
+        if let d = Self.parseDate(postedAt) { return "Posted \(Self.ago(d))" }
+        if let d = Self.parseDate(firstSeen) { return "Seen \(Self.ago(d))" }
         return nil
     }
 
+    /// Two shared formatters, not two per call.
+    ///
+    /// These used to be constructed inside parseDate, and parseDate is called
+    /// from inside sort comparators — so sorting ~600 roles allocated tens of
+    /// thousands of ISO8601DateFormatters, which are very expensive to create.
+    /// With the feed now sliced several ways per render (new today / this week /
+    /// undated / per segment) that compounded into a **27-second** blocked main
+    /// thread at launch, measured in the simulator on 2026-09-21. Static
+    /// instances make it imperceptible. Only read from the main actor.
+    private static let isoFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let isoPlain: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
     static func parseDate(_ s: String?) -> Date? {
         guard let s else { return nil }
-        let iso = ISO8601DateFormatter(); iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let iso2 = ISO8601DateFormatter(); iso2.formatOptions = [.withInternetDateTime]
-        return iso.date(from: s) ?? iso2.date(from: s)
+        return isoFractional.date(from: s) ?? isoPlain.date(from: s)
     }
     var firstSeenDate: Date? { Self.parseDate(firstSeen) }
     /// Ingested after the given baseline → "new since you last looked".
@@ -233,7 +269,7 @@ struct AppItem: Codable, Identifiable, Hashable {
            let d = DateFormatter.ymd.date(from: String(s.prefix(10))),
            cal.startOfDay(for: d) <= cal.startOfDay(for: Date()) { return .overdue }
         if stage == "applied", let s = appliedAt,
-           let d = ISO8601DateFormatter().date(from: s),
+           let d = Role.parseDate(s),
            let cutoff = cal.date(byAdding: .day, value: -10, to: Date()), d <= cutoff { return .stale }
         return nil
     }

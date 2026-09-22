@@ -52,19 +52,27 @@ struct TodayView: View {
                 }
 
                 HStack(spacing: 10) {
-                    Stat(num: "\(store.postedToday.count)", label: "posted today", color: Theme.gold)
-                    Stat(num: "\(store.postedThisWeek.count)", label: "this week", color: Theme.rust)
+                    Stat(num: "\(store.newToday.count)", label: "new today", color: Theme.gold)
+                    Stat(num: "\(store.newWithin(days: 7).count)", label: "this week", color: Theme.rust)
                     Stat(num: "\(applied.count)", label: "applied", color: Theme.green)
                 }
 
-                // 1. Posted today — the reason to open the app.
-                SectionHeader(title: "Posted today",
-                              trailing: store.postedToday.isEmpty ? nil : "\(store.postedToday.count)")
-                if store.postedToday.isEmpty {
-                    Text("Nothing new posted today yet. Recon scans hourly; most Summer 2027 reqs post Aug 2026–Jan 2027.")
+                // 1. New today — the reason to open the app. "New" is either
+                // measure: the board dated it today, or it appeared on a board
+                // that doesn't publish dates and wasn't there before. Plenty of
+                // boards never date anything, and waiting for a date we'll never
+                // get would mean never surfacing their postings at all.
+                SectionHeader(title: "New today",
+                              trailing: store.newToday.isEmpty ? nil : "\(store.newToday.count)")
+                if store.newToday.isEmpty {
+                    Text("Nothing new today yet. Recon scans hourly; most Summer 2027 reqs post Aug 2026–Jan 2027.")
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 } else {
-                    ForEach(store.postedToday) { role in roleLink(role) }
+                    ForEach(store.newToday) { role in roleLink(role) }
+                    if store.postedToday.count < store.newToday.count {
+                        Text("\(store.newToday.count - store.postedToday.count) of these are from boards that don't publish posting dates — new means they weren't on the board before.")
+                            .font(.caption).foregroundStyle(Theme.inkSoft)
+                    }
                 }
 
                 // 2. Needs action, before the browsing sections.
@@ -132,7 +140,7 @@ struct TodayView: View {
                 if !store.undatedArrivals.isEmpty {
                     Button { withAnimation { showUndated.toggle() } } label: {
                         HStack {
-                            Text("Date unknown · \(store.undatedArrivals.count)")
+                            Text("Older, date unknown · \(store.undatedArrivals.count)")
                                 .font(.caption.weight(.semibold)).textCase(.uppercase)
                             Image(systemName: showUndated ? "chevron.up" : "chevron.down")
                                 .font(.caption2)
@@ -153,7 +161,7 @@ struct TodayView: View {
     }
 
     private func roleLink(_ role: Role) -> some View {
-        NavigationLink(value: role) { RoleRow(role: role, isNew: role.postedToday) }
+        NavigationLink(value: role) { RoleRow(role: role, isNew: role.isNewToday) }
             .buttonStyle(.plain)
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 Button(role: .destructive) {

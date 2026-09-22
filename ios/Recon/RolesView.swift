@@ -1,53 +1,68 @@
 import SwiftUI
 
 /// Compact internship card: company, tier, fit, PAY, and a one-line summary.
+/// One role, as a card.
+///
+/// Redesigned 2026-09-21. The old card spent its two best lines on the JD's
+/// opening sentence, which is marketing boilerplate on nearly every posting
+/// ("X is the trusted platform to industrialize enterprise AI"), and buried the
+/// facts that actually decide whether to open it. A card now answers, in order:
+/// is it new, who is it, what is it, when is it for, where is it, when did it
+/// appear.
 struct RoleRow: View {
     let role: Role
     var isNew: Bool = false
+
+    private var accent: Color {
+        if role.isNewToday { return Theme.gold }
+        if role.isBackfill == true { return Theme.hair }
+        return Theme.hair
+    }
+
     var body: some View {
         HStack(spacing: 0) {
-            // Editorial accent edge. Used to be the fit tier; with scoring off
-            // (2026-09-21) recency is the signal that's actually left.
             RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(isNew ? Theme.gold : Theme.hair)
+                .fill(accent)
                 .frame(width: 4)
                 .padding(.vertical, 2)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 7) {
+                // Who, and whether it's new.
                 HStack(spacing: 8) {
-                    if isNew { Pill(text: "New", color: Theme.gold, filled: true) }
-                    if role.isMba == true { Pill(text: "MBA", color: Theme.rust) }
-                    Text(role.company ?? "—").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
-                    if role.isBackfill == true { Pill(text: "backlog", color: Theme.inkSoft) }
+                    if role.isNewToday { Pill(text: "New", color: Theme.gold, filled: true) }
+                    Text(role.company ?? "—")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                     Spacer()
-                }
-                Text(role.title).font(.callout).foregroundStyle(Theme.ink).lineLimit(2)
-                HStack(spacing: 10) {
-                    // Posting age leads: it's the signal that decides whether a
-                    // role is worth opening, and an undated one says so plainly
-                    // instead of looking fresh.
-                    Label(role.dateLabel, systemImage: role.postedIsKnown ? "calendar" : "questionmark.circle")
-                        .font(.caption.weight(role.postedToday ? .semibold : .regular))
-                        .foregroundStyle(role.postedToday ? Theme.gold
-                                         : (role.postedIsKnown ? Theme.inkSoft : Theme.inkSoft.opacity(0.7)))
+                    Text(role.dateLabel)
+                        .font(.caption2.weight(role.isNewToday ? .semibold : .regular))
+                        .foregroundStyle(role.isNewToday ? Theme.gold : Theme.inkSoft)
                         .lineLimit(1)
+                }
+
+                // What.
+                Text(role.title).font(.callout.weight(.medium))
+                    .foregroundStyle(Theme.ink).lineLimit(2)
+
+                // When it's for, and who it's for — the two facts that rule an
+                // internship in or out fastest.
+                HStack(spacing: 6) {
+                    if let term = role.termLabel { Pill(text: term, color: Theme.rust) }
+                    if role.isMba == true { Pill(text: "MBA", color: Theme.rust) }
+                    if role.remote == true { Pill(text: "Remote", color: Theme.green) }
+                    if role.isBackfill == true { Pill(text: "backlog", color: Theme.inkSoft) }
+                }
+
+                // Where, and pay when there is one.
+                HStack(spacing: 10) {
                     if let loc = role.location, !loc.isEmpty {
-                        Label(loc, systemImage: "mappin.and.ellipse")
+                        Label(loc.replacingOccurrences(of: ";", with: " · "),
+                              systemImage: "mappin.and.ellipse")
                             .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
                     }
-                    // Pay only when there is one. "Pay not listed" was on
-                    // essentially every row — a whole line spent saying nothing.
                     if let pay = role.tcEstimate, !pay.isEmpty {
                         Label(pay, systemImage: "dollarsign.circle")
                             .font(.caption).foregroundStyle(Theme.green).lineLimit(1)
                     }
-                }
-                // The JD's opening line, when there is one. This used to be
-                // `role.summary` — the scorer's why_fit — which on the old
-                // rule-scored internships is the canned "Rule-based heuristic
-                // score — no strong signal either way." repeated on every card.
-                if let blurb = role.blurb {
-                    Text(blurb).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(2)
                 }
             }
             .padding(.leading, 12)
@@ -60,14 +75,30 @@ struct RoleRow: View {
 /// filter on — what's left is location, sector, MBA-track, and how new it is.
 struct RolesView: View {
     @EnvironmentObject var store: Store
-    @State private var track: String = "intern"
+    /// What this tab is showing. The old track picker (intern / full-time /
+    /// ops) is gone: the server sends only in-track roles, so two of its three
+    /// segments were permanently zero. The useful split is by *state of the
+    /// search*, not by track.
+    enum Segment: String, CaseIterable, Identifiable {
+        case live, new, saved
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .live:  return "Live"
+            case .new:   return "New"
+            case .saved: return "Saved"
+            }
+        }
+    }
+    @State private var segment: Segment = .live
     @State private var selectedStates: Set<String> = []   // empty = all locations; multi-select
     @State private var showStateFilter = false
     @State private var sector: String? = nil      // nil = all sectors
     @State private var mbaOnly: Bool = false
     @State private var showSwipe = false
     @State private var wipedNotice: String?
-    @State private var postedWithin: Int? = nil     // days; nil = any age
+    @State private var newWithinDays: Int = 7       // the "New" segment's window
+    @State private var query: String = ""
     /// Target-metro slug -> display label (mirrors api/scan/geo.py METROS). Still
     /// used for the RoleDetailView "target metro" callout — the browse/filter UI
     /// below uses the exhaustive state list instead (2026-08-16).
@@ -78,26 +109,28 @@ struct RolesView: View {
         ("remote", "Remote (US)"),
     ]
 
+    /// The segment's base list, before the facets.
     var trackFeed: [Role] {
-        switch track {
-        case "fulltime": return store.fulltimeFeed
-        case "ops":      return store.opsFeed
-        default:         return store.internFeed
+        switch segment {
+        case .live:  return store.feed
+        case .new:   return store.newWithin(days: newWithinDays)
+        case .saved: return store.feed.filter { store.interest(of: $0) == "up" }
         }
     }
     var shown: [Role] {
         trackFeed.filter {
-            (postedWithin == nil || withinPosted($0, days: postedWithin!))
-            && (selectedStates.isEmpty || !selectedStates.isDisjoint(with: $0.stateCodes))
+            (selectedStates.isEmpty || !selectedStates.isDisjoint(with: $0.stateCodes))
             && (sector == nil || $0.sector == sector)
             && (!mbaOnly || $0.isMba == true)
+            && matchesQuery($0)
         }
     }
-    /// Posted within N days. Strict: an undated role never counts as recent,
-    /// the same rule the dashboard's "posted today" uses.
-    private func withinPosted(_ role: Role, days: Int) -> Bool {
-        guard let d = role.postedDate else { return false }
-        return d >= Date().addingTimeInterval(-Double(days) * 86_400)
+    private func matchesQuery(_ r: Role) -> Bool {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return true }
+        return r.title.localizedCaseInsensitiveContains(q)
+            || (r.company ?? "").localizedCaseInsensitiveContains(q)
+            || (r.location ?? "").localizedCaseInsensitiveContains(q)
     }
 
     private var stateFilterLabel: String {
@@ -107,6 +140,19 @@ struct RolesView: View {
         default: return "\(selectedStates.count) locations"
         }
     }
+    private var emptyMessage: String {
+        if !query.isEmpty { return "Nothing matches \"\(query)\"." }
+        if !selectedStates.isEmpty { return "Nothing open in \(stateFilterLabel) right now." }
+        switch segment {
+        case .new:
+            return "Nothing new in this window. Recon scans hourly and counts a posting as new when the board dates it today — or when it appears on a board that doesn't publish dates."
+        case .saved:
+            return "Nothing saved yet. Tap Keep on a role, or swipe right in triage."
+        case .live:
+            return "No internships open yet. Most Summer 2027 reqs post Aug 2026–Jan 2027 — Recon scans hourly."
+        }
+    }
+
     private var sectorLabel: String {
         guard let s = sector else { return "All sectors" }
         return Role.sectorLabels.first { $0.0 == s }?.1 ?? s
@@ -116,27 +162,44 @@ struct RolesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if let err = store.error { ErrorBanner(message: err) }
-                // Posting-age chips. "Any age" is the default because the
-                // board backlog is legitimately most of the feed.
-                HStack(spacing: 8) {
-                    ForEach([(nil as Int?, "Any age"), (1, "Today"), (3, "3 days"), (7, "This week")], id: \.1) { days, label in
-                        Button { postedWithin = (postedWithin == days ? nil : days) } label: {
-                            Text(label).font(.caption.weight(.medium))
-                                .padding(.horizontal, 11).padding(.vertical, 7)
-                                .foregroundStyle(postedWithin == days ? .white : Theme.ink)
-                                .background(postedWithin == days ? Theme.rust : Theme.card,
-                                            in: Capsule())
-                                .overlay(Capsule().stroke(Theme.hair))
+                Picker("Segment", selection: $segment) {
+                    Text("Live (\(store.feed.count))").tag(Segment.live)
+                    Text("New (\(store.newWithin(days: newWithinDays).count))").tag(Segment.new)
+                    Text("Saved (\(store.likedRoleIds.count))").tag(Segment.saved)
+                }.pickerStyle(.segmented)
+
+                // The "New" window. Only shown where it applies — a window
+                // control over the whole live board would just be noise.
+                if segment == .new {
+                    HStack(spacing: 8) {
+                        ForEach([(1, "Today"), (3, "3 days"), (7, "This week"), (30, "30 days")], id: \.0) { days, label in
+                            Button { newWithinDays = days } label: {
+                                Text(label).font(.caption.weight(.medium))
+                                    .padding(.horizontal, 11).padding(.vertical, 7)
+                                    .foregroundStyle(newWithinDays == days ? .white : Theme.ink)
+                                    .background(newWithinDays == days ? Theme.rust : Theme.card,
+                                                in: Capsule())
+                                    .overlay(Capsule().stroke(Theme.hair))
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
 
-                Picker("Track", selection: $track) {
-                    Text("Intern (\(store.internFeed.count))").tag("intern")
-                    Text("Full-time (\(store.fulltimeFeed.count))").tag("fulltime")
-                    Text("Ops (\(store.opsFeed.count))").tag("ops")
-                }.pickerStyle(.segmented)
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass").font(.caption).foregroundStyle(Theme.inkSoft)
+                    TextField("Search title, company, location", text: $query)
+                        .font(.subheadline).textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if !query.isEmpty {
+                        Button { query = "" } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.inkSoft)
+                        }.buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 9)
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.hair))
                 // Geo facet: every US state + remote + international (exhaustive —
                 // 2026-08-16, replacing the old hand-picked metro-only list which
                 // always missed somewhere, e.g. Denver/CO). Multi-select via a sheet
@@ -190,7 +253,7 @@ struct RolesView: View {
                         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.hair))
                     }
 
-                    if track == "intern" {
+                    do {
                         let mbaCount = trackFeed.filter { $0.isMba == true }.count
                         Button { mbaOnly.toggle() } label: {
                             Label("MBA (\(mbaCount))", systemImage: mbaOnly ? "checkmark.circle.fill" : "circle")
@@ -209,11 +272,7 @@ struct RolesView: View {
                     Text(notice).font(.footnote).foregroundStyle(Theme.inkSoft).reconCard()
                 }
                 if shown.isEmpty {
-                    Text(!selectedStates.isEmpty
-                         ? "Nothing open in \(stateFilterLabel) right now."
-                         : (track == "intern"
-                            ? "No internships open yet. Most Summer 2027 reqs post Aug 2026–Jan 2027 — Recon scans hourly."
-                            : "Nothing open in this track right now."))
+                    Text(emptyMessage)
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 } else {
                     ForEach(shown) { role in

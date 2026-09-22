@@ -147,12 +147,38 @@ final class Store: ObservableObject {
         }
     }
 
-    /// Arrived recently with no posting date at all. Shown, but in their own
-    /// group — they'd otherwise inflate "today" with roles of unknown age.
+    /// Boards that publish no posting date still tell us something: a posting
+    /// that wasn't on the board yesterday and is there today is new, and the
+    /// scan already knows which rows it just created. So "newly listed" is a
+    /// real signal, not a fallback — as long as the board isn't being read for
+    /// the first time, where everything is new by definition (isBackfill).
+    var newlyListedToday: [Role] {
+        feed.filter { !$0.postedIsKnown && $0.isBackfill != true && $0.firstSeenIsToday }
+    }
+
+    /// Everything genuinely new today: posted today where the board says so,
+    /// plus first appearances on boards that don't date their postings.
+    var newToday: [Role] {
+        (postedToday + newlyListedToday)
+            .sorted { ($0.effectiveDate ?? .distantPast) > ($1.effectiveDate ?? .distantPast) }
+    }
+
+    /// Same, over the last week — what the browse tab's "New" segment shows.
+    func newWithin(days: Int) -> [Role] {
+        let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
+        return feed.filter { r in
+            guard r.isBackfill != true else { return false }
+            if let p = r.postedDate { return p >= cutoff }
+            return (r.firstSeenDate ?? .distantPast) >= cutoff
+        }
+    }
+
+    /// Recently arrived with no posting date and not today — still worth a
+    /// group of its own, since their real age is unknown.
     var undatedArrivals: [Role] {
         let cutoff = Date().addingTimeInterval(-7 * 86_400)
         return feed.filter {
-            !$0.postedIsKnown && $0.isBackfill != true
+            !$0.postedIsKnown && $0.isBackfill != true && !$0.firstSeenIsToday
                 && ($0.firstSeenDate ?? .distantPast) >= cutoff
         }
     }
