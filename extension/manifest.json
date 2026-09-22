@@ -1,9 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Recon Autofill",
-  "version": "0.1.0",
-  "description": "Fills job application forms from your Recon profile. Never submits for you.",
-  "permissions": ["storage", "scripting", "activeTab"],
+  "version": "0.2.0",
+  "description": "Fills job application forms from your Recon profile \u2014 including Workday's dropdowns, dates and resume upload. Never submits for you.",
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab"
+  ],
   "host_permissions": [
     "http://100.91.198.28:8010/*",
     "http://localhost:8000/*",

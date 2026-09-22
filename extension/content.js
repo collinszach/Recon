@@ -53,7 +53,69 @@
     return specific || ns.adapters.find((a) => a.name === "generic");
   }
 
+  function showReport(step, rows, adapterName) {
+    const id = "recon-autofill-report";
+    document.getElementById(id)?.remove();
+    const panel = document.createElement("div");
+    panel.id = id;
+    Object.assign(panel.style, {
+      position: "fixed", bottom: "16px", right: "16px", zIndex: 2147483647,
+      background: "#fffdf8", color: "#22201c", border: "1px solid #e4ddd0",
+      borderRadius: "12px", font: "13px/1.45 -apple-system,sans-serif",
+      boxShadow: "0 8px 32px rgba(0,0,0,.18)", maxWidth: "360px",
+      maxHeight: "70vh", overflow: "auto", padding: "12px 14px",
+    });
+    const filled = rows.filter((r) => r.status === "filled").length;
+    const attention = rows.filter((r) => r.status === "attention").length;
+    const head = document.createElement("div");
+    head.innerHTML =
+      `<div style="font-weight:600;margin-bottom:2px">Recon · ${step}</div>` +
+      `<div style="color:#6b6458;margin-bottom:8px">${filled} filled` +
+      (attention ? ` · <b style="color:#c0522d">${attention} need you</b>` : "") +
+      ` · nothing submitted</div>`;
+    panel.appendChild(head);
+    for (const r of rows) {
+      const line = document.createElement("div");
+      const color = r.status === "filled" ? "#3f7d3f" : r.status === "skipped" ? "#6b6458" : "#c0522d";
+      const mark = r.status === "filled" ? "✓" : r.status === "skipped" ? "–" : "!";
+      line.style.cssText = "display:flex;gap:6px;padding:2px 0";
+      line.innerHTML = `<span style="color:${color};font-weight:700">${mark}</span>` +
+        `<span style="flex:1"><b>${r.label}</b>` +
+        (r.detail ? ` <span style="color:#6b6458">— ${r.detail}</span>` : "") + `</span>`;
+      panel.appendChild(line);
+    }
+    const close = document.createElement("button");
+    close.textContent = "Close";
+    close.style.cssText = "margin-top:10px;padding:6px 10px;border:1px solid #e4ddd0;" +
+      "background:#fff;border-radius:8px;cursor:pointer;font:inherit";
+    close.onclick = () => panel.remove();
+    panel.appendChild(close);
+    document.body.appendChild(panel);
+  }
+
+  async function getResume() {
+    const resp = await chrome.runtime.sendMessage({ type: "GET_RESUME" });
+    if (!resp?.ok) return null;
+    const blob = new Blob([new Uint8Array(resp.bytes)], { type: resp.type });
+    return new File([blob], resp.name, { type: resp.type });
+  }
+
   const adapter = pickAdapter();
+
+  // Adapters that own their fill pass (Workday) get called directly: its fields
+  // are mostly not inputs, so handing elements to the generic filler writes
+  // values React immediately discards.
+  if (typeof adapter.fill === "function") {
+    const profileResp0 = await chrome.runtime.sendMessage({ type: "GET_PROFILE" });
+    if (!profileResp0?.ok) {
+      showToast(`Recon Autofill: couldn't reach Recon API — ${profileResp0?.error || "unknown error"}`, true);
+      return;
+    }
+    const { step, report } = await adapter.fill({ profile: profileResp0.profile, getResume });
+    showReport(step, report, adapter.name);
+    return;
+  }
+
   const fields = adapter.extractFields();
   if (!fields.length) {
     showToast("Recon Autofill: no fillable fields found on this page.", true);

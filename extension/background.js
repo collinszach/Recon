@@ -44,6 +44,21 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           sendResponse({ ok: true });
           break;
         }
+        case "GET_RESUME": {
+          // Fetched here, not in the content script: the page's CSP would block
+          // it, and the API host permission lives with the service worker.
+          const base = await getApiBase();
+          const res = await fetch(base + "/api/resume/file");
+          if (!res.ok) { sendResponse({ ok: false, error: `${res.status} — no résumé stored?` }); break; }
+          const buf = await res.arrayBuffer();
+          const name = (res.headers.get("Content-Disposition") || "")
+            .match(/filename="?([^"]+)"?/)?.[1] || "resume.pdf";
+          // Structured clone can't carry a File across the message boundary, so
+          // send bytes and rebuild it on the other side.
+          sendResponse({ ok: true, name, type: res.headers.get("Content-Type") || "application/pdf",
+                         bytes: Array.from(new Uint8Array(buf)) });
+          break;
+        }
         case "ANSWER_QUESTIONS": {
           const data = await callApi("/api/autofill/answer", {
             method: "POST",
