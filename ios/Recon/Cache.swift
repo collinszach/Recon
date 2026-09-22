@@ -12,9 +12,19 @@ enum Cache {
 
     private static func url(_ name: String) -> URL { dir.appendingPathComponent("\(name).json") }
 
-    static func save<T: Encodable>(_ value: T, _ name: String) {
-        do { try JSONEncoder().encode(value).write(to: url(name), options: .atomic) }
-        catch { /* best-effort cache; ignore */ }
+    /// Writes happen off the main thread.
+    ///
+    /// These were synchronous, on the main actor, and the roles payload is
+    /// hundreds of KB — so every refresh, every swipe and every wipe encoded
+    /// and wrote the whole cache before the UI could move again. That is what
+    /// "delayed and buggy, especially the load/save" was.
+    private static let io = DispatchQueue(label: "recon.cache", qos: .utility)
+
+    static func save<T: Encodable & Sendable>(_ value: T, _ name: String) {
+        io.async {
+            do { try JSONEncoder().encode(value).write(to: url(name), options: .atomic) }
+            catch { /* best-effort cache; ignore */ }
+        }
     }
 
     static func load<T: Decodable>(_ type: T.Type, _ name: String) -> T? {

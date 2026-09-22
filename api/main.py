@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Depends, Request, Response
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func, or_, text
 from sqlalchemy.orm import Session
 from config import settings
 from db import (
@@ -183,6 +183,10 @@ def health():
 
 
 # ─── roles ──────────────────────────────────────────────────
+def _mode_for(cfg) -> str:
+    return "intern" if cfg.intern_only else cfg.track_mode
+
+
 # How far back "recently arrived, not yet scored" reaches (see include_unscored).
 NEW_ARRIVAL_DAYS = 7
 
@@ -231,6 +235,15 @@ def list_roles(tier: str | None = None, company: str | None = None,
         q = q.where(Role.posted_at >= datetime.now(timezone.utc) - timedelta(days=posted_since_days))
     if not include_backfill:
         q = q.where(Role.is_backfill == False)  # noqa: E712
+    if relevant_only and _mode_for(settings) == "intern":
+        # Coarse SQL prefilter before the Python classifiers run. Without it
+        # every request loaded all ~25k open roles — with their JD text — and
+        # filtered them in a loop, so even limit=50 took 5.5s and the payload
+        # was 820KB. The precise decision still belongs to in_active_track;
+        # this just stops the database handing over the whole table first.
+        q = q.where(or_(Role.title.ilike("%intern%"),
+                        Role.title.ilike("%co-op%"),
+                        Role.title.ilike("%coop%")))
     # The raw-browse hatch: scored_only=false skips the relevance filter below and
     # returns everything open. Default (None) is the tracker feed.
     raw_browse = scored_only is False
@@ -300,7 +313,10 @@ def list_roles(tier: str | None = None, company: str | None = None,
             "tier": r.score_tier,               # fit tier (A/B/C/pass) from scoring
             "title": r.title,
             "location": r.location, "metro": r.metro, "state": r.state, "url": r.url, "status": r.status,
-            "description": (r.description or "")[:4000] or None,
+            # A list payload doesn't need the whole JD — the card shows one
+            # line and the detail view fetches the full text. 4000 chars per
+            # role was most of an 820KB response.
+            "description": (r.description or "")[:600] or None,
             "remote": r.remote_flag,
             "posted_at": r.posted_at.isoformat() if r.posted_at else None,
             "first_seen": r.first_seen.isoformat() if r.first_seen else None,
@@ -1635,6 +1651,27 @@ def draft_outreach_endpoint(role_id: int, db: Session = Depends(get_db)):
 
 
 # ─── static: master dashboard at / ──────────────────────────
+# Defined last on purpose: a path parameter would otherwise shadow the
+# literal /api/roles/* routes above it (dismissed, hidden-summary,
+# search), which FastAPI matches in definition order.
+@app.get("/api/roles/{role_id}")
+def get_role(role_id: int, db: Session = Depends(get_db)):
+    """One role with its complete JD — what the list payload leaves out."""
+    r = db.get(Role, role_id)
+    if not r:
+        raise HTTPException(404, "role not found")
+    co = r.company
+    return {"id": r.id, "title": r.title, "company": co.name if co else None,
+            "company_id": r.company_id, "location": r.location, "metro": r.metro,
+            "state": r.state, "url": r.url, "source": r.source, "status": r.status,
+            "description": r.description, "tc_estimate": r.tc_estimate,
+            "posted_at": r.posted_at.isoformat() if r.posted_at else None,
+            "first_seen": r.first_seen.isoformat() if r.first_seen else None,
+            "is_mba": r.is_mba, "interest": r.interest,
+            "is_backfill": bool(r.is_backfill)}
+
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard():
     return FileResponse("web/dashboard.html")

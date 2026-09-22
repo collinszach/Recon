@@ -88,6 +88,7 @@ final class Store: ObservableObject {
     }
 
     private func saveRatingSets() {
+        invalidateFeed()
         Cache.save(hiddenRoleIds, "hiddenRoleIds")
         Cache.save(likedRoleIds, "likedRoleIds")
         Cache.save(dismissedCompanyIds, "dismissedCompanyIds")
@@ -141,10 +142,23 @@ final class Store: ObservableObject {
     /// offline queue — and that queue by definition holds only the wipes that
     /// never reached the server. Every wipe that succeeded was forgotten on
     /// relaunch, so roles already passed on came back; offline, for good.
+    /// Cached, because it is read many times per render — the dashboard alone
+    /// slices it four ways, and every slice re-filtered and re-sorted ~600
+    /// roles, each comparison parsing two ISO dates. Recomputed only when its
+    /// inputs change.
+    private var feedCache: [Role]?
+
     var feed: [Role] {
-        roles.filter { interest(of: $0) != "down" && !dismissedCompanyIds.contains($0.companyId ?? -1) }
-             .sorted { ($0.effectiveDate ?? .distantPast) > ($1.effectiveDate ?? .distantPast) }
+        if let feedCache { return feedCache }
+        let computed = roles
+            .filter { interest(of: $0) != "down" && !dismissedCompanyIds.contains($0.companyId ?? -1) }
+            .sorted { ($0.effectiveDate ?? .distantPast) > ($1.effectiveDate ?? .distantPast) }
+        feedCache = computed
+        return computed
     }
+
+    /// Call whenever roles or the optimistic sets change.
+    private func invalidateFeed() { feedCache = nil }
 
     /// What the employer posted today. Strictly `posted_at` — an undated role
     /// is not today's news, which is the whole point: of 80 roles that arrived
@@ -312,6 +326,7 @@ final class Store: ObservableObject {
             async let b = api.brief()
             async let a = api.applications()
             roles = try await r
+            invalidateFeed()
             brief = try await b
             apps = try await a
             // Non-fatal: an older server without /api/boards/recent just means
