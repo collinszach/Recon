@@ -72,3 +72,26 @@ if failures:
         print("  -", f)
     sys.exit(1)
 print("all logic checks passed")
+
+# ── eligibility / target (appended 2026-09-22) ─────────────────────────────
+from scan.eligibility import eligibility_reason, off_target_reason  # noqa: E402
+
+check("phd", eligibility_reason("PhD Research Intern", "PhD candidates only"), "PhD required")
+check("phd-preferred-ok", eligibility_reason("Product Intern", "PhD preferred but not required"), None)
+check("sophomore", eligibility_reason("2027 Sophomore Internship Program"), "undergraduate-only program")
+check("clearance", eligibility_reason("PM Intern", "Must currently hold an active TS/SCI clearance"),
+      "requires an existing security clearance")
+# A clearance the employer sponsors is not a gate — he already tracks one.
+check("clearance-sponsored", eligibility_reason("PM Intern", "Ability to obtain a security clearance"), None)
+check("keep-pm", off_target_reason("Product Management Intern - Summer 2027"), None)
+check("keep-tpm", off_target_reason("Technical Program Manager Intern"), None)
+check("keep-strategy", off_target_reason("Business Strategy & Operations Intern"), None)
+check("drop-mech", off_target_reason("Mechanical Engineering Intern"), "not a product/strategy role")
+check("drop-clinical", off_target_reason("Clinical Operations Intern"), "not a product/strategy role")
+
+if failures:
+    print(f"FAILED ({len(failures)}):")
+    for f in failures:
+        print("  -", f)
+    sys.exit(1)
+print("all logic checks passed (including eligibility)")

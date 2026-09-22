@@ -198,6 +198,8 @@ def list_roles(tier: str | None = None, company: str | None = None,
                limit: int = 300, since_days: int | None = None,
                posted_since_days: int | None = None, include_backfill: bool = True,
                relevant_only: bool = True, us_only: bool = True,
+               eligible_only: bool = True, target_only: bool = True,
+               show_hidden: bool = False,
                db: Session = Depends(get_db)):
     """The tracker feed: open roles in the tracks Zach is watching, newest first.
 
@@ -207,6 +209,7 @@ def list_roles(tier: str | None = None, company: str | None = None,
     pass `scored_only=false` to browse the raw set, which skips the track filter.
     """
     import re as _re
+    from scan.eligibility import eligibility_reason, off_target_reason
     from scan.geo import is_us
     from scan.intern_filter import (is_internship, is_ops_strategy,
                                     in_active_track)
@@ -264,6 +267,15 @@ def list_roles(tier: str | None = None, company: str | None = None,
             # counts (see geo.is_us), and an unparseable location is kept
             # rather than hidden.
             continue
+        # Why Recon is hiding it, if it is. Always computed, so the payload can
+        # explain a hidden role rather than it just being absent.
+        hidden = None
+        if eligible_only:
+            hidden = eligibility_reason(r.title, r.description)
+        if hidden is None and target_only:
+            hidden = off_target_reason(r.title, r.department)
+        if hidden and not show_hidden:
+            continue
         if relevant_only and not in_active_track(r.title, r.department, _mode):
             # Out of track: 24k of the ~25k open roles are full-time postings
             # Zach isn't watching. This is the feed's whole relevance filter now
@@ -293,6 +305,7 @@ def list_roles(tier: str | None = None, company: str | None = None,
             "posted_at": r.posted_at.isoformat() if r.posted_at else None,
             "first_seen": r.first_seen.isoformat() if r.first_seen else None,
             "is_backfill": bool(r.is_backfill),   # arrived with a board's back catalogue
+            "hidden_reason": hidden,              # why it's filtered, when it is
             "fit_score": r.fit_score, "domain": r.domain,
             "why_fit": r.why_fit, "concerns": r.concerns,
             "curriculum_hook": r.curriculum_hook,
@@ -1148,6 +1161,30 @@ def get_resume_file_meta(db: Session = Depends(get_db)):
         return {"present": False}
     return {"present": True, "filename": rf.filename, "size": rf.size,
             "uploaded_at": rf.uploaded_at.isoformat() if rf.uploaded_at else None}
+
+
+@app.get("/api/roles/hidden-summary")
+def hidden_summary(db: Session = Depends(get_db)):
+    """How many roles the eligibility/target filters are hiding, and why.
+
+    A feed that silently drops things is how you miss the one you wanted, so
+    the count and the reasons are first-class rather than implied by absence.
+    """
+    from scan.eligibility import eligibility_reason, off_target_reason
+    from scan.geo import is_us
+    from scan.intern_filter import in_active_track
+    mode = "intern" if settings.intern_only else settings.track_mode
+    rows = db.scalars(select(Role).where(Role.status.in_(["open", "changed"]))).all()
+    counts: dict[str, int] = {}
+    for r in rows:
+        if not in_active_track(r.title, r.department, mode):
+            continue
+        if not is_us(r.location, r.state, r.title):
+            continue
+        reason = eligibility_reason(r.title, r.description) or off_target_reason(r.title, r.department)
+        if reason:
+            counts[reason] = counts.get(reason, 0) + 1
+    return {"hidden": sum(counts.values()), "by_reason": counts}
 
 
 @app.get("/api/boards/recent")
