@@ -895,6 +895,34 @@ def _role_out_min(r: Role) -> dict:
 # Recon proposes, Zach decides. Nothing in this section moves an application
 # except `accept`, and that writes an ApplicationEvent so the pipeline can
 # always explain why a stage changed.
+# "Thank you for applying to Lunar Energy" — the shared ATS domains
+# (us.greenhouse-mail.io) carry no company at all, so the subject is the only
+# place the employer's name appears.
+_SUBJECT_COMPANY_RES = [
+    # "to"/"at" only, never "for": "submitted application FOR Zachary Collins"
+    # names the candidate, and that is exactly what it extracted on the first
+    # run — an application filed under Zach's own name.
+    re.compile(r"(?:applying|application)\s+(?:to|at)\s+(.+?)[!.?]*$", re.I),
+    re.compile(r"^(.+?)\s*[-–]\s*application\s+update", re.I),
+    re.compile(r"thank you for your (?:interest in|application to)\s+(.+?)[!.?]*$", re.I),
+]
+
+
+def _company_from_subject(subject: str | None) -> str | None:
+    if not subject:
+        return None
+    text = re.sub(r"\s+", " ", subject).strip()
+    for pat in _SUBJECT_COMPANY_RES:
+        m = pat.search(text)
+        if m:
+            name = m.group(1).strip(" !.,-–—")
+            # Trim trailing role/req noise: "Acme for the PM Intern role".
+            name = re.split(r"\s+\b(for|regarding|re|position|role|req)\b", name, flags=re.I)[0]
+            if 2 < len(name) <= 80:
+                return name
+    return None
+
+
 def _company_from_sender(from_addr: str | None) -> str | None:
     """Company name out of a From header.
 
@@ -906,10 +934,38 @@ def _company_from_sender(from_addr: str | None) -> str | None:
         return None
     m = re.match(r'\s*"?([^"<]+?)"?\s*<', from_addr)
     if m:
-        name = re.sub(r"\b(hr|recruiting|talent|careers?|team|hiring|no-?reply)\b", "",
-                      m.group(1), flags=re.I).strip(" -|,")
-        if len(name) > 2:
+        # "MasterCard People Services" is Mastercard; "Visa People Team" is Visa.
+        name = re.sub(r"\b(hr|recruiting|recruitment|talent|careers?|team|hiring|"
+                      r"people\s+services|people|services|notifications?|"
+                      r"workday|icims|greenhouse|lever|ashby)\b", "",
+                      m.group(1), flags=re.I)
+        name = re.sub(r"@\s*\w*\s*$", "", name)          # "Joby Aviation @ icims"
+        name = re.sub(r"\s+", " ", name).strip(" -|,@")
+        # A human sender's name is not the company. "Zoe Downey
+        # <zoe.downey@skydio.com>" is Skydio — the domain knows, the display
+        # name doesn't.
+        host_all = (re.search(r"@([\w.-]+)", from_addr) or [None, ""])[1].lower()
+        from mail.gmail_client import ATS_SENDERS
+        from_ats_domain = any(a in host_all for a in ATS_SENDERS)
+        # Only second-guess the display name for non-ATS senders: ATS mail
+        # always shows the employer there, and the heuristic below reads
+        # two-word company names ("Joby Aviation") as people.
+        looks_personal = (not from_ats_domain
+                          and bool(re.fullmatch(r"[A-Z][a-z’\']+ [A-Z][a-z’\'-]+", name)))
+        if len(name) > 2 and not looks_personal:
             return name[:80]
+    # Workday and iCIMS put the tenant in the local part: nvidia@myworkday.com,
+    # qualcomm@myworkday.com, amd+autoreply@talent.icims.com.
+    local = re.match(r"\s*([\w.+-]+)@", from_addr.split("<")[-1])
+    if local:
+        tenant = re.split(r"[+.]", local.group(1))[0]
+        if tenant.lower() not in {"no-reply", "noreply", "donotreply", "mail",
+                                  "info", "careers", "jobs", "hr", "notifications"} \
+                and len(tenant) > 2:
+            host = (re.search(r"@([\w.-]+)", from_addr) or [None, ""])[1].lower()
+            from mail.gmail_client import ATS_SENDERS
+            if any(a in host for a in ATS_SENDERS):
+                return tenant.replace("-", " ").title()[:80]
     dom = re.search(r"@([\w.-]+)", from_addr)
     if dom:
         host = dom.group(1).lower()
@@ -1003,7 +1059,11 @@ def mail_accept(proposal_id: int, stage: str | None = None,
     # Accepting it creates the application from the mail itself — company from
     # the sender's display name, role from the subject where it can be read.
     if not m.application_id:
-        company = _company_from_sender(m.from_addr) or "(unknown)"
+        # Sender first (it names the employer on most ATS mail), subject as the
+        # fallback for shared domains like us.greenhouse-mail.io that name
+        # nobody.
+        company = (_company_from_sender(m.from_addr)
+                   or _company_from_subject(m.subject) or "(unknown)")
         app_row = Application(company_name=company,
                               role_title=(m.subject or "")[:200] or None,
                               stage=target or "applied",
