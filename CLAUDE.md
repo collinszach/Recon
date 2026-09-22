@@ -277,6 +277,30 @@ behind a Cloudflare Tunnel. See `SPEC.md` for the full spec.
   - **Still unverified: the Workday field mapping.** The application form is behind Workday
     sign-in, so `data-automation-id` → profile-key is untested against a real form. Account
     creation is deliberately out of scope (no password handling).
+- **2026-09-22 — tracker complete; see `HANDOFF.md` for the state of play.** Highlights that
+  belong here because they'll bite again:
+  - **`/api/roles` loaded every open role (~25k, with JD text) on every request**, filtered in
+    Python, then applied the limit — so `limit=50` took 5.5s and the payload was 820KB. A coarse
+    SQL title prefilter runs first now; the classifiers still make the precise call. **0.93s /
+    179KB.** Correctness was checked on every change all day; latency on none.
+  - **`Cache.save` was synchronous on the main actor**, encoding the whole roles array on every
+    refresh, swipe and wipe. That was the "delayed and buggy load/save". Now on a utility queue,
+    and `Store.feed` is memoized (the dashboard slices it four ways, each re-sorting ~600 roles
+    with two ISO date parses per comparison).
+  - **Eligibility + target filters** (`scan/eligibility.py`): PhD-required, undergrad-only,
+    existing-clearance, plus an allowlist for product/strategy/ops/data work. First run hid 117
+    roles as "PhD required" — checking them found the rule matched *any* mention, including
+    "MS/PhD" and "BS/MS/PhD in Mechanical Engineering". **A degree list is an invitation, not a
+    gate.** 117 -> 25 after the fix. Every hidden role carries its reason and
+    `/api/roles/hidden-summary` counts them, because a filter nobody audits is a filter that
+    lies.
+  - **Gmail reads threads, not messages, and includes Sent** — "who is waiting on whom" can't be
+    answered by one message. A reply sent as a *new* message (not in-thread) still counts, via a
+    domain -> last-written-to map. Recon proposes; accepting is what moves an application.
+  - **CI exists** (`.github/workflows/ci.yml`): Python compile + `api/tests/test_logic.py`, an
+    xcodegen+xcodebuild iOS build, and extension syntax. The logic test found a contradiction on
+    its first run (geo's comment promised ambiguous cities were unresolved; the table mapped
+    Springfield to MA).
 - **Deployed:** `zach@100.91.198.28` (Tailscale), `~/recon`, via
   `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`. The NUC is shared,
   so the prod overlay publishes **only the API on host port 8010** (8000/6379 were taken) and
