@@ -69,22 +69,30 @@ Workday is one product across tenants, so the shape is fixed — six steps:
 5. Voluntary Disclosures — gender, ethnicity, veteran, disability, terms
 6. Review
 
-**Steps 2–5 could not be surveyed.** They are behind account creation, which is
-not something to automate. The field inventory for those steps therefore still
-rests on `adapters/workday.js`'s `data-automation-id` map, which remains
-unverified against a live form.
+Step count varies by tenant — Vanguard has 6, Mastercard 8 — and Mastercard's
+step 1 adds a terms checkbox (`createAccountCheckbox`). Only Vanguard labels its
+steps before sign-in; Mastercard renders them as "step N of 8".
+
+**Steps 2 onward could not be surveyed, on either tenant.** Both entry paths —
+"Apply Manually" and "Autofill with Resume" — land on Create Account first, so
+the wall is the product, not the employer, and no choice of role gets around it.
+Automating account creation is off the table. The inventory for those steps
+therefore still rests on `adapters/workday.js`'s `data-automation-id` map, which
+remains unverified against a live form.
 
 ### The honeypot — the reason this survey was worth doing
 
-Step 1 ships a bot trap:
+Step 1 ships a bot trap — on **both** tenants sampled, so treat it as standard
+Workday rather than one employer's idea:
 
 ```
 name="website"  data-automation-id="beecatcher"  1×1 px
 label: "Enter website. This input is for robots only, do not enter if you're human."
 ```
 
-It is `display:block`, `visibility:visible`, `opacity:1`, with a live
-`offsetParent` — every ordinary hidden-field check misses it. And `/\bwebsite\b/`
+Mastercard's is 1 × **0.01** px. It is `display:block`, `visibility:visible`,
+`opacity:1`, with a live `offsetParent` — every ordinary hidden-field check
+misses it. And `/\bwebsite\b/`
 matched it, so autofill would have posted a portfolio URL into a trap whose only
 purpose is to identify you as a bot.
 
