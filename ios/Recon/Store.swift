@@ -17,6 +17,10 @@ final class Store: ObservableObject {
     /// Flat contact/EEO profile used to fill application forms in-app. Same
     /// payload the Chrome extension uses, so the two can't drift.
     @Published var autofillProfile: [String: String] = [:]
+    /// Cached like the rest of the readiness inputs. It used to be the only one
+    /// that wasn't, so every cold start drew "Résumé ✗" on the Apply card until
+    /// the last call in the refresh chain came back — a readiness row that says
+    /// you're missing something you're not is worse than no row at all.
     @Published var resumeOnFile = false
 
     /// Enough of a profile to be worth pressing Fill.
@@ -80,6 +84,7 @@ final class Store: ObservableObject {
         mailProposals = Cache.load([MailProposal].self, "mailProposals") ?? []
         autofillProfile = Cache.load([String: String].self, "autofillProfile") ?? [:]
         resume = Cache.load(ResumeData.self, "resume")
+        resumeOnFile = Cache.load(Bool.self, "resumeOnFile") ?? false
         lastSynced = Cache.load(Date.self, "lastSynced")
         newSince = Cache.load(Date.self, "newSince")
         pending = Cache.load([PendingAction].self, "pending") ?? []
@@ -354,6 +359,7 @@ final class Store: ObservableObject {
             autofillProfile = (try? await api.autofillProfile()) ?? autofillProfile
             Cache.save(autofillProfile, "autofillProfile")
             resumeOnFile = (try? await api.resumeOnFile()) ?? resumeOnFile
+            Cache.save(resumeOnFile, "resumeOnFile")
             Cache.save(roles, "roles"); Cache.save(brief, "brief"); Cache.save(apps, "apps")
             markSynced()
             newSince = prevSync; Cache.save(newSince, "newSince")
