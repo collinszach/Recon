@@ -55,6 +55,8 @@
     ["Preferred Name", "preferred_name"],
     ["Are you open to relocating?", "willing_to_relocate"],
     ["Enter website. This input is for robots only, do not enter if you're human.", null],
+    ["beecatcher", null],
+    ["bee catcher", null],
     ["Please leave this field empty", null],
     ["Website", "portfolio_url"],
     ["Preferred First Name", "preferred_name"],

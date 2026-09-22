@@ -195,11 +195,15 @@ window.ReconAutofill.adapters = window.ReconAutofill.adapters || [];
         if (!key || seen.has(el)) continue;
         const value = profile[key];
         const label = labelFor(el);
+        // Claim the element before deciding whether we can fill it. This used to
+        // sit below the empty-value check, so a field with nothing in the profile
+        // was left unclaimed and the label-matching second pass reported it all
+        // over again.
+        seen.add(el);
         if (value === undefined || value === null || value === "") {
           report.push({ label, status: "attention", detail: `nothing in your profile for ${key}` });
           continue;
         }
-        seen.add(el);
 
         try {
           const tag = el.tagName;
