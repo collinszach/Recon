@@ -75,10 +75,18 @@ struct TodayView: View {
                     }
                 }
 
-                // 2. Needs action, before the browsing sections.
+                // 2. Replies, above everything else that needs attention: a
+                // recruiter waiting on you outranks a role you haven't seen.
+                // These are proposals — nothing moved until you say so.
+                if !store.mailProposals.isEmpty {
+                    SectionHeader(title: "Replies", trailing: "\(store.mailProposals.count)")
+                    ForEach(store.mailProposals) { p in ProposalCard(proposal: p) }
+                }
+
+                // 3. Needs action, before the browsing sections.
                 if store.totalNudgeCount > 0 { FollowUpsSection() }
 
-                // 3. Earlier this week, by posting day.
+                // 4. Earlier this week, by posting day.
                 if !byDay.isEmpty {
                     SectionHeader(title: "Earlier this week",
                                   trailing: "\(store.postedThisWeek.count)")
@@ -94,7 +102,7 @@ struct TodayView: View {
                     }
                 }
 
-                // 4. Applications.
+                // 5. Applications.
                 if !applied.isEmpty {
                     SectionHeader(title: "Applied", trailing: "\(applied.count)")
                     ForEach(applied.prefix(5)) { app in appRow(app, tint: Theme.green) }
@@ -117,7 +125,7 @@ struct TodayView: View {
                     }
                 }
 
-                // 5. Why the feed jumped: a board's back catalogue arriving is
+                // 6. Why the feed jumped: a board's back catalogue arriving is
                 // explained here instead of silently swelling the counts above.
                 if !store.recentBoards.isEmpty {
                     SectionHeader(title: "Boards connected", trailing: "\(store.recentBoards.count)")
@@ -135,7 +143,7 @@ struct TodayView: View {
                     }
                 }
 
-                // 6. Arrived with no posting date — visible, but never counted
+                // 7. Arrived with no posting date — visible, but never counted
                 // as "today".
                 if !store.undatedArrivals.isEmpty {
                     Button { withAnimation { showUndated.toggle() } } label: {
@@ -230,6 +238,72 @@ struct FollowUpsSection: View {
                 .reconCard()
             }
         }
+    }
+}
+
+/// One reply, and what Recon thinks it means. The evidence is shown on purpose:
+/// you're being asked to judge a guess, so the phrase that produced it is the
+/// thing worth reading.
+struct ProposalCard: View {
+    @EnvironmentObject var store: Store
+    let proposal: MailProposal
+
+    private var tint: Color {
+        switch proposal.kind {
+        case "rejection":    return Theme.inkSoft
+        case "offer":        return Theme.green
+        case "screen":       return Theme.green
+        case "info_request": return Theme.gold
+        default:             return Theme.rust
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Pill(text: proposal.headline, color: tint, filled: true)
+                Text(proposal.company ?? "—")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                Spacer()
+                if let c = proposal.confidence, c != "high" {
+                    Text(c).font(.caption2).foregroundStyle(Theme.inkSoft)
+                }
+            }
+            if let role = proposal.roleTitle {
+                Text(role).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+            }
+            if let subject = proposal.subject {
+                Text(subject).font(.callout).foregroundStyle(Theme.ink).lineLimit(2)
+            }
+            if let evidence = proposal.evidence {
+                Text(evidence).font(.caption2).foregroundStyle(Theme.inkSoft).lineLimit(3)
+            }
+            HStack(spacing: 8) {
+                if let label = proposal.actionLabel {
+                    Button { Task { await store.acceptProposal(proposal) } } label: {
+                        Text(label).font(.caption.weight(.semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .foregroundStyle(.white)
+                            .background(tint, in: Capsule())
+                    }
+                } else {
+                    // Acknowledgements and unreadable mail propose nothing —
+                    // there is genuinely nothing to move, so don't invent a
+                    // button that pretends otherwise.
+                    Text("Nothing to change").font(.caption).foregroundStyle(Theme.inkSoft)
+                }
+                Button { Task { await store.dismissProposal(proposal) } } label: {
+                    Text("Dismiss").font(.caption.weight(.medium))
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .foregroundStyle(Theme.inkSoft)
+                        .background(Theme.card, in: Capsule())
+                        .overlay(Capsule().stroke(Theme.hair))
+                }
+                Spacer()
+            }
+            .buttonStyle(.plain)
+        }
+        .reconCard()
     }
 }
 

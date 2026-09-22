@@ -631,3 +631,49 @@ struct ConnectedBoard: Codable, Identifiable, Hashable {
         case rolesAdded = "roles_added"
     }
 }
+
+
+// ── Mail ────────────────────────────────────────────────────
+/// A reply Recon found and what it thinks it means. A proposal, not a fact:
+/// accepting it is what moves the application.
+struct MailProposal: Codable, Identifiable, Hashable {
+    let id: Int
+    let kind: String?              // ack | screen | rejection | offer | info_request | other
+    let proposedStage: String?
+    let confidence: String?
+    let evidence: String?
+    let from: String?
+    let subject: String?
+    let snippet: String?
+    let receivedAt: String?
+    let applicationId: Int?
+    let company: String?
+    let roleTitle: String?
+    let currentStage: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, confidence, evidence, from, subject, snippet, company
+        case proposedStage = "proposed_stage"
+        case receivedAt = "received_at"
+        case applicationId = "application_id"
+        case roleTitle = "role_title"
+        case currentStage = "current_stage"
+    }
+
+    /// Plain-language headline: what this message is.
+    var headline: String {
+        switch kind {
+        case "rejection":    return "Rejection"
+        case "screen":       return "Interview / screen invite"
+        case "offer":        return "Offer"
+        case "info_request": return "Wants something from you"
+        case "ack":          return "Application received"
+        default:             return "Reply"
+        }
+    }
+    /// What accepting would do — nil when there is nothing to move.
+    var actionLabel: String? {
+        guard let s = proposedStage else { return nil }
+        return "Move to \(s.capitalized)"
+    }
+}

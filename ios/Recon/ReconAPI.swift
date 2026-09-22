@@ -108,6 +108,17 @@ struct ReconAPI {
     func roles(limit: Int = 300) async throws -> [Role] {
         try await get("api/roles?limit=\(limit)", as: [Role].self)
     }
+    /// Replies Recon found, waiting on a yes/no.
+    func mailProposals() async throws -> [MailProposal] {
+        try await get("api/mail/proposals?status=pending", as: [MailProposal].self)
+    }
+    func acceptProposal(id: Int, stage: String? = nil) async throws {
+        let q = stage.map { "?stage=\($0)" } ?? ""
+        _ = try await execute("POST", "api/mail/proposals/\(id)/accept\(q)", body: nil)
+    }
+    func dismissProposal(id: Int) async throws {
+        _ = try await execute("POST", "api/mail/proposals/\(id)/dismiss", body: nil)
+    }
     /// Boards connected in the last week and their back-catalogue counts.
     func recentBoards() async throws -> [ConnectedBoard] {
         try await get("api/boards/recent", as: [ConnectedBoard].self)

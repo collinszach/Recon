@@ -11,6 +11,9 @@ final class Store: ObservableObject {
     /// Boards connected in the last week, with how much back catalogue each
     /// brought — so a 396-role batch is explained rather than unexplained.
     @Published var recentBoards: [ConnectedBoard] = []
+    /// Replies Recon found, each waiting on a yes/no. Nothing moves until one
+    /// is accepted.
+    @Published var mailProposals: [MailProposal] = []
     @Published var companies: [Company] = []
     @Published var contacts: [Contact] = []
 
@@ -47,6 +50,7 @@ final class Store: ObservableObject {
         companies = Cache.load([Company].self, "companies") ?? []
         contacts = Cache.load([Contact].self, "contacts") ?? []
         recentBoards = Cache.load([ConnectedBoard].self, "recentBoards") ?? []
+        mailProposals = Cache.load([MailProposal].self, "mailProposals") ?? []
         resume = Cache.load(ResumeData.self, "resume")
         lastSynced = Cache.load(Date.self, "lastSynced")
         newSince = Cache.load(Date.self, "newSince")
@@ -302,6 +306,8 @@ final class Store: ObservableObject {
             // no "connected" lines, not a failed refresh.
             recentBoards = (try? await api.recentBoards()) ?? recentBoards
             Cache.save(recentBoards, "recentBoards")
+            mailProposals = (try? await api.mailProposals()) ?? mailProposals
+            Cache.save(mailProposals, "mailProposals")
             Cache.save(roles, "roles"); Cache.save(brief, "brief"); Cache.save(apps, "apps")
             markSynced()
             newSince = prevSync; Cache.save(newSince, "newSince")
@@ -316,6 +322,25 @@ final class Store: ObservableObject {
     func track(_ role: Role) async {
         do { let item = try await api.track(roleId: role.id); apps.insert(item, at: 0) }
         catch { enqueue(.init(roleId: role.id, kind: .track)) }
+    }
+
+    /// Accept a mail proposal: the application moves, the event is logged
+    /// server-side, and the pipeline is refetched so the change is visible.
+    func acceptProposal(_ p: MailProposal, stage: String? = nil) async {
+        mailProposals.removeAll { $0.id == p.id }
+        Cache.save(mailProposals, "mailProposals")
+        do {
+            try await api.acceptProposal(id: p.id, stage: stage)
+            apps = (try? await api.applications()) ?? apps
+            Cache.save(apps, "apps")
+        } catch { self.error = error.localizedDescription }
+    }
+
+    func dismissProposal(_ p: MailProposal) async {
+        mailProposals.removeAll { $0.id == p.id }
+        Cache.save(mailProposals, "mailProposals")
+        do { try await api.dismissProposal(id: p.id) }
+        catch { self.error = error.localizedDescription }
     }
 
     func move(_ app: AppItem, to stage: Stage) async {
