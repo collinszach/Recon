@@ -46,6 +46,7 @@ def assemble_autofill_profile(db: Session) -> dict:
     if p:
         out.update({
             "phone": p.phone, "email": p.email,
+            "preferred_name": p.preferred_name, "discipline": p.discipline,
             "address_line1": p.address_line1, "city": p.city, "state": p.state,
             "zip_code": p.zip_code, "country": p.country,
             "linkedin_url": p.linkedin_url, "portfolio_url": p.portfolio_url,

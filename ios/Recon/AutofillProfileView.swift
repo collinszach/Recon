@@ -21,9 +21,10 @@ struct AutofillProfileView: View {
 
     /// Text keys, in the order the form shows them.
     private static let textKeys = [
-        "email", "phone",
+        "preferred_name", "email", "phone",
         "address_line1", "city", "state", "zip_code", "country",
         "linkedin_url", "github_url", "portfolio_url",
+        "discipline",
         "desired_salary", "earliest_start_date", "notice_period", "how_heard",
         "pronouns", "gender", "race_ethnicity", "veteran_status", "disability_status",
     ]
@@ -36,6 +37,7 @@ struct AutofillProfileView: View {
                 }
 
                 Section {
+                    field("preferred_name", "Preferred first name")
                     field("email", "Email", keyboard: .emailAddress)
                     field("phone", "Phone", keyboard: .phonePad)
                 } header: { Text("Contact") } footer: {
@@ -65,6 +67,13 @@ struct AutofillProfileView: View {
                     tristate("Willing to relocate", $willingToRelocate)
                 } header: { Text("Work authorization") } footer: {
                     Text("Left unset, these are skipped rather than guessed.")
+                        .font(.footnote)
+                }
+
+                Section {
+                    field("discipline", "Discipline / major")
+                } header: { Text("Education") } footer: {
+                    Text("Greenhouse asks School / Degree / Discipline. The first two come from your résumé; this one doesn't.")
                         .font(.footnote)
                 }
 

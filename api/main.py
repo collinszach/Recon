@@ -57,6 +57,11 @@ def _ensure_schema():
         for col, typ in (("awaiting", "VARCHAR"), ("last_outbound_at", "TIMESTAMPTZ"),
                          ("last_message_at", "TIMESTAMPTZ"), ("message_count", "INTEGER DEFAULT 1")):
             conn.execute(text(f"ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS {col} {typ}"))
+        # Standard application fields the 2026-09-21 portal survey turned up:
+        # Greenhouse asks "Preferred First Name" separately from the legal first
+        # name, and its education block is School / Degree / Discipline.
+        for col in ("preferred_name", "discipline"):
+            conn.execute(text(f"ALTER TABLE autofill_profile ADD COLUMN IF NOT EXISTS {col} VARCHAR"))
         # APNs environment per device token; NULL until send_apns() probes for it.
         conn.execute(text("ALTER TABLE device_tokens ADD COLUMN IF NOT EXISTS environment VARCHAR"))
         # Semantic embeddings: resize column from 1536 → 1024 (mxbai-embed-large).
@@ -1579,6 +1584,8 @@ def resume_chat(body: ChatIn, db: Session = Depends(get_db)):
 class AutofillProfileIn(BaseModel):
     phone: str | None = None
     email: str | None = None
+    preferred_name: str | None = None
+    discipline: str | None = None
     address_line1: str | None = None
     city: str | None = None
     state: str | None = None

@@ -23,6 +23,9 @@ window.ReconAutofill = window.ReconAutofill || {};
   //   field    — short form-field labels ("City", "Degree"); never a question
   //   question — written for question-shaped labels ("Are you authorized to work?")
   const KEYWORD_MAP = [
+    // Checked before first_name: "Preferred First Name" contains "First Name",
+    // and a legal first name is exactly the wrong thing to put in it.
+    ["contact", "preferred_name", [/\bpreferred\s*(first\s*)?name\b/i, /\bnickname\b/i, /\bgoes\s*by\b/i]],
     ["contact", "first_name", [/\bfirst\s*name\b/i, /\bgiven\s*name\b/i, /^fname$/i]],
     ["contact", "last_name", [/\blast\s*name\b/i, /\bsurname\b/i, /\bfamily\s*name\b/i, /^lname$/i]],
     ["contact", "full_name", [/^name$/i, /\bfull\s*name\b/i, /\blegal\s*name\b/i]],
@@ -40,11 +43,12 @@ window.ReconAutofill = window.ReconAutofill || {};
     ["field", "headline", [/\bheadline\b/i, /\bcurrent\s*title\b/i, /\bjob\s*title\b/i]],
     ["field", "school", [/\bschool\b/i, /\buniversity\b/i, /\bcollege\b/i]],
     ["field", "degree", [/\bdegree\b/i]],
-    ["field", "pronouns", [/\bpronoun/i]],
-    ["field", "veteran_status", [/\bveteran\b/i, /\bmilitary\s*status\b/i]],
-    ["field", "disability_status", [/\bdisabilit/i]],
-    ["field", "gender", [/\bgender\b/i, /^sex$/i]],
-    ["field", "race_ethnicity", [/\brace\b/i, /\bethnicity\b/i]],
+    ["field", "discipline", [/\bdiscipline\b/i, /\bmajor\b/i, /\bfield\s*of\s*study\b/i]],
+    ["question", "pronouns", [/\bpronoun/i]],
+    ["question", "veteran_status", [/\bveteran\b/i, /\bmilitary\s*status\b/i]],
+    ["question", "disability_status", [/\bdisabilit/i]],
+    ["question", "gender", [/\bgender\b/i, /^sex$/i]],
+    ["question", "race_ethnicity", [/\brac(e|ial)\b/i, /\bethnic(ity)?\b/i]],
     ["field", "desired_salary", [/\bsalary\b/i, /\bcompensation\b/i, /\bpay\s*expectation/i]],
     ["field", "earliest_start_date", [/\bstart\s*date\b/i, /\bavailable\s*to\s*start\b/i, /\bearliest\s*start\b/i]],
     ["field", "notice_period", [/\bnotice\s*period\b/i]],
@@ -68,18 +72,59 @@ window.ReconAutofill = window.ReconAutofill || {};
   const QUESTION_OPENERS =
     /^(do|does|did|are|is|was|were|have|has|had|will|would|can|could|should|may|if|what|why|how|when|where|which|who|select|choose|indicate|confirm|specify|please|tell|describe|list|enter|provide)\b/i;
 
+  // Honeypots. Workday ships one on its Create Account step: an input named
+  // "website", 1x1 pixels, labelled "Enter website. This input is for robots
+  // only, do not enter if you're human." It is display:block, visibility:visible,
+  // opacity:1 and has a non-null offsetParent, so every ordinary hidden-field
+  // check misses it — and /\bwebsite\b/ matches it, so the filler would post a
+  // portfolio URL straight into a bot trap and get the application binned.
+  //
+  // Split in two so the text half is testable without a DOM.
+  const TRAP_TEXT =
+    /robots?\s+only|do\s*not\s*enter\s*if\s*you|leave\s*(this|it)\s*(field\s*)?(empty|blank)|honey\s*pot|beecatcher/i;
+
+  ns.looksLikeTrapText = function (text) {
+    return TRAP_TEXT.test(text || "");
+  };
+
+  ns.isHoneypot = function (el) {
+    if (!el) return false;
+    if (ns.looksLikeTrapText([el.name, el.id, el.getAttribute("data-automation-id")]
+        .filter(Boolean).join(" "))) return true;
+    if (typeof el.getBoundingClientRect === "function") {
+      const r = el.getBoundingClientRect();
+      // A real control is never 1px, and never parked off the left of the world.
+      if (r.width <= 2 || r.height <= 2) return true;
+      if (r.right < -500 || r.bottom < -500) return true;
+    }
+    const win = el.ownerDocument && el.ownerDocument.defaultView;
+    if (win && typeof win.getComputedStyle === "function") {
+      const cs = win.getComputedStyle(el);
+      if (cs && (cs.display === "none" || cs.visibility === "hidden" ||
+                 parseFloat(cs.opacity) === 0)) return true;
+    }
+    return false;
+  };
+
   ns.isQuestionLabel = function (labelText) {
     const t = (labelText || "").trim();
     if (!t) return false;
     if (t.includes("?")) return true;
     const words = t.split(/\s+/).length;
     if (words > 9) return true;
-    return words >= 5 && QUESTION_OPENERS.test(t);
+    // An opener alone isn't enough: "Please confirm your City and State" is a
+    // field prompt, while "Select your anticipated bachelor's degree graduation
+    // date" (7 words) is a question. The boundary is empirical — it's set where
+    // the surveyed Greenhouse boards put it.
+    return words > 6 && QUESTION_OPENERS.test(t);
   };
 
   ns.matchProfileKey = function (labelText) {
     if (!labelText) return null;
     const t = labelText.trim();
+    // Belt and braces: even if the geometry check misses, a label that announces
+    // itself as a bot trap never matches a profile key.
+    if (ns.looksLikeTrapText(t)) return null;
     const question = ns.isQuestionLabel(t);
     for (const [tier, key, patterns] of KEYWORD_MAP) {
       // Only the "field" tier is shape-restricted. The question-tier patterns
@@ -206,6 +251,7 @@ window.ReconAutofill = window.ReconAutofill || {};
     // form submits with an empty Country and no warning.
     if (el.getAttribute("aria-hidden") === "true") return false;
     if (el.getAttribute("tabindex") === "-1") return false;
+    if (ns.isHoneypot(el)) return false;
     if (el.tagName === "INPUT") {
       const skip = ["hidden", "file", "submit", "button", "reset", "image", "password"];
       return !skip.includes(el.type);

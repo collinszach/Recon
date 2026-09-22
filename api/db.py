@@ -341,6 +341,10 @@ class AutofillProfile(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     phone: Mapped[str | None] = mapped_column(String)
     email: Mapped[str | None] = mapped_column(String)
+    # What you go by, when the form asks separately from the legal first name.
+    preferred_name: Mapped[str | None] = mapped_column(String)
+    # Greenhouse's education block is School / Degree / Discipline.
+    discipline: Mapped[str | None] = mapped_column(String)
     address_line1: Mapped[str | None] = mapped_column(String)
     city: Mapped[str | None] = mapped_column(String)
     state: Mapped[str | None] = mapped_column(String)

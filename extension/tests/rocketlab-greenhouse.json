@@ -52,7 +52,25 @@
     ["Enter your city", "city"],
     ["LinkedIn Profile", "linkedin_url"],
     ["Race/Ethnicity", "race_ethnicity"],
-    ["Preferred Name", null],
-    ["Are you open to relocating?", "willing_to_relocate"]
+    ["Preferred Name", "preferred_name"],
+    ["Are you open to relocating?", "willing_to_relocate"],
+    ["Enter website. This input is for robots only, do not enter if you're human.", null],
+    ["Please leave this field empty", null],
+    ["Website", "portfolio_url"],
+    ["Preferred First Name", "preferred_name"],
+    ["How would you describe your racial/ethnic background?", "race_ethnicity"],
+    ["Nickname", "preferred_name"],
+    ["Location (City)", "city"],
+    ["Please confirm your City and State", "city"],
+    ["Desired Salary or Hourly Rate", "desired_salary"],
+    ["Will you now or in the future require Visa sponsorship?", "requires_sponsorship"],
+    ["Are you legally authorized to work in the U.S.?", "work_authorized"],
+    ["School", "school"],
+    ["Degree", "degree"],
+    ["Discipline", "discipline"],
+    ["What is your gender identity?", "gender"],
+    ["What is your race or ethnicity?", "race_ethnicity"],
+    ["What is your military status?", "veteran_status"],
+    ["What is your disability status?", "disability_status"]
   ]
 }

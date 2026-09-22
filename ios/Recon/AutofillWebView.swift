@@ -90,6 +90,9 @@ struct AutofillWebView: UIViewRepresentable {
               const profile = \(profileJSON);
               // [tier, key, patterns] — see extension/field-matcher.js
               const MAP = [
+                // Before first_name: "Preferred First Name" contains "First
+                // Name", and a legal first name is the wrong thing to put in it.
+                ["contact", "preferred_name", [/\\bpreferred\\s*(first\\s*)?name\\b/i, /\\bnickname\\b/i, /\\bgoes\\s*by\\b/i]],
                 ["contact", "first_name", [/\\bfirst\\s*name\\b/i, /\\bgiven\\s*name\\b/i]],
                 ["contact", "last_name", [/\\blast\\s*name\\b/i, /\\bsurname\\b/i, /\\bfamily\\s*name\\b/i]],
                 ["contact", "full_name", [/^name$/i, /\\bfull\\s*name\\b/i, /\\blegal\\s*name\\b/i]],
@@ -107,11 +110,12 @@ struct AutofillWebView: UIViewRepresentable {
                 ["field", "headline", [/\\bheadline\\b/i, /\\bcurrent\\s*title\\b/i, /\\bjob\\s*title\\b/i]],
                 ["field", "school", [/\\bschool\\b/i, /\\buniversity\\b/i, /\\bcollege\\b/i]],
                 ["field", "degree", [/\\bdegree\\b/i]],
-                ["field", "pronouns", [/\\bpronoun/i]],
-                ["field", "veteran_status", [/\\bveteran\\b/i, /\\bmilitary\\s*status\\b/i]],
-                ["field", "disability_status", [/\\bdisabilit/i]],
-                ["field", "gender", [/\\bgender\\b/i, /^sex$/i]],
-                ["field", "race_ethnicity", [/\\brace\\b/i, /\\bethnicity\\b/i]],
+                ["field", "discipline", [/\\bdiscipline\\b/i, /\\bmajor\\b/i, /\\bfield\\s*of\\s*study\\b/i]],
+                ["question", "pronouns", [/\\bpronoun/i]],
+                ["question", "veteran_status", [/\\bveteran\\b/i, /\\bmilitary\\s*status\\b/i]],
+                ["question", "disability_status", [/\\bdisabilit/i]],
+                ["question", "gender", [/\\bgender\\b/i, /^sex$/i]],
+                ["question", "race_ethnicity", [/\\brac(e|ial)\\b/i, /\\bethnic(ity)?\\b/i]],
                 ["field", "desired_salary", [/\\bsalary\\b/i, /\\bcompensation\\b/i, /\\bpay\\s*expectation/i]],
                 ["field", "earliest_start_date", [/\\bstart\\s*date\\b/i, /\\bavailable\\s*to\\s*start\\b/i, /\\bearliest\\s*start\\b/i]],
                 ["field", "notice_period", [/\\bnotice\\s*period\\b/i]],
@@ -121,12 +125,36 @@ struct AutofillWebView: UIViewRepresentable {
                 ["question", "how_heard", [/\\bhow\\s*did\\s*you\\s*hear\\b/i, /\\breferral\\b/i, /\\breferred\\s*by\\b/i, /\\bsource\\b/i]]
               ];
               const QUESTION_OPENERS = /^(do|does|did|are|is|was|were|have|has|had|will|would|can|could|should|may|if|what|why|how|when|where|which|who|select|choose|indicate|confirm|specify|please|tell|describe|list|enter|provide)\\b/i;
+              // Honeypots. Workday's Create Account step ships an input named
+              // "website", 1x1 pixels, labelled "Enter website. This input is for
+              // robots only, do not enter if you're human." It is display:block,
+              // visibility:visible, opacity:1 with a live offsetParent, so every
+              // ordinary hidden-field check misses it — and /\\bwebsite\\b/ matches,
+              // so the filler would post a portfolio URL into a bot trap and get
+              // the application binned.
+              const TRAP_TEXT = /robots?\\s+only|do\\s*not\\s*enter\\s*if\\s*you|leave\\s*(this|it)\\s*(field\\s*)?(empty|blank)|honey\\s*pot|beecatcher/i;
+              function looksLikeTrapText(t) { return TRAP_TEXT.test(t || ''); }
+              function isHoneypot(el) {
+                const idish = [el.name, el.id, el.getAttribute('data-automation-id')]
+                  .filter(Boolean).join(' ');
+                if (looksLikeTrapText(idish)) return true;
+                const r = el.getBoundingClientRect();
+                if (r.width <= 2 || r.height <= 2) return true;
+                if (r.right < -500 || r.bottom < -500) return true;
+                const cs = window.getComputedStyle(el);
+                if (cs && (cs.display === 'none' || cs.visibility === 'hidden'
+                           || parseFloat(cs.opacity) === 0)) return true;
+                return false;
+              }
               function isQuestion(t) {
                 if (!t) return false;
                 if (t.indexOf("?") !== -1) return true;
                 const words = t.split(/\\s+/).length;
                 if (words > 9) return true;
-                return words >= 5 && QUESTION_OPENERS.test(t);
+                // An opener alone isn't enough: "Please confirm your City and
+                // State" is a field prompt, while "Select your anticipated
+                // bachelor's degree graduation date" (7 words) is a question.
+                return words > 6 && QUESTION_OPENERS.test(t);
               }
               // The first *human* label wins. The earlier version concatenated
               // aria-label + name + id + placeholder into one string, which is how
@@ -158,6 +186,7 @@ struct AutofillWebView: UIViewRepresentable {
                 return el.getAttribute('placeholder') || '';
               }
               function matchKey(text) {
+                if (looksLikeTrapText(text)) return null;
                 const q = isQuestion(text);
                 for (const entry of MAP) {
                   const tier = entry[0], key = entry[1], pats = entry[2];
@@ -206,6 +235,7 @@ struct AutofillWebView: UIViewRepresentable {
                 // Country and no warning. Strictly worse than leaving it alone.
                 if (el.getAttribute('aria-hidden') === 'true') continue;
                 if (el.getAttribute('tabindex') === '-1') continue;
+                if (isHoneypot(el)) continue;
                 const text = labelFor(el).replace(/\\s+/g, ' ').trim();
                 if (!text) continue;                            // nothing to match on
                 seen++;
