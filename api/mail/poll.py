@@ -74,8 +74,19 @@ def poll(db: Session, limit: int | None = None) -> dict:
         messages = fetch(names, settings.mail_lookback_days,
                          limit or settings.mail_max_messages)
     except Exception as e:
-        log.warning("gmail fetch failed: %s: %s", type(e).__name__, e)
-        return {"status": "error", "reason": f"{type(e).__name__}: {e}"}
+        detail = f"{type(e).__name__}: {e}"
+        # The one failure that will happen on a schedule rather than at random:
+        # while the OAuth client's publishing status is "Testing", Google
+        # expires refresh tokens after 7 days, and the poller just starts
+        # returning invalid_grant. Say so plainly instead of leaving a stack
+        # trace in the worker log and an inbox that silently stops being read.
+        if "invalid_grant" in str(e).lower():
+            detail = ("Gmail refused the refresh token (invalid_grant). If the OAuth client "
+                      "is still in 'Testing' publishing status, Google expires refresh tokens "
+                      "after 7 days — publish the app (it can stay unverified) and re-run "
+                      "scripts/gmail_auth.py. It also means this if you revoked access.")
+        log.warning("gmail fetch failed: %s", detail)
+        return {"status": "error", "reason": detail}
 
     created = skipped = unmatched = 0
     for msg in messages:
