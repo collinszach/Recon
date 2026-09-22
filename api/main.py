@@ -1,7 +1,7 @@
 """Recon API — REST endpoints + serves the dashboard and brief."""
 import logging
 from datetime import date, timedelta, datetime, timezone
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request, Response
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -9,7 +9,7 @@ from sqlalchemy import select, func, text
 from sqlalchemy.orm import Session
 from config import settings
 from db import (
-    Base, engine, SessionLocal, Company, Role, Application, ApplicationEvent,
+    Base, engine, SessionLocal, Company, Role, Application, ApplicationEvent, ResumeFile,
     Contact, DailyBrief, ScanRun, PushSubscription, Resume, ResumeExperience,
     Interview, Material, AutofillProfile, DeviceToken, Startup, StartupContact,
 )
@@ -47,6 +47,10 @@ def _ensure_schema():
         conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS sector VARCHAR"))
         # "never show this employer again" (2026-09-21).
         conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS dismissed_at TIMESTAMPTZ"))
+        # Backlog vs. arrival (2026-09-21): a board's first scan is its back
+        # catalogue, not today's news.
+        conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS first_scanned_at TIMESTAMPTZ"))
+        conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_backfill BOOLEAN DEFAULT FALSE"))
         # APNs environment per device token; NULL until send_apns() probes for it.
         conn.execute(text("ALTER TABLE device_tokens ADD COLUMN IF NOT EXISTS environment VARCHAR"))
         # Semantic embeddings: resize column from 1536 → 1024 (mxbai-embed-large).
@@ -186,6 +190,7 @@ def list_roles(tier: str | None = None, company: str | None = None,
                dedupe: bool = True, include_hidden: bool = False,
                include_unscored: bool = False,
                limit: int = 300, since_days: int | None = None,
+               posted_since_days: int | None = None, include_backfill: bool = True,
                relevant_only: bool = True, us_only: bool = True,
                db: Session = Depends(get_db)):
     """The tracker feed: open roles in the tracks Zach is watching, newest first.
@@ -210,6 +215,13 @@ def list_roles(tier: str | None = None, company: str | None = None,
             select(Company.id).where(Company.dismissed_at.isnot(None))))
     if since_days:
         q = q.where(Role.first_seen >= datetime.now(timezone.utc) - timedelta(days=since_days))
+    if posted_since_days is not None:
+        # Strictly the employer's posting date. A role with no posted_at is NOT
+        # recent-by-default — that conflation is what made "posted today" mean
+        # "a board I just connected dumped its back catalogue".
+        q = q.where(Role.posted_at >= datetime.now(timezone.utc) - timedelta(days=posted_since_days))
+    if not include_backfill:
+        q = q.where(Role.is_backfill == False)  # noqa: E712
     # The raw-browse hatch: scored_only=false skips the relevance filter below and
     # returns everything open. Default (None) is the tracker feed.
     raw_browse = scored_only is False
@@ -221,9 +233,11 @@ def list_roles(tier: str | None = None, company: str | None = None,
         q = q.where(Role.metro == metro)
     if mba is not None:
         q = q.where(Role.is_mba == mba)
-    # Newest first: the tracker's question is "what arrived?", and fit_score is
-    # NULL on everything ingested since scoring was turned off.
-    rows = db.scalars(q.order_by(Role.first_seen.desc().nullslast())).all()
+    # Newest first by *posting* date where the board gives one, falling back to
+    # when Recon first saw it. Ordering purely on first_seen put a newly
+    # connected board's decade of history above this morning's real postings.
+    rows = db.scalars(q.order_by(
+        func.coalesce(Role.posted_at, Role.first_seen).desc().nullslast())).all()
     _mode = "intern" if settings.intern_only else settings.track_mode
     wanted_states = {s.strip() for s in states.split(",") if s.strip()} if states else None
     out = []
@@ -272,6 +286,7 @@ def list_roles(tier: str | None = None, company: str | None = None,
             "remote": r.remote_flag,
             "posted_at": r.posted_at.isoformat() if r.posted_at else None,
             "first_seen": r.first_seen.isoformat() if r.first_seen else None,
+            "is_backfill": bool(r.is_backfill),   # arrived with a board's back catalogue
             "fit_score": r.fit_score, "domain": r.domain,
             "why_fit": r.why_fit, "concerns": r.concerns,
             "curriculum_hook": r.curriculum_hook,
@@ -872,6 +887,64 @@ def _role_out_min(r: Role) -> dict:
             "url": r.url, "source": r.source,
             "first_seen": r.first_seen.isoformat() if r.first_seen else None,
             "dismissed_at": r.interest_at.isoformat() if r.interest_at else None}
+
+
+# ─── résumé file (for the autofill extension) ───────────────
+@app.put("/api/resume/file")
+async def upload_resume_file(request: Request, filename: str = "resume.pdf",
+                             db: Session = Depends(get_db)):
+    """Store the résumé PDF (raw body). One row, replaced each upload."""
+    data = await request.body()
+    if not data:
+        raise HTTPException(422, "empty body")
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(413, "résumé larger than 10MB")
+    for old in db.scalars(select(ResumeFile)).all():
+        db.delete(old)
+    rf = ResumeFile(filename=filename, content_type="application/pdf",
+                    data=data, size=len(data))
+    db.add(rf)
+    db.commit()
+    return {"status": "ok", "filename": rf.filename, "size": rf.size,
+            "uploaded_at": rf.uploaded_at.isoformat() if rf.uploaded_at else None}
+
+
+@app.get("/api/resume/file")
+def get_resume_file(db: Session = Depends(get_db)):
+    """The stored résumé, as a file download. The extension fetches this and
+    attaches it to an application's file input via DataTransfer."""
+    rf = db.scalar(select(ResumeFile).order_by(ResumeFile.uploaded_at.desc()))
+    if not rf:
+        raise HTTPException(404, "no résumé uploaded")
+    return Response(content=rf.data, media_type=rf.content_type,
+                    headers={"Content-Disposition": f'inline; filename="{rf.filename}"'})
+
+
+@app.get("/api/resume/file/meta")
+def get_resume_file_meta(db: Session = Depends(get_db)):
+    rf = db.scalar(select(ResumeFile).order_by(ResumeFile.uploaded_at.desc()))
+    if not rf:
+        return {"present": False}
+    return {"present": True, "filename": rf.filename, "size": rf.size,
+            "uploaded_at": rf.uploaded_at.isoformat() if rf.uploaded_at else None}
+
+
+@app.get("/api/boards/recent")
+def recent_boards(days: int = 7, db: Session = Depends(get_db)):
+    """Boards connected in the last `days`, with how much back catalogue each
+    brought in. The dashboard shows one line per board so a 396-role batch is
+    explained rather than silently swelling the feed."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    rows = db.execute(
+        select(Company.id, Company.name, Company.ats_name, Company.first_scanned_at,
+               func.count(Role.id))
+        .join(Role, Role.company_id == Company.id)
+        .where(Company.first_scanned_at >= cutoff, Role.is_backfill == True)  # noqa: E712
+        .group_by(Company.id, Company.name, Company.ats_name, Company.first_scanned_at)
+        .order_by(Company.first_scanned_at.desc())).all()
+    return [{"company_id": cid, "company": name, "ats": ats,
+             "connected_at": ts.isoformat() if ts else None, "roles_added": n}
+            for cid, name, ats, ts, n in rows]
 
 
 @app.post("/api/admin/discover-workday")

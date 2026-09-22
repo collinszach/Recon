@@ -11,8 +11,19 @@ CREATE TABLE IF NOT EXISTS companies (
     careers_url     TEXT,
     snoozed_until   DATE,
     dismissed_at    TIMESTAMPTZ,                -- "never show me this employer again"
+    first_scanned_at TIMESTAMPTZ,               -- first successful board scan (see roles.is_backfill)
     notes           TEXT,
     created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+-- ─── résumé file (autofill extension attaches this to applications) ──
+CREATE TABLE IF NOT EXISTS resume_file (
+    id            SERIAL PRIMARY KEY,
+    filename      TEXT NOT NULL,
+    content_type  TEXT DEFAULT 'application/pdf',
+    data          BYTEA NOT NULL,
+    size          INTEGER DEFAULT 0,
+    uploaded_at   TIMESTAMPTZ DEFAULT now()
 );
 
 -- ─── roles ──────────────────────────────────────────────────

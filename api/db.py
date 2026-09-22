@@ -2,7 +2,7 @@
 from datetime import datetime, date
 from sqlalchemy import (
     create_engine, String, Integer, Float, Boolean, Text, Date, DateTime,
-    ForeignKey, func,
+    ForeignKey, LargeBinary, func,
 )
 from sqlalchemy.orm import (
     DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker,
@@ -33,6 +33,10 @@ class Company(Base):
     # scan keeps ingesting their postings (cheaper than special-casing intake),
     # the feed just never returns them. Clear it to bring the company back.
     dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # First time Recon successfully scanned this company's board. Everything
+    # ingested in that first scan is the board's back catalogue, not new
+    # postings — see Role.is_backfill.
+    first_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     roles: Mapped[list["Role"]] = relationship(back_populates="company", cascade="all, delete-orphan")
@@ -77,7 +81,28 @@ class Role(Base):
     # at the same company — filtered out of the feed to cut noise.
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024))
     is_duplicate: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Arrived in the first scan of a newly connected board: new to Recon, but
+    # not newly posted. Abbott's board contributed 396 of these in one scan, all
+    # with first_seen=today, which is what made "new today" meaningless.
+    is_backfill: Mapped[bool] = mapped_column(Boolean, default=False)
     company: Mapped["Company"] = relationship(back_populates="roles")
+
+
+class ResumeFile(Base):
+    """The résumé PDF itself, for the autofill extension to attach to an
+    application's file input.
+
+    Stored as bytes in Postgres rather than on disk: the API container mounts
+    only ./secrets read-only, so there is nowhere on the filesystem a write
+    would survive a rebuild. One row, replaced on upload.
+    """
+    __tablename__ = "resume_file"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    filename: Mapped[str] = mapped_column(String)
+    content_type: Mapped[str] = mapped_column(String, default="application/pdf")
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Application(Base):

@@ -8,10 +8,14 @@ from scan.geo import metro_of, states_csv
 
 
 def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole],
-                      close_missing: bool = True) -> dict:
+                      close_missing: bool = True, backfill: bool = False) -> dict:
     """Returns counts and lists of new / changed role ids. When close_missing is
     False the caller's fetch is a sampled slice (not the full board), so roles
-    absent from `fetched` are left as-is rather than marked closed."""
+    absent from `fetched` are left as-is rather than marked closed.
+
+    `backfill` marks everything inserted as the board's back catalogue rather
+    than new postings — true only on a company's first-ever scan, where every
+    posting arrives at once with first_seen=now regardless of its real age."""
     existing = {
         r.ats_job_id: r
         for r in db.scalars(select(Role).where(Role.company_id == company_id))
@@ -38,6 +42,7 @@ def reconcile_company(db: Session, company_id: int, fetched: list[NormalizedRole
                 description_hash=f.description_hash,
                 posted_at=f.posted_at,
                 status="open",
+                is_backfill=backfill,
             )
             db.add(role)
             db.flush()

@@ -23,6 +23,9 @@ uses, plus mba/internship) so those roles get pulled in regardless of where
 they sit in the board. This step is about *recall* only -- scan.intern_filter's
 title classifiers still decide what's actually relevant to score.
 """
+import re
+from datetime import datetime, timedelta, timezone
+
 from .base import ATSParser, NormalizedRole, client, polite_delay, parse_dt
 
 BASE = "https://{tenant}.{dc}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs"
@@ -115,6 +118,40 @@ def _parse_token(token: str) -> tuple[str, str, str]:
     return parts[0], parts[1], parts[2]
 
 
+# Workday reports the posting date only as a relative phrase on the list API:
+# "Posted Today", "Posted Yesterday", "Posted 5 Days Ago", "Posted 30+ Days Ago".
+# There is no absolute date field — `startDate`/`postedOnDate` don't exist, which
+# is why every Workday board contributed zero posting dates until 2026-09-21 and
+# a newly connected board's entire back catalogue looked undated.
+_POSTED_TODAY_RE = re.compile(r"posted\s+today", re.IGNORECASE)
+_POSTED_YESTERDAY_RE = re.compile(r"posted\s+yesterday", re.IGNORECASE)
+_POSTED_DAYS_RE = re.compile(r"posted\s+(\d+)\+?\s+days?\s+ago", re.IGNORECASE)
+_POSTED_MONTHS_RE = re.compile(r"posted\s+(\d+)\+?\s+months?\s+ago", re.IGNORECASE)
+
+
+def parse_posted_on(value: str | None) -> datetime | None:
+    """Relative posting phrase -> a date, or None when Workday says nothing.
+
+    "30+ Days Ago" is a floor, not a date: Workday stops counting there, so the
+    posting is *at least* that old. Dating it exactly 30 days back is the
+    honest reading — it will never claim a posting is fresher than it is.
+    """
+    if not value:
+        return None
+    now = datetime.now(timezone.utc)
+    if _POSTED_TODAY_RE.search(value):
+        return now
+    if _POSTED_YESTERDAY_RE.search(value):
+        return now - timedelta(days=1)
+    m = _POSTED_DAYS_RE.search(value)
+    if m:
+        return now - timedelta(days=int(m.group(1)))
+    m = _POSTED_MONTHS_RE.search(value)
+    if m:
+        return now - timedelta(days=30 * int(m.group(1)))
+    return None
+
+
 def _normalize(job: dict, tenant: str, dc: str, site: str) -> NormalizedRole:
     path = job.get("externalPath", "")
     loc = job.get("locationsText")
@@ -128,5 +165,6 @@ def _normalize(job: dict, tenant: str, dc: str, site: str) -> NormalizedRole:
         department=None,
         url=PUBLIC_URL.format(tenant=tenant, dc=dc, site=site, path=path),
         description=f"{loc or ''} {description}".strip()[:6000],
-        posted_at=parse_dt(job.get("startDate") or job.get("postedOnDate")),
+        posted_at=(parse_dt(job.get("startDate") or job.get("postedOnDate"))
+                   or parse_posted_on(job.get("postedOn"))),
     )

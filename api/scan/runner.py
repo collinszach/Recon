@@ -37,8 +37,17 @@ def run_daily_scan() -> dict:
                 continue  # manual / workday handled elsewhere
             try:
                 fetched = parser.fetch(co.ats_token)
+                # A company's first successful scan pulls its whole back
+                # catalogue at once — every posting gets first_seen=now no
+                # matter how old it is (Abbott: 396 roles in one scan). Flag
+                # those as backfill so "new today" stays about new postings.
+                first_scan = co.first_scanned_at is None
                 result = reconcile_company(db, co.id, fetched,
-                                           close_missing=parser.authoritative)
+                                           close_missing=parser.authoritative,
+                                           backfill=first_scan)
+                if first_scan:
+                    co.first_scanned_at = datetime.now(timezone.utc)
+                    db.commit()
                 totals["new"] += result["new"]
                 totals["changed"] += result["changed"]
                 totals["closed"] += result["closed"]
