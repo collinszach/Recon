@@ -111,6 +111,48 @@ them would have received the phone number. Hence `phone_device_type`,
 `phone_extension` and `phone_country_code`: keys with no profile value, matched
 *before* `phone`, whose whole job is to claim the label and hand it back.
 
+### Workday's prompt widgets defeat the filler's core technique
+
+Surveyed on GM, signed in, 2026-09-22. Three control families, three different
+rules — and the filler's one technique works on only the first:
+
+| Control | Example | Does `setNativeValue` work? |
+|---|---|---|
+| Plain input | First Name, Address, Postal Code, URL | **yes** |
+| Spinbutton | From / To year | **yes** (`aria-valuenow` updates) |
+| Flat dropdown | Degree, State, Phone Device Type | no — needs a click on an option; a synthetic `.click()` is enough |
+| Search prompt | School or University, Field of Study | **no** — see below |
+
+The search prompt is the one that matters, because it is where the résumé data
+goes. Setting `.value` on it puts text in the box and fires **zero** search
+results. Worse, the typed text is not a value: Save and Continue returns
+
+```
+Error - Field of Study: The field Field of Study is required and must have a value.
+```
+
+and Workday then *clears* what you typed. This is exactly the failure the whole
+`setNativeValue` design exists to prevent — a form that looks complete and
+submits empty — except here the platform is stricter than a plain input: only a
+committed chip counts.
+
+**The working recipe**, found the hard way:
+
+1. real keystrokes into the box (not `.value`)
+2. a pause, then **Enter** — Enter is what runs the search
+3. wait; results take up to ~8s and arrive under a "Search Results (N)" header
+4. click the exact row, or arrow down to it and press Enter
+
+A partial query returns only the category headers ("Partial List (First 500
+Entries)" / "All"), which look like "no results" but are not. `Business` gives
+nothing useful; `Business Administration` gives the real list. Categories are
+drill-downs whose chevron needs a **real** mouse click — a synthetic one does
+nothing.
+
+Two traps for anything automating this: the option list re-renders between
+measuring a row and clicking it (that is how a neighbouring entry gets picked),
+and the search is slow enough that an impatient check reads as "No Items."
+
 ### `adapters/workday.js` matches on the wrong attribute
 
 The adapter's premise — "Workday's automation ids are stable across tenants" —
