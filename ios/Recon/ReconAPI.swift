@@ -123,6 +123,14 @@ struct ReconAPI {
         _ = try await execute("PUT", "api/autofill/profile", body: data)
     }
 
+    /// The complete job description. `/api/roles` truncates it to 600 characters
+    /// to keep the feed small — that preview is what the list shows, and it is
+    /// routinely cut mid-sentence. This is the rest.
+    func fullDescription(roleId: Int) async throws -> String? {
+        struct One: Decodable { let description: String? }
+        return try await get("api/roles/\(roleId)", as: One.self).description
+    }
+
     func resumeOnFile() async throws -> Bool {
         struct Meta: Decodable { let present: Bool }
         return try await get("api/resume/file/meta", as: Meta.self).present

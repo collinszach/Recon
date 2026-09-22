@@ -725,3 +725,47 @@ extension Role {
         return .other
     }
 }
+
+
+extension Role {
+    /// Whether the description is worth putting on screen.
+    ///
+    /// Workday postings frequently scrape down to nothing but a location and a
+    /// requisition id — "Malvern, PA 180420", "R00358081 Amsterdam" — 18 of the
+    /// 85 descriptions in the feed on 2026-09-22. Rendering those under a
+    /// heading that says "job description" is worse than showing nothing.
+    var hasUsefulDescription: Bool {
+        guard let d = description?.trimmingCharacters(in: .whitespacesAndNewlines),
+              d.count >= 200 else { return false }
+        return d.contains(" ")
+    }
+}
+
+/// ATS feeds arrive with HTML entities intact, so `&nbsp;` and `&amp;` would
+/// otherwise be shown to the reader verbatim. Deliberately a small lookup rather
+/// than NSAttributedString's HTML importer, which is main-thread-only and slow
+/// enough to stutter a scroll.
+extension String {
+    var decodingHTMLEntities: String {
+        var out = self
+        let map = ["&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">",
+                   "&quot;": "\"", "&#39;": "'", "&apos;": "'",
+                   "&rsquo;": "\u{2019}", "&lsquo;": "\u{2018}",
+                   "&ldquo;": "\u{201C}", "&rdquo;": "\u{201D}",
+                   "&mdash;": "\u{2014}", "&ndash;": "\u{2013}",
+                   "&hellip;": "\u{2026}", "&bull;": "\u{2022}"]
+        for (k, v) in map { out = out.replacingOccurrences(of: k, with: v) }
+        // Numeric escapes that survive the table above.
+        while let r = out.range(of: "&#[0-9]{2,5};", options: .regularExpression) {
+            let digits = out[r].dropFirst(2).dropLast()
+            guard let code = UInt32(digits), let scalar = Unicode.Scalar(code) else {
+                out.replaceSubrange(r, with: ""); continue
+            }
+            out.replaceSubrange(r, with: String(Character(scalar)))
+        }
+        // Collapse the runs of blank lines these feeds are full of.
+        out = out.replacingOccurrences(of: "[ \t]+\n", with: "\n", options: .regularExpression)
+        out = out.replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+        return out.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}

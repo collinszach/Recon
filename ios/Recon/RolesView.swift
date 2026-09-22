@@ -479,18 +479,8 @@ struct RoleDetailView: View {
                 if let w = role.whyFit, !w.isEmpty { Section_("Why it fits", w) }
                 if let c = role.concerns, !c.isEmpty { Section_("Concerns", c, tint: Theme.rust) }
                 if let h = role.curriculumHook, !h.isEmpty { Section_("Curriculum hook", h) }
-                if let d = role.description, !d.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        DisclosureGroup {
-                            Text(d).font(.caption).foregroundStyle(Theme.inkSoft)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.top, 6)
-                        } label: {
-                            Text("Full job description").font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Theme.ink)
-                        }
-                        .tint(Theme.rust)
-                    }.frame(maxWidth: .infinity, alignment: .leading).reconCard()
+                if role.hasUsefulDescription {
+                    JobDescriptionCard(role: role)
                 }
 
                 if !companyContacts.isEmpty {
@@ -644,5 +634,69 @@ struct FactRow: View {
             Text(v).font(.subheadline.weight(.medium)).foregroundStyle(tint)
                 .multilineTextAlignment(.trailing)
         }.padding(.vertical, 9)
+    }
+}
+
+
+/// The job description, readably.
+///
+/// It used to render the list payload under the heading "Full job description".
+/// That payload is truncated to 600 characters server-side, so the heading was a
+/// lie and the text usually stopped mid-sentence. The full JD lives behind
+/// `/api/roles/{id}`, which nothing was calling; this fetches it the first time
+/// the reader asks to see more, and shows a preview until then.
+struct JobDescriptionCard: View {
+    let role: Role
+    @State private var expanded = false
+    @State private var full: String?
+    @State private var loading = false
+
+    /// The preview always comes from what we already have — no spinner to read
+    /// the first few lines.
+    private var preview: String { (role.description ?? "").decodingHTMLEntities }
+    private var body_: String { full?.decodingHTMLEntities ?? preview }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("JOB DESCRIPTION")
+                .font(.caption2.weight(.bold)).foregroundStyle(Theme.inkSoft)
+
+            Text(body_)
+                .font(.callout)
+                .foregroundStyle(Theme.ink)
+                .lineSpacing(3)
+                .lineLimit(expanded ? nil : 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .animation(.easeInOut(duration: 0.15), value: expanded)
+
+            HStack(spacing: 10) {
+                Button(expanded ? "Show less" : "Show more") {
+                    expanded.toggle()
+                    if expanded { Task { await loadFull() } }
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.rust)
+
+                if loading {
+                    ProgressView().controlSize(.mini)
+                }
+                Spacer()
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .reconCard()
+    }
+
+    /// Fetch once, and treat failure as "keep the preview" — an unreachable
+    /// server shouldn't blank out text we already had in hand.
+    private func loadFull() async {
+        guard full == nil, !loading else { return }
+        loading = true
+        defer { loading = false }
+        if let text = try? await ReconAPI.shared.fullDescription(roleId: role.id),
+           text.count > preview.count {
+            full = text
+        }
     }
 }
