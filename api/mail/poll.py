@@ -17,7 +17,7 @@ from mail.classify import classify
 from datetime import datetime, timezone
 
 from mail.gmail_client import (configured, fetch_threads, is_ats_sender,
-                               looks_like_marketing)
+                               looks_like_marketing, sent_by_domain)
 
 log = logging.getLogger("recon.mail")
 
@@ -85,6 +85,14 @@ def poll(db: Session, limit: int | None = None) -> dict:
         log.warning("gmail fetch failed: %s", detail)
         return {"status": "error", "reason": detail}
 
+    # Who he last wrote to, by domain — covers replies sent as new messages
+    # rather than in-thread, which is how the Skydio thank-you was sent.
+    try:
+        sent_map = sent_by_domain(settings.mail_lookback_days)
+    except Exception as e:
+        log.warning("sent-mail scan failed (non-fatal): %s: %s", type(e).__name__, e)
+        sent_map = {}
+
     created = updated = ignored = unmatched = 0
     for th in threads:
         inbound = th["latest_inbound"]
@@ -110,6 +118,13 @@ def poll(db: Session, limit: int | None = None) -> dict:
         row.awaiting = th["awaiting"]
         row.last_message_at = th["last_at"]
         row.last_outbound_at = (th["latest_outbound"] or {}).get("received_at")
+        # A reply sent outside the thread still counts as a reply.
+        dom = (re.search(r"@([\w.-]+)", inbound.get("from_addr") or "") or [None, ""])[1].lower()
+        sent_at = sent_map.get(dom)
+        if sent_at and sent_at > (inbound.get("received_at") or sent_at):
+            row.awaiting = "them"
+            if not row.last_outbound_at or row.last_outbound_at < sent_at:
+                row.last_outbound_at = sent_at
         row.message_count = len(th["messages"])
 
         if marketing:

@@ -173,6 +173,36 @@ def _shape(msg: dict) -> dict:
     }
 
 
+def sent_by_domain(lookback_days: int, limit: int = 120) -> dict[str, datetime]:
+    """Latest time Zach wrote to each domain.
+
+    Thread direction isn't enough: his thank-you to the Skydio recruiter was a
+    NEW message, not a reply, so it sits in its own thread and the recruiter's
+    thread looks unanswered. Who he last wrote to, and when, is a property of
+    the counterparty rather than the thread.
+    """
+    svc = _service()
+    since = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).strftime("%Y/%m/%d")
+    listing = svc.users().messages().list(
+        userId="me", q=f"in:sent after:{since}", maxResults=limit).execute()
+    out: dict[str, datetime] = {}
+    for stub in listing.get("messages", []) or []:
+        msg = svc.users().messages().get(
+            userId="me", id=stub["id"], format="metadata",
+            metadataHeaders=["To", "Cc"]).execute()
+        payload = msg.get("payload") or {}
+        ts = msg.get("internalDate")
+        when = datetime.fromtimestamp(int(ts) / 1000, tz=timezone.utc) if ts else None
+        if not when:
+            continue
+        recipients = " ".join(filter(None, [_header(payload, "To"), _header(payload, "Cc")]))
+        for dom in set(re.findall(r"@([\w.-]+)", recipients)):
+            dom = dom.lower()
+            if out.get(dom, datetime.min.replace(tzinfo=timezone.utc)) < when:
+                out[dom] = when
+    return out
+
+
 def fetch_threads(company_names: list[str], lookback_days: int, limit: int) -> list[dict]:
     """Whole conversations, not loose messages.
 
