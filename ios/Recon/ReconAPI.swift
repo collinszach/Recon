@@ -108,6 +108,10 @@ struct ReconAPI {
     func roles(limit: Int = 300) async throws -> [Role] {
         try await get("api/roles?limit=\(limit)", as: [Role].self)
     }
+    /// Boards connected in the last week and their back-catalogue counts.
+    func recentBoards() async throws -> [ConnectedBoard] {
+        try await get("api/boards/recent", as: [ConnectedBoard].self)
+    }
     /// What was wiped, for the undo list.
     func dismissedRoles() async throws -> [DismissedRole] {
         try await get("api/roles/dismissed", as: [DismissedRole].self)

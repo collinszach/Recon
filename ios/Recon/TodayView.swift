@@ -1,25 +1,26 @@
 import SwiftUI
 
-/// The dashboard: what arrived, what needs action, what's in flight.
+/// The dashboard: what was posted today, what needs action, what's in flight.
 ///
-/// Was a scored digest — headline stats, "Top matches" by fit. With the scorer
-/// off (2026-09-21) fit is gone, so the questions this answers are the tracker's:
-/// what's new since I last looked, what am I late on, and where do my
-/// applications stand.
+/// The ordering question this screen has to get right is "posted" vs "seen".
+/// It used to group arrivals by `first_seen`, which meant a newly connected
+/// board's entire back catalogue read as today's news — on 2026-09-21, 80
+/// roles "arrived" and 7 had actually been posted that day. Everything here
+/// keys off `posted_at`, and roles the board never dated get their own group
+/// rather than padding the count.
 struct TodayView: View {
     @EnvironmentObject var store: Store
+    @State private var showUndated = false
 
-    /// New arrivals grouped by the day Recon first saw them, newest day first.
+    /// Posted earlier this week, grouped by posting day, newest day first.
     private var byDay: [(label: String, roles: [Role])] {
         let cal = Calendar.current
-        let groups = Dictionary(grouping: store.newThisWeek) { role -> Date in
-            cal.startOfDay(for: role.firstSeenDate ?? Date())
+        let groups = Dictionary(grouping: store.postedThisWeek) { role -> Date in
+            cal.startOfDay(for: role.postedDate ?? Date())
         }
         let fmt = DateFormatter(); fmt.dateFormat = "EEEE, MMM d"
         return groups.keys.sorted(by: >).map { day in
-            let label = cal.isDateInToday(day) ? "Today"
-                      : cal.isDateInYesterday(day) ? "Yesterday"
-                      : fmt.string(from: day)
+            let label = cal.isDateInYesterday(day) ? "Yesterday" : fmt.string(from: day)
             return (label, groups[day]?.sorted { ($0.company ?? "") < ($1.company ?? "") } ?? [])
         }
     }
@@ -40,63 +41,52 @@ struct TodayView: View {
             VStack(alignment: .leading, spacing: 16) {
                 if let err = store.error { ErrorBanner(message: err) }
 
-                // One subtitle line under the nav title — the old SectionHeader
-                // put a second heading ("Recon") under the first ("Dashboard"),
-                // which read as two competing titles for the same screen.
                 HStack(spacing: 6) {
                     Text("Summer 2027 internships")
                         .font(.caption.weight(.semibold)).foregroundStyle(Theme.rust)
                         .textCase(.uppercase)
                     Spacer()
                     if let sync = store.lastSyncedText {
-                        Text(sync).font(.caption).foregroundStyle(Theme.inkSoft)
+                        Text("synced \(sync)").font(.caption).foregroundStyle(Theme.inkSoft)
                     }
                 }
 
                 HStack(spacing: 10) {
-                    Stat(num: "\(store.newThisWeek.count)", label: "new · 7d", color: Theme.gold)
+                    Stat(num: "\(store.postedToday.count)", label: "posted today", color: Theme.gold)
+                    Stat(num: "\(store.postedThisWeek.count)", label: "this week", color: Theme.rust)
                     Stat(num: "\(applied.count)", label: "applied", color: Theme.green)
-                    Stat(num: "\(saved.count)", label: "saved", color: Theme.inkSoft)
                 }
 
-                if store.totalNudgeCount > 0 {
-                    FollowUpsSection()
-                }
-
-                // New arrivals, grouped by day — the "did the scan find anything"
-                // question, which the old fit-sorted list couldn't answer because
-                // a day's arrivals never cracked the top 5.
-                SectionHeader(title: "New this week",
-                              trailing: store.newThisWeek.isEmpty ? nil : "\(store.newThisWeek.count)")
-                if store.newThisWeek.isEmpty {
-                    Text("Nothing new in the last 7 days. Most Summer 2027 reqs post Aug 2026–Jan 2027 — Recon scans hourly.")
+                // 1. Posted today — the reason to open the app.
+                SectionHeader(title: "Posted today",
+                              trailing: store.postedToday.isEmpty ? nil : "\(store.postedToday.count)")
+                if store.postedToday.isEmpty {
+                    Text("Nothing new posted today yet. Recon scans hourly; most Summer 2027 reqs post Aug 2026–Jan 2027.")
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 } else {
-                    ForEach(byDay.prefix(4), id: \.label) { day in
+                    ForEach(store.postedToday) { role in roleLink(role) }
+                }
+
+                // 2. Needs action, before the browsing sections.
+                if store.totalNudgeCount > 0 { FollowUpsSection() }
+
+                // 3. Earlier this week, by posting day.
+                if !byDay.isEmpty {
+                    SectionHeader(title: "Earlier this week",
+                                  trailing: "\(store.postedThisWeek.count)")
+                    ForEach(byDay.prefix(6), id: \.label) { day in
                         Text("\(day.label) · \(day.roles.count)")
                             .font(.caption.weight(.semibold)).foregroundStyle(Theme.inkSoft)
                             .textCase(.uppercase).padding(.top, 4)
-                        ForEach(day.roles.prefix(8)) { role in
-                            NavigationLink(value: role) {
-                                RoleRow(role: role, isNew: role.firstSeenIsToday)
-                            }
-                            .buttonStyle(.plain)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    Task { await store.dismiss(role) }
-                                } label: { Label("Wipe", systemImage: "trash") }
-                            }
-                        }
-                        if day.roles.count > 8 {
-                            Text("+ \(day.roles.count - 8) more in Roles")
+                        ForEach(day.roles.prefix(6)) { role in roleLink(role) }
+                        if day.roles.count > 6 {
+                            Text("+ \(day.roles.count - 6) more in Roles")
                                 .font(.caption).foregroundStyle(Theme.inkSoft)
                         }
                     }
                 }
-                // Applications, the half of the tracker that isn't intake.
-                // Applied and saved are separate on purpose: "watching" is a
-                // bookmark, not an application, and merging them made the
-                // dashboard report 35 applications that had never been sent.
+
+                // 4. Applications.
                 if !applied.isEmpty {
                     SectionHeader(title: "Applied", trailing: "\(applied.count)")
                     ForEach(applied.prefix(5)) { app in appRow(app, tint: Theme.green) }
@@ -119,11 +109,57 @@ struct TodayView: View {
                     }
                 }
 
+                // 5. Why the feed jumped: a board's back catalogue arriving is
+                // explained here instead of silently swelling the counts above.
+                if !store.recentBoards.isEmpty {
+                    SectionHeader(title: "Boards connected", trailing: "\(store.recentBoards.count)")
+                    ForEach(store.recentBoards) { b in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(b.company).font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Theme.ink)
+                                Text("\(b.rolesAdded) existing roles added\(b.ats.map { " · \($0)" } ?? "")")
+                                    .font(.caption).foregroundStyle(Theme.inkSoft)
+                            }
+                            Spacer()
+                        }
+                        .reconCard()
+                    }
+                }
+
+                // 6. Arrived with no posting date — visible, but never counted
+                // as "today".
+                if !store.undatedArrivals.isEmpty {
+                    Button { withAnimation { showUndated.toggle() } } label: {
+                        HStack {
+                            Text("Date unknown · \(store.undatedArrivals.count)")
+                                .font(.caption.weight(.semibold)).textCase(.uppercase)
+                            Image(systemName: showUndated ? "chevron.up" : "chevron.down")
+                                .font(.caption2)
+                            Spacer()
+                        }
+                        .foregroundStyle(Theme.inkSoft)
+                    }
+                    .buttonStyle(.plain)
+                    if showUndated {
+                        ForEach(store.undatedArrivals.prefix(10)) { role in roleLink(role) }
+                    }
+                }
             }
             .padding(16)
         }
         .navigationDestination(for: Role.self) { RoleDetailView(role: $0, store: store) }
         .scrollContentBackground(.hidden)
+    }
+
+    private func roleLink(_ role: Role) -> some View {
+        NavigationLink(value: role) { RoleRow(role: role, isNew: role.postedToday) }
+            .buttonStyle(.plain)
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button(role: .destructive) {
+                    Task { await store.dismiss(role) }
+                } label: { Label("Wipe", systemImage: "trash") }
+            }
     }
 
     private func appRow(_ app: AppItem, tint: Color) -> some View {

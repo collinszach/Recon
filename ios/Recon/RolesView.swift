@@ -18,13 +18,19 @@ struct RoleRow: View {
                     if isNew { Pill(text: "New", color: Theme.gold, filled: true) }
                     if role.isMba == true { Pill(text: "MBA", color: Theme.rust) }
                     Text(role.company ?? "—").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                    if role.isBackfill == true { Pill(text: "backlog", color: Theme.inkSoft) }
                     Spacer()
-                    if let seen = role.firstSeenText {
-                        Text(seen).font(.caption2).foregroundStyle(Theme.inkSoft)
-                    }
                 }
                 Text(role.title).font(.callout).foregroundStyle(Theme.ink).lineLimit(2)
                 HStack(spacing: 10) {
+                    // Posting age leads: it's the signal that decides whether a
+                    // role is worth opening, and an undated one says so plainly
+                    // instead of looking fresh.
+                    Label(role.dateLabel, systemImage: role.postedIsKnown ? "calendar" : "questionmark.circle")
+                        .font(.caption.weight(role.postedToday ? .semibold : .regular))
+                        .foregroundStyle(role.postedToday ? Theme.gold
+                                         : (role.postedIsKnown ? Theme.inkSoft : Theme.inkSoft.opacity(0.7)))
+                        .lineLimit(1)
                     if let loc = role.location, !loc.isEmpty {
                         Label(loc, systemImage: "mappin.and.ellipse")
                             .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
@@ -61,6 +67,7 @@ struct RolesView: View {
     @State private var mbaOnly: Bool = false
     @State private var showSwipe = false
     @State private var wipedNotice: String?
+    @State private var postedWithin: Int? = nil     // days; nil = any age
     /// Target-metro slug -> display label (mirrors api/scan/geo.py METROS). Still
     /// used for the RoleDetailView "target metro" callout — the browse/filter UI
     /// below uses the exhaustive state list instead (2026-08-16).
@@ -80,11 +87,19 @@ struct RolesView: View {
     }
     var shown: [Role] {
         trackFeed.filter {
-            (selectedStates.isEmpty || !selectedStates.isDisjoint(with: $0.stateCodes))
+            (postedWithin == nil || withinPosted($0, days: postedWithin!))
+            && (selectedStates.isEmpty || !selectedStates.isDisjoint(with: $0.stateCodes))
             && (sector == nil || $0.sector == sector)
             && (!mbaOnly || $0.isMba == true)
         }
     }
+    /// Posted within N days. Strict: an undated role never counts as recent,
+    /// the same rule the dashboard's "posted today" uses.
+    private func withinPosted(_ role: Role, days: Int) -> Bool {
+        guard let d = role.postedDate else { return false }
+        return d >= Date().addingTimeInterval(-Double(days) * 86_400)
+    }
+
     private var stateFilterLabel: String {
         switch selectedStates.count {
         case 0: return "All locations"
@@ -101,6 +116,22 @@ struct RolesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if let err = store.error { ErrorBanner(message: err) }
+                // Posting-age chips. "Any age" is the default because the
+                // board backlog is legitimately most of the feed.
+                HStack(spacing: 8) {
+                    ForEach([(nil as Int?, "Any age"), (1, "Today"), (3, "3 days"), (7, "This week")], id: \.1) { days, label in
+                        Button { postedWithin = (postedWithin == days ? nil : days) } label: {
+                            Text(label).font(.caption.weight(.medium))
+                                .padding(.horizontal, 11).padding(.vertical, 7)
+                                .foregroundStyle(postedWithin == days ? .white : Theme.ink)
+                                .background(postedWithin == days ? Theme.rust : Theme.card,
+                                            in: Capsule())
+                                .overlay(Capsule().stroke(Theme.hair))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
                 Picker("Track", selection: $track) {
                     Text("Intern (\(store.internFeed.count))").tag("intern")
                     Text("Full-time (\(store.fulltimeFeed.count))").tag("fulltime")

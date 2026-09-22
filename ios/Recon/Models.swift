@@ -31,12 +31,16 @@ struct Role: Codable, Identifiable, Hashable {
     let description: String?
     let remote: Bool?
     let interest: String?      // "up" | "down" | nil — user feedback
+    /// Arrived with a newly connected board's back catalogue: new to Recon, not
+    /// newly posted. Kept out of "posted today" counts.
+    let isBackfill: Bool?
     let isMba: Bool?           // MBA-track internship (rule-based, see api/scan/intern_filter.py)
     let sector: String?        // company sector: big_tech | finance | defense_aerospace | consulting | nil
 
     enum CodingKeys: String, CodingKey {
         case id, track, company, title, location, metro, state, url, status, domain, tier, concerns, description, remote, interest, sector
         case companyId = "company_id"
+        case isBackfill = "is_backfill"
         case companyTier = "company_tier"
         case fitScore = "fit_score"
         case whyFit = "why_fit"
@@ -98,6 +102,30 @@ struct Role: Codable, Identifiable, Hashable {
 
     /// When Recon first saw it, e.g. "2d ago" — the tracker's primary signal
     /// now that there is no fit score to lead with.
+    var postedDate: Date? { Self.parseDate(postedAt) }
+    /// The date this role should be filed under: when the employer posted it,
+    /// falling back to when Recon first saw it. `postedIsKnown` says which,
+    /// because "posted 3 days ago" and "we noticed it 3 days ago" are very
+    /// different claims and the UI must not blur them.
+    var effectiveDate: Date? { postedDate ?? firstSeenDate }
+    var postedIsKnown: Bool { postedDate != nil }
+    var postedToday: Bool {
+        guard let d = postedDate else { return false }
+        return Calendar.current.isDateInToday(d)
+    }
+    /// "Posted today" / "Posted 3d ago", or the muted "Seen 3d ago · date
+    /// unknown" when the board never told us when it went up.
+    var dateLabel: String {
+        if let d = postedDate {
+            let cal = Calendar.current
+            if cal.isDateInToday(d) { return "Posted today" }
+            if cal.isDateInYesterday(d) { return "Posted yesterday" }
+            return "Posted \(Self.ago(d))"
+        }
+        if let d = firstSeenDate { return "Seen \(Self.ago(d)) · date unknown" }
+        return "Date unknown"
+    }
+
     var firstSeenText: String? {
         guard let d = firstSeenDate else { return nil }
         // Calendar days, not elapsed hours: `ago()` calls anything under 24h
@@ -547,5 +575,23 @@ struct DismissedCompany: Codable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id, name
         case dismissedAt = "dismissed_at"
+    }
+}
+
+
+/// A board Recon started pulling recently, and the back catalogue it brought.
+struct ConnectedBoard: Codable, Identifiable, Hashable {
+    var id: Int { companyId }
+    let companyId: Int
+    let company: String
+    let ats: String?
+    let connectedAt: String?
+    let rolesAdded: Int
+
+    enum CodingKeys: String, CodingKey {
+        case company, ats
+        case companyId = "company_id"
+        case connectedAt = "connected_at"
+        case rolesAdded = "roles_added"
     }
 }

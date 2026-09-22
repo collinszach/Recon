@@ -8,6 +8,9 @@ final class Store: ObservableObject {
     @Published var apps: [AppItem] = []
 
     @Published var resume: ResumeData?
+    /// Boards connected in the last week, with how much back catalogue each
+    /// brought — so a 396-role batch is explained rather than unexplained.
+    @Published var recentBoards: [ConnectedBoard] = []
     @Published var companies: [Company] = []
     @Published var contacts: [Contact] = []
 
@@ -43,6 +46,7 @@ final class Store: ObservableObject {
         apps = Cache.load([AppItem].self, "apps") ?? []
         companies = Cache.load([Company].self, "companies") ?? []
         contacts = Cache.load([Contact].self, "contacts") ?? []
+        recentBoards = Cache.load([ConnectedBoard].self, "recentBoards") ?? []
         resume = Cache.load(ResumeData.self, "resume")
         lastSynced = Cache.load(Date.self, "lastSynced")
         newSince = Cache.load(Date.self, "newSince")
@@ -123,15 +127,34 @@ final class Store: ObservableObject {
     /// relaunch, so roles already passed on came back; offline, for good.
     var feed: [Role] {
         roles.filter { interest(of: $0) != "down" && !dismissedCompanyIds.contains($0.companyId ?? -1) }
-             .sorted { ($0.firstSeenDate ?? .distantPast) > ($1.firstSeenDate ?? .distantPast) }
+             .sorted { ($0.effectiveDate ?? .distantPast) > ($1.effectiveDate ?? .distantPast) }
     }
 
-    /// Arrivals from the last week — the dashboard's headline list. Compared as
-    /// dates, not strings: the server sends "+00:00" offsets, so a string
-    /// compare against a "Z"-formatted cutoff would be wrong.
-    var newThisWeek: [Role] {
+    /// What the employer posted today. Strictly `posted_at` — an undated role
+    /// is not today's news, which is the whole point: of 80 roles that arrived
+    /// on 2026-09-21, 7 were posted that day and 68 were a newly connected
+    /// board's back catalogue (see Role.isBackfill).
+    var postedToday: [Role] {
+        feed.filter { $0.postedToday && $0.isBackfill != true }
+    }
+
+    /// Posted in the last week, today excluded — the "earlier this week" list.
+    var postedThisWeek: [Role] {
         let cutoff = Date().addingTimeInterval(-7 * 86_400)
-        return feed.filter { ($0.firstSeenDate ?? .distantPast) >= cutoff }
+        return feed.filter {
+            guard let d = $0.postedDate, $0.isBackfill != true else { return false }
+            return d >= cutoff && !Calendar.current.isDateInToday(d)
+        }
+    }
+
+    /// Arrived recently with no posting date at all. Shown, but in their own
+    /// group — they'd otherwise inflate "today" with roles of unknown age.
+    var undatedArrivals: [Role] {
+        let cutoff = Date().addingTimeInterval(-7 * 86_400)
+        return feed.filter {
+            !$0.postedIsKnown && $0.isBackfill != true
+                && ($0.firstSeenDate ?? .distantPast) >= cutoff
+        }
     }
 
     /// Effective interest for a role, honoring optimistic overrides.
@@ -249,6 +272,10 @@ final class Store: ObservableObject {
             roles = try await r
             brief = try await b
             apps = try await a
+            // Non-fatal: an older server without /api/boards/recent just means
+            // no "connected" lines, not a failed refresh.
+            recentBoards = (try? await api.recentBoards()) ?? recentBoards
+            Cache.save(recentBoards, "recentBoards")
             Cache.save(roles, "roles"); Cache.save(brief, "brief"); Cache.save(apps, "apps")
             markSynced()
             newSince = prevSync; Cache.save(newSince, "newSince")
