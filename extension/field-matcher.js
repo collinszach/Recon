@@ -23,6 +23,14 @@ window.ReconAutofill = window.ReconAutofill || {};
   //   field    — short form-field labels ("City", "Degree"); never a question
   //   question — written for question-shaped labels ("Are you authorized to work?")
   const KEYWORD_MAP = [
+    // Checked before phone and country. Workday's My Information step puts four
+    // phone-ish fields in a row — Phone Device Type, Country/Territory Phone
+    // Code, Phone Number, Phone Extension — and /\bphone\b/ matched all four,
+    // so three of them would have received the phone number. These keys have no
+    // profile value on purpose: they claim the label and hand it back to you.
+    ["field", "phone_device_type", [/\bphone\s*(device\s*)?type\b/i, /\bdevice\s*type\b/i]],
+    ["field", "phone_extension", [/\bphone\s*extension\b/i, /^extension\b/i]],
+    ["field", "phone_country_code", [/\b(phone|dialing|dial)\s*code\b/i, /\bcountry\s*code\b/i]],
     // Checked before first_name: "Preferred First Name" contains "First Name",
     // and a legal first name is exactly the wrong thing to put in it.
     ["contact", "preferred_name", [/\bpreferred\s*(first\s*)?name\b/i, /\bnickname\b/i, /\bgoes\s*by\b/i]],

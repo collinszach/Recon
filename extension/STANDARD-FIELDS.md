@@ -84,12 +84,52 @@ Autofill with Resume as *step 2 of 8*, after Create Account. The chooser only
 picks which path you take **once you are signed in** — there is no résumé-parse
 shortcut that skips the account.
 
-**Steps 2 onward could not be surveyed, on any of the three tenants.** Both entry paths —
-"Apply Manually" and "Autofill with Resume" — land on Create Account first, so
-the wall is the product, not the employer, and no choice of role gets around it.
-Automating account creation is off the table. The inventory for those steps
-therefore still rests on `adapters/workday.js`'s `data-automation-id` map, which
-remains unverified against a live form.
+Both entry paths — "Apply Manually" and "Autofill with Resume" — land on Create
+Account first, so the wall is the product, not the employer. Automating account
+creation is off the table; the steps below were surveyed after a human signed in.
+
+### My Information (surveyed on GM, 2026-09-22)
+
+| Field | Control | Profile key |
+|---|---|---|
+| (previously employed here) | Yes/No radio | — |
+| Country / Territory | Workday dropdown | `country` |
+| First Name · Last Name | text | `first_name` `last_name` |
+| "I have a preferred name" | checkbox, reveals more | `preferred_name` |
+| Address Line 1 · Line 2 | text | `address_line1` · — |
+| City | text | `city` |
+| State | Workday dropdown | `state` |
+| Postal Code | text | `zip_code` |
+| Phone Device Type | Workday dropdown | `phone_device_type` |
+| Country / Territory Phone Code | text | `phone_country_code` |
+| Phone Number | text | `phone` |
+| Phone Extension | text | `phone_extension` |
+| SMS opt-in | checkbox | — |
+
+Four phone-ish fields in a row, and `/\bphone\b/` matched all four — three of
+them would have received the phone number. Hence `phone_device_type`,
+`phone_extension` and `phone_country_code`: keys with no profile value, matched
+*before* `phone`, whose whole job is to claim the label and hand it back.
+
+### `adapters/workday.js` matches on the wrong attribute
+
+The adapter's premise — "Workday's automation ids are stable across tenants" —
+does not survive contact with GM. **The inputs carry no `data-automation-id` at
+all.** It sits on a wrapper three levels up, and under a different naming scheme:
+
+| adapter's `ID_MAP` expects | GM's wrapper actually has | GM's input `name` |
+|---|---|---|
+| `legalNameSection_firstName` | `formField-legalName--firstName` | `legalName--firstName` |
+| `legalNameSection_lastName` | `formField-legalName--lastName` | `legalName--lastName` |
+| `addressSection_addressLine1` | `formField-addressLine1` | `addressLine1` |
+| `addressSection_city` | `formField-city` | `city` |
+| `addressSection_postalCode` | `formField-postalCode` | `postalCode` |
+| `phoneNumber` | `formField-phoneNumber` | `phoneNumber` |
+
+Not one entry matches. The adapter's first pass fills **nothing** on this tenant;
+everything that works is the label-matching fallback. The input `name` is the
+clean, stable key here (`addressLine1`, `city`, `postalCode`, `phoneNumber`) —
+that, or the `formField-*` id on the ancestor, is what the adapter should read.
 
 ### The honeypot — the reason this survey was worth doing
 

@@ -90,6 +90,13 @@ struct AutofillWebView: UIViewRepresentable {
               const profile = \(profileJSON);
               // [tier, key, patterns] — see extension/field-matcher.js
               const MAP = [
+                // Before phone and country: Workday's My Information step has
+                // Phone Device Type / Phone Code / Phone Number / Phone Extension
+                // in a row, and /\\bphone\\b/ matched all four. No profile value
+                // on purpose — these claim the label and hand it back.
+                ["field", "phone_device_type", [/\\bphone\\s*(device\\s*)?type\\b/i, /\\bdevice\\s*type\\b/i]],
+                ["field", "phone_extension", [/\\bphone\\s*extension\\b/i, /^extension\\b/i]],
+                ["field", "phone_country_code", [/\\b(phone|dialing|dial)\\s*code\\b/i, /\\bcountry\\s*code\\b/i]],
                 // Before first_name: "Preferred First Name" contains "First
                 // Name", and a legal first name is the wrong thing to put in it.
                 ["contact", "preferred_name", [/\\bpreferred\\s*(first\\s*)?name\\b/i, /\\bnickname\\b/i, /\\bgoes\\s*by\\b/i]],
