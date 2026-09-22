@@ -51,11 +51,36 @@ def _service():
     return build("gmail", "v1", credentials=creds, cache_discovery=False)
 
 
+# A company name alone is not a reason to read an email. The first live poll
+# matched a Capital One AutoPay statement because Zach has a Capital One
+# application, and LinkedIn job alerts because they mention companies he's
+# applied to. So the company clause additionally requires application language,
+# and these senders are never read at all.
+APPLICATION_WORDS = [
+    '"your application"', '"thank you for applying"', "candidacy", "candidate",
+    "recruiter", "interview", '"move forward"', '"next steps"', '"application"',
+]
+SENDER_DENYLIST = [
+    "jobalerts-noreply@linkedin.com", "notifications-noreply@linkedin.com",
+    "jobs-listings@linkedin.com", "notification.capitalone.com",
+    "email.careers.microsoft.com", "indeedemail.com", "ziprecruiter.com",
+    "glassdoor.com", "jobright.ai", "hellofresh", "noreply@medium.com",
+]
+# Marketing and account mail that survives the sender rules.
+SUBJECT_DENYLIST = re.compile(
+    r"(job alert|new jobs?\b|jobs? (for|at|that match)|roles at |profile is popular|"
+    r"search appearances|payment|autopay|statement|invoice|receipt|"
+    r"your account|verify your|newsletter|unsubscribe|webinar|"
+    r"people you may know|who viewed)", re.IGNORECASE)
+
+
 def build_query(company_names: list[str], lookback_days: int) -> str:
     """Gmail search for mail that could plausibly be about an application.
 
-    Either it came from a known ATS, or it mentions a company Zach has actually
-    applied to. Anything else is not read.
+    Either it came from a known ATS, or it mentions a company Zach applied to
+    **and** talks like application correspondence. The second half of that is
+    not optional: without it, any mail mentioning the company matches, which on
+    the first live poll meant a credit-card statement.
     """
     since = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).strftime("%Y/%m/%d")
     senders = " OR ".join(f"from:{d}" for d in ATS_SENDERS)
@@ -65,8 +90,22 @@ def build_query(company_names: list[str], lookback_days: int) -> str:
     names = [n for n in dict.fromkeys(company_names) if n and len(n) > 2][:40]
     if names:
         quoted = " OR ".join(f'"{n}"' for n in names)
-        clauses.append(f"({quoted})")
-    return f"after:{since} ({' OR '.join(clauses)})"
+        words = " OR ".join(APPLICATION_WORDS)
+        clauses.append(f"(({quoted}) AND ({words}))")
+    excluded = " ".join(f"-from:{d}" for d in SENDER_DENYLIST)
+    return f"after:{since} ({' OR '.join(clauses)}) {excluded}"
+
+
+def is_ats_sender(from_addr: str | None) -> bool:
+    low = (from_addr or "").lower()
+    return any(d in low for d in ATS_SENDERS)
+
+
+def looks_like_marketing(from_addr: str | None, subject: str | None) -> bool:
+    low = (from_addr or "").lower()
+    if any(d in low for d in SENDER_DENYLIST):
+        return True
+    return bool(SUBJECT_DENYLIST.search(subject or ""))
 
 
 def _header(payload: dict, name: str) -> str | None:

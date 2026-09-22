@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 from config import settings
 from db import Application, MailMessage
 from mail.classify import classify
-from mail.gmail_client import ATS_SENDERS, configured, fetch
+from mail.gmail_client import (configured, fetch, is_ats_sender,
+                               looks_like_marketing)
 
 log = logging.getLogger("recon.mail")
 
@@ -88,7 +89,7 @@ def poll(db: Session, limit: int | None = None) -> dict:
         log.warning("gmail fetch failed: %s", detail)
         return {"status": "error", "reason": detail}
 
-    created = skipped = unmatched = 0
+    created = skipped = unmatched = ignored = 0
     for msg in messages:
         if msg["message_id"] in seen:
             skipped += 1        # already looked at; a poll must be idempotent
@@ -101,13 +102,33 @@ def poll(db: Session, limit: int | None = None) -> dict:
             snippet=(msg.get("snippet") or "")[:500],
             received_at=msg.get("received_at"),
         )
+        verdict = classify(msg.get("subject"), msg.get("body"))
+        from_ats = is_ats_sender(msg.get("from_addr"))
+        marketing = looks_like_marketing(msg.get("from_addr"), msg.get("subject"))
+
+        # Three gates before anything reaches Zach as a proposal. The first
+        # poll produced 8 proposals of which 7 were talent-marketing blasts,
+        # LinkedIn alerts and a credit-card statement — all correctly
+        # classified as `other`, so nothing moved, but all of it noise in a
+        # section whose whole value is that it's short.
         if not app:
             row.status = "unmatched"
-            row.kind = "other"
+            row.kind = verdict["kind"]
             row.evidence = "no application matched this sender or subject"
             unmatched += 1
+        elif marketing:
+            row.status = "ignored"
+            row.kind = "marketing"
+            row.evidence = "job alert / account mail, not application correspondence"
+            ignored += 1
+        elif verdict["kind"] == "other" and not from_ats:
+            # Mentions a company but says nothing an application would say, and
+            # didn't come from an ATS. Kept so it isn't re-read every poll.
+            row.status = "ignored"
+            row.kind = "other"
+            row.evidence = f"{why}, but no application language and not from an ATS"
+            ignored += 1
         else:
-            verdict = classify(msg.get("subject"), msg.get("body"))
             row.application_id = app.id
             row.kind = verdict["kind"]
             row.proposed_stage = verdict["proposed_stage"]
@@ -117,7 +138,7 @@ def poll(db: Session, limit: int | None = None) -> dict:
             created += 1
         db.add(row)
     db.commit()
-    log.info("mail poll: %d messages, %d proposals, %d unmatched, %d already seen",
-             len(messages), created, unmatched, skipped)
+    log.info("mail poll: %d messages, %d proposals, %d ignored, %d unmatched, %d already seen",
+             len(messages), created, ignored, unmatched, skipped)
     return {"status": "ok", "messages": len(messages), "proposals": created,
-            "unmatched": unmatched, "already_seen": skipped}
+            "ignored": ignored, "unmatched": unmatched, "already_seen": skipped}
