@@ -134,6 +134,16 @@ def poll(db: Session, limit: int | None = None) -> dict:
             row.proposed_stage = verdict["proposed_stage"]
             row.confidence = verdict["confidence"]
             row.evidence = f"{why}. {verdict['evidence']}"
+            # An acknowledgement was supposed to propose nothing — it confirms
+            # what Zach already told Recon. The first clean poll disproved
+            # that: 9 of 13 acknowledgements were for applications still
+            # sitting at "watching", i.e. he applied and never updated the
+            # tracker. The employer confirming receipt is better evidence than
+            # a stage nobody touched, so say so.
+            if verdict["kind"] == "ack" and (app.stage or "") in ("watching", "drafting"):
+                row.proposed_stage = "applied"
+                row.evidence = (f"{why}. The employer acknowledged your application, "
+                                f"but Recon still has this as '{app.stage}'.")
             row.status = "pending"
             created += 1
         db.add(row)
