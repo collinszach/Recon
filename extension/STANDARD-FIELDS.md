@@ -69,11 +69,22 @@ Workday is one product across tenants, so the shape is fixed — six steps:
 5. Voluntary Disclosures — gender, ethnicity, veteran, disability, terms
 6. Review
 
-Step count varies by tenant — Vanguard has 6, Mastercard 8 — and Mastercard's
-step 1 adds a terms checkbox (`createAccountCheckbox`). Only Vanguard labels its
-steps before sign-in; Mastercard renders them as "step N of 8".
+Step count and extras vary by tenant:
 
-**Steps 2 onward could not be surveyed, on either tenant.** Both entry paths —
+| | Vanguard | Mastercard | General Motors |
+|---|---|---|---|
+| Steps | 6 | 7 | 8 |
+| Terms checkbox on step 1 | no | yes | no |
+| Application Questions | 1 page | 2 pages | 2 pages |
+| "Autofill with Resume" | entry choice | entry choice | **step 2, post-auth** |
+
+GM settles what the entry chooser actually means. On the other two, "Autofill
+with Resume" and "Apply Manually" look like alternative front doors; GM lists
+Autofill with Resume as *step 2 of 8*, after Create Account. The chooser only
+picks which path you take **once you are signed in** — there is no résumé-parse
+shortcut that skips the account.
+
+**Steps 2 onward could not be surveyed, on any of the three tenants.** Both entry paths —
 "Apply Manually" and "Autofill with Resume" — land on Create Account first, so
 the wall is the product, not the employer, and no choice of role gets around it.
 Automating account creation is off the table. The inventory for those steps
@@ -82,8 +93,8 @@ remains unverified against a live form.
 
 ### The honeypot — the reason this survey was worth doing
 
-Step 1 ships a bot trap — on **both** tenants sampled, so treat it as standard
-Workday rather than one employer's idea:
+Step 1 ships a bot trap — on **all three** tenants sampled, so treat it as
+standard Workday rather than one employer's idea:
 
 ```
 name="website"  data-automation-id="beecatcher"  1×1 px
