@@ -247,6 +247,36 @@ behind a Cloudflare Tunnel. See `SPEC.md` for the full spec.
     `ssh zach@100.91.198.28 'cd ~/recon && git pull && docker compose -f docker-compose.yml -f
     docker-compose.prod.yml up --build -d api worker'`. **Nothing below the ingest fixes has been
     verified against the live DB** — the numbers above come from the pre-deploy payload.
+- **2026-09-21 (evening) — "posted today" made true, + Workday autofill (`675ba5e`, `6aadf46`, `71c99d6`):**
+  - Zach: *"it is hard to see what is posted today."* It was a **data** problem: of 80 roles that
+    arrived that day, **7 were posted that day and 68 had no posting date at all**.
+    - `parsers/workday.py` read `startDate`/`postedOnDate`. **Workday sends neither** — it sends
+      `postedOn` as a relative phrase (`"Posted Today"`, `"Posted 30+ Days Ago"`). Every Workday
+      board therefore contributed zero posting dates. Now parsed; `30+` is treated as a **floor**
+      (30 days), never a guess, so it can't claim a posting is fresher than it is.
+    - Connecting a board dumps its back catalogue with `first_seen=now` (Abbott: 396 roles in one
+      scan). `companies.first_scanned_at` + `roles.is_backfill` mark a company's **first** scan as
+      backlog; every later scan is unchanged, so tomorrow's posting is still a real arrival.
+  - **`posted_at` means the employer posted it. Never fill it from `first_seen`** — that conflation
+    is the whole bug. An undated role stays undated and the UI says "date unknown".
+  - `/api/roles` orders by `coalesce(posted_at, first_seen)`, takes `posted_since_days` (strict) and
+    `include_backfill`; `/api/boards/recent` explains each batch on the dashboard.
+  - **iOS dashboard rebuilt around posting date**: Posted today → Needs action → Earlier this week
+    (by posting day) → Applied → Saved → Boards connected → Date unknown (collapsed). Verified live:
+    9 posted today, matching `?posted_since_days=1` exactly.
+  - **Workday autofill (extension 0.2.0).** Workday is a React wizard, not a form: a dropdown is a
+    button whose listbox renders **in a portal outside it** (verified on Abbott's live board: 0
+    options in the DOM before the click, 19 after), a date is three spin inputs, the résumé is a
+    file input needing a real `File`. Assigning `el.value` is discarded on the next render — the
+    form looks full and **submits empty**. `adapters/workday.js` owns its fill pass
+    (`adapter.fill()`), matches on **`data-automation-id`** (stable across tenants; labels are
+    translated), and reports every field as filled/skipped/needs-you. Fills the current step only;
+    never clicks Next or Submit.
+  - Résumé PDF lives in Postgres (`resume_file`, `PUT/GET /api/resume/file`) — **the API container
+    mounts only `./secrets` read-only**, so a file written anywhere else dies with the next rebuild.
+  - **Still unverified: the Workday field mapping.** The application form is behind Workday
+    sign-in, so `data-automation-id` → profile-key is untested against a real form. Account
+    creation is deliberately out of scope (no password handling).
 - **Deployed:** `zach@100.91.198.28` (Tailscale), `~/recon`, via
   `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`. The NUC is shared,
   so the prod overlay publishes **only the API on host port 8010** (8000/6379 were taken) and
