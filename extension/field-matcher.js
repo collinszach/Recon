@@ -209,6 +209,96 @@ window.ReconAutofill = window.ReconAutofill || {};
       el.hasAttribute("aria-controls") && el.hasAttribute("aria-expanded");
   };
 
+  // A profile holds "CA"; the option reads "California". A naive substring match
+  // on "CA" also hits "North Carolina", so the abbreviation is expanded first and
+  // matched exactly.
+  const US_STATES = {
+    AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California",
+    CO: "Colorado", CT: "Connecticut", DE: "Delaware", DC: "District of Columbia",
+    FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois",
+    IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana",
+    ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan",
+    MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana",
+    NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey",
+    NM: "New Mexico", NY: "New York", NC: "North Carolina", ND: "North Dakota",
+    OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania",
+    RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee",
+    TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington",
+    WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", PR: "Puerto Rico",
+  };
+
+  ns.expandAlias = function (key, value) {
+    const v = String(value == null ? "" : value).trim();
+    if (key === "state" && /^[A-Za-z]{2}$/.test(v)) return US_STATES[v.toUpperCase()] || v;
+    return v;
+  };
+
+  /// Choose an option by its text, or return -1. Exact match first, then a
+  /// prefix match but **only when it is unique** — "United States" picks
+  /// "United States of America" because nothing else starts that way.
+  ///
+  /// There is deliberately no loose substring fallback. On a real application a
+  /// confidently wrong answer is worse than a blank one someone has to finish,
+  /// and this is the function that would produce it: asked for "Mechanical
+  /// Engineering" against a list without it, a substring match returns
+  /// "Industrial Mechanical Engineering" and nobody notices.
+  ns.pickOption = function (texts, want) {
+    const w = String(want == null ? "" : want).trim().toLowerCase();
+    if (!w) return -1;
+    const norm = (texts || []).map((t) => String(t == null ? "" : t).trim().toLowerCase());
+    const exact = norm.indexOf(w);
+    if (exact !== -1) return exact;
+    const starts = [];
+    norm.forEach((t, i) => { if (t && t.startsWith(w)) starts.push(i); });
+    return starts.length === 1 ? starts[0] : -1;
+  };
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  /// Open a combobox and pick an option, verified against Greenhouse 2026-09-22.
+  ///
+  /// Three things here are not obvious and each one cost a debugging round:
+  ///
+  ///   1. `el.click()` does nothing. react-select opens on **mousedown**, so the
+  ///      full mousedown/mouseup pair has to be dispatched — the same lesson as
+  ///      Workday's drill-down chevrons.
+  ///   2. mousedown *toggles*. Firing it at an already-open control closes it,
+  ///      so the current `aria-expanded` has to be respected.
+  ///   3. `[role="option"]` is global and lies. A Greenhouse page with a phone
+  ///      widget has 244 options sitting in the DOM before anything is clicked,
+  ///      belonging to a different control. Waiting for "options to appear"
+  ///      silently reads that other list, so this diffs against a snapshot taken
+  ///      before the click and only considers genuinely new nodes.
+  ns.selectFromCombobox = async function (el, key, value) {
+    const want = ns.expandAlias(key, value);
+    if (!want) return { ok: false, why: "nothing in your profile" };
+    const mouse = { bubbles: true, cancelable: true, view: window, button: 0 };
+    const before = new Set(document.querySelectorAll('[role="option"]'));
+    if (el.getAttribute("aria-expanded") !== "true") {
+      el.focus();
+      el.dispatchEvent(new MouseEvent("mousedown", mouse));
+      el.dispatchEvent(new MouseEvent("mouseup", mouse));
+    }
+    let fresh = [];
+    for (let i = 0; i < 20 && fresh.length === 0; i++) {
+      await sleep(80);
+      fresh = Array.from(document.querySelectorAll('[role="option"]'))
+        .filter((o) => !before.has(o));
+    }
+    if (!fresh.length) return { ok: false, why: "the list didn't open" };
+    const idx = ns.pickOption(fresh.map((o) => o.textContent), want);
+    if (idx === -1) {
+      el.blur();
+      return { ok: false, why: `no option matching "${want}"` };
+    }
+    const chosen = (fresh[idx].textContent || "").trim();
+    fresh[idx].dispatchEvent(new MouseEvent("mousedown", mouse));
+    fresh[idx].dispatchEvent(new MouseEvent("mouseup", mouse));
+    fresh[idx].dispatchEvent(new MouseEvent("click", mouse));
+    await sleep(150);
+    return { ok: true, value: chosen };
+  };
+
   ns.fillField = function (el, value) {
     if (value === null || value === undefined || value === "") return false;
     if (ns.isCombobox(el)) return false;

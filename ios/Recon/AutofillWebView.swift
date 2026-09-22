@@ -61,10 +61,15 @@ struct AutofillWebView: UIViewRepresentable {
             guard let web = webView,
                   let json = try? JSONSerialization.data(withJSONObject: profile),
                   let profileJSON = String(data: json, encoding: .utf8) else { return }
-            web.evaluateJavaScript(Self.script(profileJSON)) { result, error in
-                if let error {
+            // callAsyncJavaScript, not evaluateJavaScript: the fill now awaits
+            // combobox menus, which arrive a beat after the control is opened.
+            web.callAsyncJavaScript(Self.script(profileJSON),
+                                    arguments: [:], in: nil, in: .page) { outcome in
+                switch outcome {
+                case .failure(let error):
                     self.parent.onReport("Couldn't fill: \(error.localizedDescription)")
-                } else if let r = result as? [String: Any] {
+                case .success(let value):
+                    guard let r = value as? [String: Any] else { return }
                     let filled = r["filled"] as? Int ?? 0
                     let seen = r["seen"] as? Int ?? 0
                     let skipped = (r["skipped"] as? [String]) ?? []
@@ -86,8 +91,7 @@ struct AutofillWebView: UIViewRepresentable {
         /// what broke it. See that file for why the matching is tiered.
         static func script(_ profileJSON: String) -> String {
             """
-            (function () {
-              const profile = \(profileJSON);
+            const profile = \(profileJSON);
               // [tier, key, patterns] — see extension/field-matcher.js
               const MAP = [
                 // Before phone and country: Workday's My Information step has
@@ -223,6 +227,68 @@ struct AutofillWebView: UIViewRepresentable {
                 el.dispatchEvent(new Event('input', { bubbles: true }));
                 el.dispatchEvent(new Event('change', { bubbles: true }));
               }
+              const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+              // A profile holds "CA"; the option reads "California". Expanded and
+              // matched exactly, because a substring match on "CA" also hits
+              // "North Carolina".
+              const US_STATES = {AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",
+                CO:"Colorado",CT:"Connecticut",DE:"Delaware",DC:"District of Columbia",FL:"Florida",
+                GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",
+                KY:"Kentucky",LA:"Louisiana",ME:"Maine",MD:"Maryland",MA:"Massachusetts",MI:"Michigan",
+                MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",
+                NH:"New Hampshire",NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",
+                ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",
+                SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",
+                VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming",PR:"Puerto Rico"};
+              function expandAlias(key, value) {
+                const v = String(value == null ? '' : value).trim();
+                if (key === 'state' && /^[A-Za-z]{2}$/.test(v)) return US_STATES[v.toUpperCase()] || v;
+                return v;
+              }
+              // Exact, then a prefix match only when unique. No loose substring
+              // fallback: asked for "Mechanical Engineering" against a list without
+              // it, that returns "Industrial Mechanical Engineering" and nobody
+              // notices until the application is already sent.
+              function pickOption(texts, want) {
+                const w = String(want == null ? '' : want).trim().toLowerCase();
+                if (!w) return -1;
+                const norm = (texts || []).map(t => String(t == null ? '' : t).trim().toLowerCase());
+                const exact = norm.indexOf(w);
+                if (exact !== -1) return exact;
+                const starts = [];
+                norm.forEach((t, i) => { if (t && t.startsWith(w)) starts.push(i); });
+                return starts.length === 1 ? starts[0] : -1;
+              }
+              // Verified on Greenhouse: react-select opens on **mousedown**, not
+              // click; mousedown *toggles*, so an open control must be left alone;
+              // and [role=option] is global — a page with a phone widget already
+              // holds 244 options belonging to something else, so only nodes that
+              // are new since the click are considered.
+              async function selectFromCombobox(el, key, value) {
+                const want = expandAlias(key, value);
+                if (!want) return { ok: false, why: 'nothing in your profile' };
+                const mouse = { bubbles: true, cancelable: true, view: window, button: 0 };
+                const before = new Set(document.querySelectorAll('[role="option"]'));
+                if (el.getAttribute('aria-expanded') !== 'true') {
+                  el.focus();
+                  el.dispatchEvent(new MouseEvent('mousedown', mouse));
+                  el.dispatchEvent(new MouseEvent('mouseup', mouse));
+                }
+                let fresh = [];
+                for (let i = 0; i < 20 && fresh.length === 0; i++) {
+                  await sleep(80);
+                  fresh = [...document.querySelectorAll('[role="option"]')].filter(o => !before.has(o));
+                }
+                if (!fresh.length) return { ok: false, why: "the list didn't open" };
+                const idx = pickOption(fresh.map(o => o.textContent), want);
+                if (idx === -1) { el.blur(); return { ok: false, why: 'no match' }; }
+                const chosen = (fresh[idx].textContent || '').trim();
+                fresh[idx].dispatchEvent(new MouseEvent('mousedown', mouse));
+                fresh[idx].dispatchEvent(new MouseEvent('mouseup', mouse));
+                fresh[idx].dispatchEvent(new MouseEvent('click', mouse));
+                await sleep(150);
+                return { ok: true, value: chosen };
+              }
               let filled = 0, seen = 0;
               const skipped = [];
               const fields = document.querySelectorAll(
@@ -250,6 +316,8 @@ struct AutofillWebView: UIViewRepresentable {
                 const key = matchKey(text);
                 const value = key ? profile[key] : null;
                 if (value && isCombobox(el)) {
+                  const res = await selectFromCombobox(el, key, value);
+                  if (res.ok) { filled++; el.style.outline = '2px solid #c0522d'; continue; }
                   const t = text.replace(/\\*+\\s*$/, '').trim().slice(0, 32);
                   if (t && skipped.indexOf(t) === -1) skipped.push(t);
                   continue;
@@ -276,8 +344,7 @@ struct AutofillWebView: UIViewRepresentable {
                   if (t && skipped.indexOf(t) === -1) skipped.push(t);
                 }
               }
-              return { filled: filled, seen: seen, skipped: skipped };
-            })();
+            return { filled: filled, seen: seen, skipped: skipped };
             """
         }
     }

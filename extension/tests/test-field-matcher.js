@@ -50,6 +50,43 @@ for (const [label, forbidden, why] of REGRESSIONS) {
   }
 }
 
+// ── option picking ────────────────────────────────────────────────────────────
+// Real option lists captured from the forms surveyed on 2026-09-21/22.
+const STATES = ["Select One", "Alabama", "Alaska", "California", "North Carolina",
+                "South Carolina", "New York"];
+const COUNTRIES = ["United States of America", "United Kingdom", "Canada"];
+const PHONE_TYPES = ["Select One", "Landline", "Mobile"];
+const GM_FIELDS = ["Engineering Mechanics", "Industrial Mechanical Engineering",
+                   "Mechanical and Automation Engineering", "Mechanical and Materials Engineering",
+                   "Mechanical Engineering", "Mechanical Engineering and Design Innovation"];
+
+const pickCases = [
+  // [list, key, profile value, expected option text or null]
+  [STATES, "state", "CA", "California"],              // the abbreviation trap
+  [STATES, "state", "NC", "North Carolina"],
+  [STATES, "state", "California", "California"],
+  [COUNTRIES, "country", "United States", "United States of America"],  // unique prefix
+  [PHONE_TYPES, "phone_device_type", "Mobile", "Mobile"],
+  [GM_FIELDS, "discipline", "Mechanical Engineering", "Mechanical Engineering"],
+  // No loose substring: asked for something absent, pick nothing rather than
+  // "Industrial Mechanical Engineering".
+  [["Engineering Mechanics", "Industrial Mechanical Engineering"], "discipline",
+   "Mechanical Engineering", null],
+  [STATES, "state", "ZZ", null],
+  [STATES, "state", "", null],
+];
+
+for (const [list, key, value, expected] of pickCases) {
+  const want = ns.expandAlias(key, value);
+  const idx = ns.pickOption(list, want);
+  const got = idx === -1 ? null : list[idx];
+  if (got !== expected) {
+    failed++;
+    console.log(`  FAIL  pickOption(${key}=${JSON.stringify(value)}) expected ${JSON.stringify(expected)}, got ${JSON.stringify(got)}`);
+  }
+}
+console.log(`field-matcher: ${pickCases.length} option-picking cases OK`);
+
 // ── the iOS port ──────────────────────────────────────────────────────────────
 // ios/Recon/AutofillWebView.swift carries its own copy of these rules, inlined as
 // a JS string. That copy is the one that drifted: it concatenated id/name into the
