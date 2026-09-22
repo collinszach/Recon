@@ -46,7 +46,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO build | tail -40
 
   extension:
-    name: Extension — syntax
+    name: Extension — syntax + matcher
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +55,12 @@ jobs:
           node-version: "20"
       - name: Parse every script
         run: |
-          for f in extension/*.js extension/adapters/*.js; do
+          for f in extension/*.js extension/adapters/*.js extension/tests/*.js; do
             node --check "$f" || exit 1
           done
           python3 -c "import json; json.load(open('extension/manifest.json'))"
+      # The matcher decides what gets typed into a real employer's form, and the
+      # iOS app carries a second copy of the same rules. This runs a live
+      # Greenhouse form's labels through both and fails if they disagree.
+      - name: Field-matcher logic + iOS port sync
+        run: node extension/tests/test-field-matcher.js

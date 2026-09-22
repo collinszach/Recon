@@ -4,35 +4,54 @@
 window.ReconAutofill = window.ReconAutofill || {};
 
 (function (ns) {
-  // profileKey -> [regex patterns matched against label/name/id/placeholder/aria-label text]
+  // profileKey -> patterns, matched against the resolved label text.
+  //
+  // Tiered on purpose. The failure that matters here is not a field left blank —
+  // it is a field filled with the wrong thing, on a form the user then submits.
+  // A real Rocket Lab Greenhouse posting has 40 labelled controls of which
+  // exactly 5 are profile fields; a flat, unanchored map hit three of the other
+  // 35, every one of them silently wrong:
+  //
+  //   "Are you Hispanic/Latino?"                -> city      (ethni-CITY)
+  //   "Preferred Internship/Co-Op Start Date"   -> how_heard (P-REFERRED)
+  //   "Outside of university coursework, ..."   -> school
+  //
+  // So: every pattern is word-anchored, and a key only matches a label of the
+  // right *shape*.
+  //
+  //   contact  — unambiguous identity fields; may match any label
+  //   field    — short form-field labels ("City", "Degree"); never a question
+  //   question — written for question-shaped labels ("Are you authorized to work?")
   const KEYWORD_MAP = [
-    ["first_name", [/first\s*name/i, /given\s*name/i, /^fname$/i]],
-    ["last_name", [/last\s*name/i, /surname/i, /family\s*name/i, /^lname$/i]],
-    ["full_name", [/^name$/i, /full\s*name/i, /legal\s*name/i]],
-    ["email", [/e-?mail/i]],
-    ["phone", [/phone/i, /mobile/i, /cell/i]],
-    ["linkedin_url", [/linked ?in/i]],
-    ["github_url", [/git ?hub/i]],
-    ["portfolio_url", [/portfolio/i, /website/i, /personal\s*site/i]],
-    ["address_line1", [/street/i, /address\s*(line)?\s*1?/i]],
-    ["city", [/city/i, /^town$/i]],
-    ["state", [/state/i, /province/i, /region/i]],
-    ["zip_code", [/zip/i, /postal/i]],
-    ["country", [/country/i]],
-    ["location", [/^location$/i, /current\s*location/i]],
-    ["headline", [/headline/i, /current\s*title/i, /job\s*title/i]],
-    ["work_authorized", [/authoriz(ed|ation)\s*to\s*work/i, /legally\s*authorized/i, /work\s*eligib/i]],
-    ["requires_sponsorship", [/sponsorship/i, /require.*visa/i, /need.*visa/i]],
-    ["willing_to_relocate", [/relocat/i]],
-    ["pronouns", [/pronoun/i]],
-    ["veteran_status", [/veteran/i, /military\s*status/i]],
-    ["disability_status", [/disability/i]],
-    ["gender", [/gender/i, /^sex$/i]],
-    ["race_ethnicity", [/race/i, /ethnicity/i]],
-    ["desired_salary", [/salary/i, /compensation/i, /pay\s*expectation/i]],
-    ["earliest_start_date", [/start\s*date/i, /available\s*to\s*start/i, /earliest\s*start/i]],
-    ["notice_period", [/notice\s*period/i]],
-    ["how_heard", [/how\s*did\s*you\s*hear/i, /referr(al|ed)/i, /source/i]],
+    ["contact", "first_name", [/\bfirst\s*name\b/i, /\bgiven\s*name\b/i, /^fname$/i]],
+    ["contact", "last_name", [/\blast\s*name\b/i, /\bsurname\b/i, /\bfamily\s*name\b/i, /^lname$/i]],
+    ["contact", "full_name", [/^name$/i, /\bfull\s*name\b/i, /\blegal\s*name\b/i]],
+    ["contact", "email", [/\be-?mail\b/i]],
+    ["contact", "phone", [/\bphone\b/i, /\bmobile\b/i, /\bcell\b/i]],
+    ["contact", "linkedin_url", [/\blinked ?in\b/i]],
+    ["contact", "github_url", [/\bgit ?hub\b/i]],
+    ["contact", "portfolio_url", [/\bportfolio\b/i, /\bwebsite\b/i, /\bpersonal\s*site\b/i]],
+    ["field", "address_line1", [/\bstreet\b/i, /\baddress\s*(line)?\s*1\b/i, /^address$/i]],
+    ["field", "city", [/\bcity\b/i, /^town$/i]],
+    ["field", "state", [/\bstate\b/i, /\bprovince\b/i, /\bregion\b/i]],
+    ["field", "zip_code", [/\bzip\b/i, /\bpostal\b/i]],
+    ["field", "country", [/\bcountry\b/i]],
+    ["field", "location", [/^location$/i, /\bcurrent\s*location\b/i]],
+    ["field", "headline", [/\bheadline\b/i, /\bcurrent\s*title\b/i, /\bjob\s*title\b/i]],
+    ["field", "school", [/\bschool\b/i, /\buniversity\b/i, /\bcollege\b/i]],
+    ["field", "degree", [/\bdegree\b/i]],
+    ["field", "pronouns", [/\bpronoun/i]],
+    ["field", "veteran_status", [/\bveteran\b/i, /\bmilitary\s*status\b/i]],
+    ["field", "disability_status", [/\bdisabilit/i]],
+    ["field", "gender", [/\bgender\b/i, /^sex$/i]],
+    ["field", "race_ethnicity", [/\brace\b/i, /\bethnicity\b/i]],
+    ["field", "desired_salary", [/\bsalary\b/i, /\bcompensation\b/i, /\bpay\s*expectation/i]],
+    ["field", "earliest_start_date", [/\bstart\s*date\b/i, /\bavailable\s*to\s*start\b/i, /\bearliest\s*start\b/i]],
+    ["field", "notice_period", [/\bnotice\s*period\b/i]],
+    ["question", "work_authorized", [/\bauthoriz(ed|ation)\s*to\s*work\b/i, /\bwork\s*authoriz(ation|ed)\b/i, /\blegally\s*authorized\b/i, /\bwork\s*eligib/i]],
+    ["question", "requires_sponsorship", [/\bsponsorship\b/i, /\brequire.*visa\b/i, /\bneed.*visa\b/i]],
+    ["question", "willing_to_relocate", [/\brelocat/i]],
+    ["question", "how_heard", [/\bhow\s*did\s*you\s*hear\b/i, /\breferral\b/i, /\breferred\s*by\b/i, /\bsource\b/i]],
   ];
 
   // Free-text/essay indicators — if the label matches these, always route to the LLM
@@ -42,10 +61,31 @@ window.ReconAutofill = window.ReconAutofill || {};
     /anything else/i, /what interests you/i,
   ];
 
+  // Labels that read as questions rather than as field names. A question wants a
+  // considered answer, not a contact detail pasted into it — so only the keys
+  // written for questions are allowed to match one. The word count keeps short
+  // imperative field labels ("Enter your city") out of this bucket.
+  const QUESTION_OPENERS =
+    /^(do|does|did|are|is|was|were|have|has|had|will|would|can|could|should|may|if|what|why|how|when|where|which|who|select|choose|indicate|confirm|specify|please|tell|describe|list|enter|provide)\b/i;
+
+  ns.isQuestionLabel = function (labelText) {
+    const t = (labelText || "").trim();
+    if (!t) return false;
+    if (t.includes("?")) return true;
+    const words = t.split(/\s+/).length;
+    if (words > 9) return true;
+    return words >= 5 && QUESTION_OPENERS.test(t);
+  };
+
   ns.matchProfileKey = function (labelText) {
     if (!labelText) return null;
     const t = labelText.trim();
-    for (const [key, patterns] of KEYWORD_MAP) {
+    const question = ns.isQuestionLabel(t);
+    for (const [tier, key, patterns] of KEYWORD_MAP) {
+      // Only the "field" tier is shape-restricted. The question-tier patterns
+      // ("sponsorship", "authorized to work", "how did you hear") are specific
+      // enough to be safe on a short label like "Work authorization" too.
+      if (question && tier === "field") continue;
       if (patterns.some((re) => re.test(t))) return key;
     }
     return null;
@@ -102,8 +142,23 @@ window.ReconAutofill = window.ReconAutofill || {};
     el.dispatchEvent(new Event("change", { bubbles: true }));
   };
 
+  // A react-select / Downshift combobox: a text input that *searches* a listbox
+  // rendered elsewhere. Writing into it types into the search box without
+  // selecting anything — the control still submits empty while looking filled,
+  // which is the exact failure the native-value-setter dance exists to avoid.
+  // Modern Greenhouse ("Country", "How did you hear about this opportunity?")
+  // is entirely built from these. Until there is a real click-and-pick, we
+  // refuse the field and say so rather than claiming a fill we didn't make.
+  ns.isCombobox = function (el) {
+    if (!el || el.tagName !== "INPUT") return false;
+    return el.getAttribute("role") === "combobox" ||
+      el.getAttribute("aria-autocomplete") === "list" ||
+      el.hasAttribute("aria-controls") && el.hasAttribute("aria-expanded");
+  };
+
   ns.fillField = function (el, value) {
     if (value === null || value === undefined || value === "") return false;
+    if (ns.isCombobox(el)) return false;
     const tag = el.tagName;
     if (tag === "INPUT" && (el.type === "checkbox" || el.type === "radio")) {
       const want = String(value).toLowerCase();
@@ -144,6 +199,13 @@ window.ReconAutofill = window.ReconAutofill || {};
 
   function isFillable(el) {
     if (el.disabled || el.readOnly) return false;
+    // react-select ships a decoy alongside each combobox: an aria-hidden,
+    // tabindex=-1 input carrying the `required` attribute, there only to trigger
+    // native validation. Writing to it is worse than useless — it *satisfies*
+    // the browser's required check while nothing is actually selected, so the
+    // form submits with an empty Country and no warning.
+    if (el.getAttribute("aria-hidden") === "true") return false;
+    if (el.getAttribute("tabindex") === "-1") return false;
     if (el.tagName === "INPUT") {
       const skip = ["hidden", "file", "submit", "button", "reset", "image", "password"];
       return !skip.includes(el.type);

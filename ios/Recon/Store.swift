@@ -25,6 +25,22 @@ final class Store: ObservableObject {
             !(autofillProfile[$0] ?? "").isEmpty
         }
     }
+
+    /// Persist the standing application answers, then re-read what the server
+    /// assembled — the profile the filler uses is a merge of these fields with
+    /// the résumé, so the round-trip is the only honest confirmation.
+    @MainActor
+    func saveAutofillProfile(_ fields: [String: Any]) async -> String? {
+        do {
+            try await api.saveAutofillProfile(fields)
+            autofillProfile = (try? await api.autofillProfile()) ?? autofillProfile
+            Cache.save(autofillProfile, "autofillProfile")
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     @Published var companies: [Company] = []
     @Published var contacts: [Contact] = []
 

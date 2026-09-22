@@ -115,6 +115,14 @@ struct ReconAPI {
         let raw = try await get("api/autofill/profile", as: [String: AnyCodableValue].self)
         return raw.compactMapValues { $0.stringValue }
     }
+    /// Write the standing answers back. Only the keys present are sent — the
+    /// server upserts with `exclude_unset`, so an untouched field keeps its value
+    /// rather than being cleared by an empty string.
+    func saveAutofillProfile(_ fields: [String: Any]) async throws {
+        let data = try JSONSerialization.data(withJSONObject: fields)
+        _ = try await execute("PUT", "api/autofill/profile", body: data)
+    }
+
     func resumeOnFile() async throws -> Bool {
         struct Meta: Decodable { let present: Bool }
         return try await get("api/resume/file/meta", as: Meta.self).present

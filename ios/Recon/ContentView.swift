@@ -38,6 +38,7 @@ struct ContentView: View {
         .task { await store.refresh() }
         .sheet(isPresented: $showSettings) {
             SettingsView { Task { await store.refresh() } }
+                .environmentObject(store)
         }
     }
 }

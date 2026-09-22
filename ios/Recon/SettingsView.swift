@@ -1,7 +1,9 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @EnvironmentObject var store: Store
     @StateObject private var config = AppConfig.shared
+    @State private var showProfile = false
     @Environment(\.dismiss) private var dismiss
     let onApply: () -> Void
 
@@ -21,6 +23,19 @@ struct SettingsView: View {
                         Text(config.baseURL.absoluteString).font(.footnote.monospaced())
                             .foregroundStyle(.secondary)
                     }
+                }
+
+                Section {
+                    Button { showProfile = true } label: {
+                        LabeledContent("Application profile") {
+                            Text(store.autofillReady ? "Ready" : "Incomplete")
+                                .foregroundStyle(store.autofillReady ? Theme.green : Theme.rust)
+                        }
+                    }
+                    .tint(.primary)
+                } header: { Text("Autofill") } footer: {
+                    Text("The standing answers Fill writes into an application form. Until this has an email, Fill stays disabled — the résumé only supplies your name, headline and location.")
+                        .font(.footnote)
                 }
 
                 Section("Cloudflare Access (service token)") {
@@ -43,6 +58,9 @@ struct SettingsView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { onApply(); dismiss() }
                 }
+            }
+            .sheet(isPresented: $showProfile) {
+                AutofillProfileView().environmentObject(store)
             }
         }
     }
