@@ -75,7 +75,7 @@ SEED = [
     ("Scale AI",           "B", "greenhouse", "scaleai",        "https://scale.com/careers", "AI&Data · data infra for ML; dashboard-named"),
     ("OpenAI",             "B", "ashby",      "openai",         "https://openai.com/careers/", "AI&Data · frontier lab; tradeoff: brutal WLB"),
     ("Anthropic",          "B", "greenhouse", "anthropic",      "https://www.anthropic.com/careers", "AI&Data · frontier lab; tradeoff: WLB/intensity"),
-    ("dbt Labs",           "B", "greenhouse", "dbtlabsinc",     "https://www.getdbt.com/careers/", "AI&Data · analytics-engineering tooling, data-stack adjacency"),
+    ("dbt Labs",           "B", "greenhouse", "fivetran",       "https://www.getdbt.com/about-us/careers", "AI&Data · merged into Fivetran (2026); their board IS Fivetran's greenhouse now — getdbt.com/careers links straight to fivetran.com job ids (2026-09-21)"),
     ("Glean",              "B", "greenhouse", "gleanwork",      "https://www.glean.com/careers", "AI&Data · enterprise AI search"),
     ("Fivetran",           "B", "greenhouse", "fivetran",       "https://www.fivetran.com/careers", "AI&Data · data integration/ELT"),
     ("Sigma Computing",    "C", "greenhouse", "sigmacomputing", "https://www.sigmacomputing.com/careers", "AI&Data · cloud BI"),
@@ -89,7 +89,7 @@ SEED = [
     ("Skydio",             "B", "ashby",      "skydio",         "https://www.skydio.com/careers", "Hardware · autonomous drones"),
     ("Verkada",            "B", "greenhouse", "verkada",        "https://www.verkada.com/careers/", "Hardware/IoT · physical security; commercial product PM heavy"),
     ("Zoox",               "B", "lever",      "zoox",           "https://zoox.com/careers", "Hardware/Mobility · AV (Amazon)"),
-    ("Aurora",             "B", "greenhouse", "aurorainnovation","https://aurora.tech/careers", "Hardware/Mobility · autonomous trucking — SCM adjacency"),
+    ("Aurora",             "B", "ashby",      "aurora-operations-inc", "https://aurora.tech/careers", "Hardware/Mobility · autonomous trucking. Ashby slug is the legal entity, not the brand — unguessable from the name (2026-09-21)"),
     ("Nuro",               "C", "greenhouse", "nuro",           "https://www.nuro.ai/careers", "Hardware/Mobility · autonomous delivery"),
     ("Lucid Motors",       "C", "greenhouse", "lucidmotors",    "https://www.lucidmotors.com/careers", "Hardware/EV · secondary EV pick behind Rivian"),
     ("Carbon Robotics",    "C", "greenhouse", "carbonrobotics", "https://carbonrobotics.com/careers", "Hardware/Robotics · ag automation"),
@@ -206,7 +206,7 @@ SEED = [
     ("Fanatics",           "C", "greenhouse", "fanaticsinc",    "https://careers.fanatics.com", "Commerce · sports merch + betting (NYC)"),
     ("DoubleVerify",       "C", "greenhouse", "doubleverify",   "https://doubleverify.com/careers", "AdTech/Data · digital media measurement (NYC)"),
     ("Alloy",              "C", "greenhouse", "alloy",          "https://www.alloy.com/careers", "Finance · identity & fraud infrastructure (NYC)"),
-    ("Capital Rx",         "C", "greenhouse", "capitalrx",      "https://www.cap-rx.com/careers", "Health/Finance · PBM platform (NYC)"),
+    ("Capital Rx",         "C", "greenhouse", "judihealth",     "https://www.judi.health/about/careers", "Health/Finance · PBM platform (NYC) — rebranded to Judi Health, board slug followed (2026-09-21)"),
     # ── EdTech (PA) ─────────────────────────────────────────────────────
     ("Duolingo",           "C", "greenhouse", "duolingo",       "https://careers.duolingo.com", "EdTech · language learning (Pittsburgh, PA)"),
 
@@ -247,7 +247,7 @@ SEED = [
     # ── Resolved: Ashby ──────────────────────────────────────────────────
     ("Confluent",          "B", "ashby",      "confluent",      "https://careers.confluent.io", "AI&Data · Kafka/streaming data infra"),
     ("Snowflake",          "B", "ashby",      "snowflake",      "https://careers.snowflake.com", "AI&Data · cloud data platform"),
-    ("Snyk",               "B", "ashby",      "snyk",           "https://snyk.io/careers/", "Security · dev-first application security (board thin as of 2026-07-07, endpoint live)"),
+    ("Snyk",               "B", "workday",    "snyk:wd103:External", "https://snyk.io/careers/all-jobs/", "Security · dev-first appsec. Moved off Ashby to Workday, datacenter wd103 (2026-09-21)"),
     # ── Resolved: Lever ──────────────────────────────────────────────────
     ("Spotify",            "B", "lever",      "spotify",        "https://www.lifeatspotify.com/", "Platform · audio streaming, product-craft brand"),
     ("Atlassian",          "B", "atlassian",  "atlassian",      "https://www.atlassian.com/company/careers", "Platform · Jira/Confluence — moved off Lever to iCIMS; parsers/atlassian.py reads their own JSON feed (2026-09-21)"),
