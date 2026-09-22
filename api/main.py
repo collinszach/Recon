@@ -1,5 +1,6 @@
 """Recon API — REST endpoints + serves the dashboard and brief."""
 import logging
+import re
 from datetime import date, timedelta, datetime, timezone
 from fastapi import FastAPI, HTTPException, Depends, Request, Response
 from fastapi.responses import HTMLResponse, FileResponse
@@ -894,6 +895,53 @@ def _role_out_min(r: Role) -> dict:
 # Recon proposes, Zach decides. Nothing in this section moves an application
 # except `accept`, and that writes an ApplicationEvent so the pipeline can
 # always explain why a stage changed.
+def _company_from_sender(from_addr: str | None) -> str | None:
+    """Company name out of a From header.
+
+    "NVIDIA HR <nvidia@myworkday.com>" -> NVIDIA. Falls back to the sending
+    domain when there's no display name, skipping the ATS domains, which name
+    the vendor rather than the employer.
+    """
+    if not from_addr:
+        return None
+    m = re.match(r'\s*"?([^"<]+?)"?\s*<', from_addr)
+    if m:
+        name = re.sub(r"\b(hr|recruiting|talent|careers?|team|hiring|no-?reply)\b", "",
+                      m.group(1), flags=re.I).strip(" -|,")
+        if len(name) > 2:
+            return name[:80]
+    dom = re.search(r"@([\w.-]+)", from_addr)
+    if dom:
+        host = dom.group(1).lower()
+        from mail.gmail_client import ATS_SENDERS
+        if any(a in host for a in ATS_SENDERS):
+            return None      # names the ATS vendor, not the employer
+        # Strip the routing labels employers put in front of the real name:
+        # "mail.amazon.jobs" is Amazon, "us.company.com" is Company. Without
+        # this the first label wins and applications get created as "Mail"
+        # and "Us".
+        generic = {"mail", "email", "e", "careers", "career", "jobs", "job",
+                   "noreply", "no-reply", "notifications", "notification",
+                   "recruiting", "talent", "hire", "hiring", "apply", "info",
+                   "hello", "news", "us", "eu", "uk", "my", "www", "smtp"}
+        labels = [l for l in host.split(".") if l not in generic]
+        # Drop the TLD tail (com/io/co.uk/jobs...). Matched against a known set
+        # rather than by length: "e.amd.com" is AMD, and a length rule eats it.
+        tlds = {"com", "io", "co", "uk", "net", "org", "ai", "dev", "app", "us",
+                "ca", "de", "fr", "inc", "jobs", "careers", "info", "xyz", "tech",
+                "aero", "cloud", "digital", "health", "life", "works", "team",
+                "me", "tv", "so", "gg", "sh", "fm", "space"}
+        while len(labels) > 1 and labels[-1] in tlds:
+            labels.pop()
+        if labels and labels[-1] in tlds:
+            labels.pop()          # single label that is itself a TLD: nothing usable
+        if not labels:
+            return None
+        if labels:
+            return labels[-1].replace("-", " ").title()[:80]
+    return None
+
+
 @app.get("/api/mail/status")
 def mail_status(db: Session = Depends(get_db)):
     from mail.gmail_client import configured
@@ -950,6 +998,27 @@ def mail_accept(proposal_id: int, stage: str | None = None,
     target = stage or m.proposed_stage
     m.status = "accepted"
     moved = None
+    created = None
+    # A proposal with no application behind it is one Recon never knew about.
+    # Accepting it creates the application from the mail itself — company from
+    # the sender's display name, role from the subject where it can be read.
+    if not m.application_id:
+        company = _company_from_sender(m.from_addr) or "(unknown)"
+        app_row = Application(company_name=company,
+                              role_title=(m.subject or "")[:200] or None,
+                              stage=target or "applied",
+                              applied_at=m.received_at or datetime.now(timezone.utc),
+                              notes=f"Created from email: {(m.subject or '')[:160]}")
+        db.add(app_row)
+        db.flush()
+        db.add(ApplicationEvent(application_id=app_row.id, from_stage=None,
+                                to_stage=app_row.stage,
+                                note=f"Created from email from {m.from_addr}"))
+        m.application_id = app_row.id
+        created = {"id": app_row.id, "company": company}
+        db.commit()
+        return {"status": "ok", "id": m.id, "created_application": created,
+                "moved_to": app_row.stage}
     if target and m.application_id:
         app_row = db.get(Application, m.application_id)
         if app_row and app_row.stage != target:
@@ -961,7 +1030,7 @@ def mail_accept(proposal_id: int, stage: str | None = None,
                 app_row.applied_at = datetime.now(timezone.utc)
             moved = target
     db.commit()
-    return {"status": "ok", "id": m.id, "moved_to": moved}
+    return {"status": "ok", "id": m.id, "moved_to": moved, "created_application": created}
 
 
 @app.post("/api/mail/proposals/{proposal_id}/dismiss")

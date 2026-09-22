@@ -25,7 +25,7 @@ SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 # (rather than reading everything) keeps Recon's footprint to the mail it
 # actually needs — see the targeted-query decision, 2026-09-21.
 ATS_SENDERS = [
-    "greenhouse.io", "lever.co", "hire.lever.co", "ashbyhq.com",
+    "greenhouse.io", "greenhouse-mail.io", "lever.co", "hire.lever.co", "ashbyhq.com",
     "myworkday.com", "myworkdayjobs.com", "icims.com", "smartrecruiters.com",
     "workable.com", "jobvite.com", "taleo.net", "successfactors.com",
     "recruiting.paylocity.com", "phenompeople.com", "avature.net",
@@ -93,6 +93,10 @@ def build_query(company_names: list[str], lookback_days: int) -> str:
         words = " OR ".join(APPLICATION_WORDS)
         clauses.append(f"(({quoted}) AND ({words}))")
     excluded = " ".join(f"-from:{d}" for d in SENDER_DENYLIST)
+    # When a label is configured, it replaces the heuristics entirely: Zach's
+    # own filters decide what Recon may see, and nothing outside them is read.
+    if settings.mail_label_filter:
+        return f"after:{since} label:{settings.mail_label_filter}"
     return f"after:{since} ({' OR '.join(clauses)}) {excluded}"
 
 

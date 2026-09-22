@@ -127,6 +127,11 @@ class Settings(BaseSettings):
     gmail_client_secret: str = ""
     gmail_refresh_token: str = ""
     mail_lookback_days: int = 60          # how far back a poll looks
+    # Once the Gmail filters are imported (mail/recon-gmail-filters.xml), set
+    # this to "Recon" and Recon reads ONLY mail you've labelled — your filters
+    # become the boundary of what it can see, which is a tighter and more
+    # legible privacy story than any query I can write.
+    mail_label_filter: str = ""
     mail_max_messages: int = 60           # cap per poll (quota + N95 politeness)
 
     # ─── Notifications: email ───────────────────────────────

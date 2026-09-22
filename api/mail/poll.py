@@ -112,10 +112,25 @@ def poll(db: Session, limit: int | None = None) -> dict:
         # classified as `other`, so nothing moved, but all of it noise in a
         # section whose whole value is that it's short.
         if not app:
-            row.status = "unmatched"
-            row.kind = verdict["kind"]
-            row.evidence = "no application matched this sender or subject"
-            unmatched += 1
+            # An acknowledgement with no matching application means an
+            # application Recon has never heard of. The first real poll found
+            # nine — AMD, Nike, Mercedes-Benz, Visa, Atlassian, Sweatpals,
+            # Joby — plus a rejection and an interview invitation. Those aren't
+            # noise, they're the pipeline's blind spot, so propose creating the
+            # application rather than filing them away.
+            if verdict["kind"] in ("ack", "screen", "rejection", "offer"):
+                row.status = "pending"
+                row.kind = verdict["kind"]
+                row.proposed_stage = "applied" if verdict["kind"] == "ack" else verdict["proposed_stage"]
+                row.confidence = verdict["confidence"]
+                row.evidence = (f"No application in Recon matches this. {verdict['evidence']} "
+                                f"Accepting creates one from the sender.")
+                created += 1
+            else:
+                row.status = "unmatched"
+                row.kind = verdict["kind"]
+                row.evidence = "no application matched this sender or subject"
+                unmatched += 1
         elif marketing:
             row.status = "ignored"
             row.kind = "marketing"
