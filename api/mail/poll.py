@@ -14,7 +14,9 @@ from sqlalchemy.orm import Session
 from config import settings
 from db import Application, MailMessage
 from mail.classify import classify
-from mail.gmail_client import (configured, fetch, is_ats_sender,
+from datetime import datetime, timezone
+
+from mail.gmail_client import (configured, fetch_threads, is_ats_sender,
                                looks_like_marketing)
 
 log = logging.getLogger("recon.mail")
@@ -59,7 +61,7 @@ def match_application(msg: dict, apps: list[Application]) -> tuple[Application |
 
 
 def poll(db: Session, limit: int | None = None) -> dict:
-    """Read recent mail, file proposals for anything that matches an application."""
+    """Read recent threads, file one proposal per conversation."""
     if not settings.mail_enabled:
         return {"status": "disabled", "reason": "MAIL_ENABLED is false"}
     if not configured():
@@ -69,18 +71,12 @@ def poll(db: Session, limit: int | None = None) -> dict:
 
     apps = db.scalars(select(Application)).all()
     names = [a.company_name for a in apps if a.company_name]
-    seen = {m for (m,) in db.execute(select(MailMessage.message_id)).all()}
 
     try:
-        messages = fetch(names, settings.mail_lookback_days,
-                         limit or settings.mail_max_messages)
+        threads = fetch_threads(names, settings.mail_lookback_days,
+                                limit or settings.mail_max_messages)
     except Exception as e:
         detail = f"{type(e).__name__}: {e}"
-        # The one failure that will happen on a schedule rather than at random:
-        # while the OAuth client's publishing status is "Testing", Google
-        # expires refresh tokens after 7 days, and the poller just starts
-        # returning invalid_grant. Say so plainly instead of leaving a stack
-        # trace in the worker log and an inbox that silently stops being read.
         if "invalid_grant" in str(e).lower():
             detail = ("Gmail refused the refresh token (invalid_grant). If the OAuth client "
                       "is still in 'Testing' publishing status, Google expires refresh tokens "
@@ -89,81 +85,81 @@ def poll(db: Session, limit: int | None = None) -> dict:
         log.warning("gmail fetch failed: %s", detail)
         return {"status": "error", "reason": detail}
 
-    created = skipped = unmatched = ignored = 0
-    for msg in messages:
-        if msg["message_id"] in seen:
-            skipped += 1        # already looked at; a poll must be idempotent
-            continue
-        app, why = match_application(msg, apps)
-        row = MailMessage(
-            message_id=msg["message_id"], thread_id=msg.get("thread_id"),
-            from_addr=(msg.get("from_addr") or "")[:300],
-            subject=(msg.get("subject") or "")[:500],
-            snippet=(msg.get("snippet") or "")[:500],
-            received_at=msg.get("received_at"),
-        )
-        verdict = classify(msg.get("subject"), msg.get("body"))
-        from_ats = is_ats_sender(msg.get("from_addr"))
-        marketing = looks_like_marketing(msg.get("from_addr"), msg.get("subject"))
+    created = updated = ignored = unmatched = 0
+    for th in threads:
+        inbound = th["latest_inbound"]
+        if not inbound:
+            continue          # a thread of only your own mail says nothing yet
+        latest = th["latest"]
+        row = db.scalar(select(MailMessage).where(MailMessage.thread_id == th["thread_id"]))
+        app, why = match_application(inbound, apps)
+        verdict = classify(inbound.get("subject"), inbound.get("body"))
+        from_ats = is_ats_sender(inbound.get("from_addr"))
+        marketing = looks_like_marketing(inbound.get("from_addr"), inbound.get("subject"))
 
-        # Three gates before anything reaches Zach as a proposal. The first
-        # poll produced 8 proposals of which 7 were talent-marketing blasts,
-        # LinkedIn alerts and a credit-card statement — all correctly
-        # classified as `other`, so nothing moved, but all of it noise in a
-        # section whose whole value is that it's short.
-        if not app:
-            # An acknowledgement with no matching application means an
-            # application Recon has never heard of. The first real poll found
-            # nine — AMD, Nike, Mercedes-Benz, Visa, Atlassian, Sweatpals,
-            # Joby — plus a rejection and an interview invitation. Those aren't
-            # noise, they're the pipeline's blind spot, so propose creating the
-            # application rather than filing them away.
-            if verdict["kind"] in ("ack", "screen", "rejection", "offer"):
-                row.status = "pending"
-                row.kind = verdict["kind"]
-                row.proposed_stage = "applied" if verdict["kind"] == "ack" else verdict["proposed_stage"]
-                row.confidence = verdict["confidence"]
-                row.evidence = (f"No application in Recon matches this. {verdict['evidence']} "
-                                f"Accepting creates one from the sender.")
-                created += 1
-            else:
-                row.status = "unmatched"
-                row.kind = verdict["kind"]
-                row.evidence = "no application matched this sender or subject"
-                unmatched += 1
-        elif marketing:
-            row.status = "ignored"
-            row.kind = "marketing"
+        if row is None:
+            row = MailMessage(message_id=inbound["message_id"], thread_id=th["thread_id"])
+            db.add(row)
+            is_new = True
+        else:
+            is_new = False
+        row.from_addr = (inbound.get("from_addr") or "")[:300]
+        row.subject = (inbound.get("subject") or "")[:500]
+        row.snippet = (inbound.get("snippet") or "")[:500]
+        row.received_at = inbound.get("received_at")
+        row.awaiting = th["awaiting"]
+        row.last_message_at = th["last_at"]
+        row.last_outbound_at = (th["latest_outbound"] or {}).get("received_at")
+        row.message_count = len(th["messages"])
+
+        if marketing:
+            row.status, row.kind = "ignored", "marketing"
             row.evidence = "job alert / account mail, not application correspondence"
             ignored += 1
-        elif verdict["kind"] == "other" and not from_ats:
-            # Mentions a company but says nothing an application would say, and
-            # didn't come from an ATS. Kept so it isn't re-read every poll.
-            row.status = "ignored"
-            row.kind = "other"
+            continue
+        if not app and verdict["kind"] not in ("ack", "screen", "rejection", "offer"):
+            row.status, row.kind = "unmatched", verdict["kind"]
+            row.evidence = "no application matched this sender or subject"
+            unmatched += 1
+            continue
+        if app and verdict["kind"] == "other" and not from_ats:
+            row.status, row.kind = "ignored", "other"
             row.evidence = f"{why}, but no application language and not from an ATS"
             ignored += 1
+            continue
+
+        row.application_id = app.id if app else None
+        row.kind = verdict["kind"]
+        row.confidence = verdict["confidence"]
+        row.proposed_stage = verdict["proposed_stage"]
+        if verdict["kind"] == "ack":
+            row.proposed_stage = "applied" if (not app or (app.stage or "") in
+                                               ("watching", "drafting")) else None
+
+        # What the thread says, not just the last inbound message. A screen
+        # invite you already answered and attended is not an invitation any
+        # more — and 13 days of silence after your reply is the actual next
+        # action.
+        if th["awaiting"] == "them" and row.last_outbound_at:
+            days = (datetime.now(timezone.utc) - row.last_outbound_at).days
+            base = f"{why}. " if app else "No application in Recon matches this. "
+            row.evidence = (f"{base}You replied {days} day{'s' if days != 1 else ''} ago "
+                            f"and they haven't responded. {verdict['evidence']}")
+            # Don't propose re-entering a stage he's already past by replying.
+            if verdict["kind"] == "screen" and app and (app.stage or "") in ("screen", "onsite", "offer"):
+                row.proposed_stage = None
         else:
-            row.application_id = app.id
-            row.kind = verdict["kind"]
-            row.proposed_stage = verdict["proposed_stage"]
-            row.confidence = verdict["confidence"]
-            row.evidence = f"{why}. {verdict['evidence']}"
-            # An acknowledgement was supposed to propose nothing — it confirms
-            # what Zach already told Recon. The first clean poll disproved
-            # that: 9 of 13 acknowledgements were for applications still
-            # sitting at "watching", i.e. he applied and never updated the
-            # tracker. The employer confirming receipt is better evidence than
-            # a stage nobody touched, so say so.
-            if verdict["kind"] == "ack" and (app.stage or "") in ("watching", "drafting"):
-                row.proposed_stage = "applied"
-                row.evidence = (f"{why}. The employer acknowledged your application, "
-                                f"but Recon still has this as '{app.stage}'.")
-            row.status = "pending"
+            base = f"{why}. " if app else "No application in Recon matches this. Accepting creates one. "
+            row.evidence = f"{base}{verdict['evidence']}"
+
+        row.status = "pending" if row.status not in ("accepted", "dismissed") else row.status
+        if is_new:
             created += 1
-        db.add(row)
+        else:
+            updated += 1
+
     db.commit()
-    log.info("mail poll: %d messages, %d proposals, %d ignored, %d unmatched, %d already seen",
-             len(messages), created, ignored, unmatched, skipped)
-    return {"status": "ok", "messages": len(messages), "proposals": created,
-            "ignored": ignored, "unmatched": unmatched, "already_seen": skipped}
+    log.info("mail poll: %d threads, %d new, %d updated, %d ignored, %d unmatched",
+             len(threads), created, updated, ignored, unmatched)
+    return {"status": "ok", "threads": len(threads), "proposals": created,
+            "updated": updated, "ignored": ignored, "unmatched": unmatched}

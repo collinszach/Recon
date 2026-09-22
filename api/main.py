@@ -53,6 +53,10 @@ def _ensure_schema():
         # catalogue, not today's news.
         conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS first_scanned_at TIMESTAMPTZ"))
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_backfill BOOLEAN DEFAULT FALSE"))
+        # Thread state for mail (2026-09-22).
+        for col, typ in (("awaiting", "VARCHAR"), ("last_outbound_at", "TIMESTAMPTZ"),
+                         ("last_message_at", "TIMESTAMPTZ"), ("message_count", "INTEGER DEFAULT 1")):
+            conn.execute(text(f"ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS {col} {typ}"))
         # APNs environment per device token; NULL until send_apns() probes for it.
         conn.execute(text("ALTER TABLE device_tokens ADD COLUMN IF NOT EXISTS environment VARCHAR"))
         # Semantic embeddings: resize column from 1536 → 1024 (mxbai-embed-large).
@@ -1032,6 +1036,9 @@ def mail_proposals(status: str = "pending", limit: int = 50,
             "confidence": m.confidence, "evidence": m.evidence,
             "from": m.from_addr, "subject": m.subject, "snippet": m.snippet,
             "received_at": m.received_at.isoformat() if m.received_at else None,
+            "awaiting": m.awaiting,
+            "last_outbound_at": m.last_outbound_at.isoformat() if m.last_outbound_at else None,
+            "message_count": m.message_count,
             "application_id": m.application_id,
             "company": app_row.company_name if app_row else None,
             "role_title": app_row.role_title if app_row else None,

@@ -148,16 +148,66 @@ def fetch(company_names: list[str], lookback_days: int, limit: int) -> list[dict
     for stub in listing.get("messages", []) or []:
         msg = svc.users().messages().get(
             userId="me", id=stub["id"], format="full").execute()
-        payload = msg.get("payload") or {}
-        ts = msg.get("internalDate")
+        out.append(_shape(msg))
+    return out
+
+
+def _shape(msg: dict) -> dict:
+    payload = msg.get("payload") or {}
+    ts = msg.get("internalDate")
+    labels = msg.get("labelIds") or []
+    return {
+        "message_id": msg.get("id"),
+        "thread_id": msg.get("threadId"),
+        "from_addr": _header(payload, "From"),
+        "to_addr": _header(payload, "To"),
+        "subject": _header(payload, "Subject"),
+        "snippet": msg.get("snippet"),
+        "body": _body_text(payload)[:8000],
+        # SENT is the only reliable marker of who wrote it: the From header on
+        # your own mail is you, but aliases and send-as make string matching
+        # unreliable.
+        "outbound": "SENT" in labels,
+        "received_at": (datetime.fromtimestamp(int(ts) / 1000, tz=timezone.utc)
+                        if ts else None),
+    }
+
+
+def fetch_threads(company_names: list[str], lookback_days: int, limit: int) -> list[dict]:
+    """Whole conversations, not loose messages.
+
+    A single message can't answer the question that matters — "is anyone
+    waiting on me?" Recon proposed moving Skydio to `screen` off a calendar
+    invite, when in fact Zach had already taken the interview and sent a
+    thank-you, and had been waiting 13 days for a reply. That state lives in
+    the thread, and half of it lives in Sent mail, which per-message reading
+    never looked at.
+    """
+    svc = _service()
+    q = build_query(company_names, lookback_days)
+    log.info("gmail thread query: %s", q[:200])
+    listing = svc.users().threads().list(userId="me", q=q, maxResults=limit).execute()
+    out = []
+    for stub in listing.get("threads", []) or []:
+        thread = svc.users().threads().get(
+            userId="me", id=stub["id"], format="full").execute()
+        msgs = [_shape(m) for m in thread.get("messages", []) or []]
+        msgs.sort(key=lambda m: m["received_at"] or datetime.min.replace(tzinfo=timezone.utc))
+        if not msgs:
+            continue
+        inbound = [m for m in msgs if not m["outbound"]]
+        outbound = [m for m in msgs if m["outbound"]]
+        last = msgs[-1]
         out.append({
-            "message_id": msg.get("id"),
-            "thread_id": msg.get("threadId"),
-            "from_addr": _header(payload, "From"),
-            "subject": _header(payload, "Subject"),
-            "snippet": msg.get("snippet"),
-            "body": _body_text(payload)[:8000],
-            "received_at": (datetime.fromtimestamp(int(ts) / 1000, tz=timezone.utc)
-                            if ts else None),
+            "thread_id": thread.get("id"),
+            "messages": msgs,
+            "latest": last,
+            # Classification reads the employer's words, so the newest inbound
+            # message — not your own reply, which would classify as whatever
+            # you happened to write.
+            "latest_inbound": inbound[-1] if inbound else None,
+            "latest_outbound": outbound[-1] if outbound else None,
+            "awaiting": "them" if last["outbound"] else "you",
+            "last_at": last["received_at"],
         })
     return out

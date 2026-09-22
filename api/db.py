@@ -135,6 +135,13 @@ class MailMessage(Base):
     confidence: Mapped[str | None] = mapped_column(String)    # high|medium|low
     evidence: Mapped[str | None] = mapped_column(Text)        # why it read the message this way
     status: Mapped[str] = mapped_column(String, default="pending")
+    # Thread state. "Who is waiting on whom" is the question a tracker exists to
+    # answer, and a single message cannot answer it: it takes the whole
+    # conversation, including your own replies in Sent.
+    awaiting: Mapped[str | None] = mapped_column(String)          # you | them | None
+    last_outbound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    message_count: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     application: Mapped["Application | None"] = relationship()
 
