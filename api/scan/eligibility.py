@@ -19,11 +19,27 @@ from __future__ import annotations
 import re
 
 # ── hard eligibility gates ──────────────────────────────────────────────────
-_PHD_RE = re.compile(
-    r"\b(ph\.?\s?d\.?|doctoral|doctorate)\b(?![^.]{0,40}\b(not required|or equivalent experience|preferred)\b)",
+# Mentioning a PhD is not requiring one. The first live run filtered 117 roles
+# as "PhD required", including "2027 Summer Intern, MS/PhD, Software/ML" —
+# where MS *or* PhD is fine, and his MEng qualifies — and a thermal engineering
+# internship whose JD said something like "BS/MS/PhD in Mechanical
+# Engineering". A degree list is an invitation, not a gate.
+_PHD_WORD = r"ph\.?\s?d\.?"
+# In the title, "PhD Research Intern" is the role. "MS/PhD" is not.
+_PHD_TITLE_RE = re.compile(rf"(?<!/)(?<!\bms )(?<!\bms/){_PHD_WORD}", re.IGNORECASE)
+_DEGREE_LIST_RE = re.compile(rf"\b(bs|ba|ms|meng|mba|master'?s?|bachelor'?s?)\b\s*[/,]?\s*(or\s+)?{_PHD_WORD}",
+                             re.IGNORECASE)
+# Only explicit requirement phrasing counts as a gate.
+_PHD_REQUIRED_RE = re.compile(
+    rf"{_PHD_WORD}[^.]{{0,40}}\b(is\s+)?required\b"
+    rf"|{_PHD_WORD}[^.]{{0,25}}\b(candidates|students)\s+only\b"
+    rf"|\bmust\s+be\s+(enrolled\s+in|pursuing)\b[^.]{{0,30}}{_PHD_WORD}"
+    rf"|\bonly\b[^.]{{0,20}}{_PHD_WORD}[^.]{{0,20}}\b(candidates|students)\b",
     re.IGNORECASE)
-# "PhD preferred" is not a gate; "PhD required"/"PhD candidates" is.
-_PHD_SOFT_RE = re.compile(r"\bph\.?\s?d\.?\b[^.]{0,30}\b(preferred|a plus|nice to have)\b", re.IGNORECASE)
+
+# Phrasing that turns a requirement back into an invitation.
+_PHD_SOFT_RE = re.compile(r"\b(preferred|not required|a plus|nice to have|or equivalent)\b",
+                          re.IGNORECASE)
 
 _UNDERGRAD_ONLY_RE = re.compile(
     r"\b(sophomore|freshman|first[- ]year student|rising (freshman|sophomore|junior))\b"
@@ -65,9 +81,21 @@ _TARGET_FALSE_RE = re.compile(
 
 def eligibility_reason(title: str | None, description: str | None = None) -> str | None:
     """Why he *can't* apply, or None. Checked against title + JD text."""
-    hay = f"{title or ''}\n{(description or '')[:4000]}"
-    if _PHD_RE.search(hay) and not _PHD_SOFT_RE.search(hay):
+    t = title or ""
+    body = (description or "")[:4000]
+    # Title first: "PhD Research Intern" is what the role is.
+    if _PHD_TITLE_RE.search(t) and not _DEGREE_LIST_RE.search(t):
         return "PhD required"
+    # In the body, only an explicit requirement counts — and not when it sits
+    # in a degree list ("BS/MS/PhD in Mechanical Engineering").
+    m = _PHD_REQUIRED_RE.search(body)
+    if m:
+        window = body[max(0, m.start() - 60):m.end() + 30]
+        # "a PhD is preferred but not required" contains the word "required".
+        soft = _PHD_SOFT_RE.search(window)
+        if not soft and not _DEGREE_LIST_RE.search(window):
+            return "PhD required"
+    hay = f"{t}\n{body}"
     if _UNDERGRAD_ONLY_RE.search(hay):
         return "undergraduate-only program"
     if _CLEARANCE_RE.search(hay) and not _CLEARANCE_SPONSORED_RE.search(hay):

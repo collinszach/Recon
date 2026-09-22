@@ -83,6 +83,14 @@ check("clearance", eligibility_reason("PM Intern", "Must currently hold an activ
       "requires an existing security clearance")
 # A clearance the employer sponsors is not a gate — he already tracks one.
 check("clearance-sponsored", eligibility_reason("PM Intern", "Ability to obtain a security clearance"), None)
+# Mentioning a PhD is not requiring one — the first live run filtered 117 roles
+# on this, including an MS/PhD posting and a JD listing "BS/MS/PhD".
+check("phd-degree-list-title", eligibility_reason("2027 Summer Intern, MS/PhD, Software/ML"), None)
+check("phd-degree-list-body",
+      eligibility_reason("Thermal Engineering Intern", "BS/MS/PhD in Mechanical Engineering"), None)
+check("phd-enrolled", eligibility_reason("Data Science Intern", "Must be enrolled in a PhD program"),
+      "PhD required")
+check("phd-title", eligibility_reason("PhD Research Intern, Networking"), "PhD required")
 check("keep-pm", off_target_reason("Product Management Intern - Summer 2027"), None)
 check("keep-tpm", off_target_reason("Technical Program Manager Intern"), None)
 check("keep-strategy", off_target_reason("Business Strategy & Operations Intern"), None)
