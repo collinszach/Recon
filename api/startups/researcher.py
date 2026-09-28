@@ -40,7 +40,8 @@ Respond with ONLY a JSON array, no prose, no markdown fences:
     "sector": "fintech" | "defense" | "sustainability_energy" | "product_tech_data" | "other",
     "hq_location": "<city, state/country>",
     "stage": "<seed | series A | series B | growth | public | unknown>",
-    "one_liner": "<one sentence: what they do>"
+    "one_liner": "<one sentence: what they do>",
+    "website": "<official homepage URL, or null if you are not certain>"
   }
 ]
 """
@@ -88,8 +89,13 @@ def run_discovery(db: Session, n: int = 10) -> dict:
             skipped.append(name)
             continue
         try:
+            # The prompt never asked for a website until 2026-09-28, which is why
+            # all 66 startups tracked before then had none — and without one,
+            # board discovery falls back to guessing slugs from names (~25%).
+            site = c.get("website")
             s = Startup(name=name, sector=c.get("sector"), hq_location=c.get("hq_location"),
-                       stage=c.get("stage"), one_liner=c.get("one_liner"))
+                       stage=c.get("stage"), one_liner=c.get("one_liner"),
+                       website=site if _resolves(site) else None)
             db.add(s)
             db.flush()
 
@@ -160,6 +166,78 @@ Respond with ONLY a JSON object (no prose, no fences):
   ]
 }
 Give 3-5 targets, best path first."""
+
+
+WEBSITE_SYSTEM = """\
+You map companies to their official homepage. Each line gives a company name and
+what it does — use the description to pick the right company when several share
+a name (there is more than one Arcadia, Axiom, Neon and Watershed).
+
+Hard rules:
+- Only return a URL you are confident is that company's own official website.
+- Never construct a domain from the name. If you are not sure, return null.
+- A wrong URL is worse than null: it points a job scanner at someone else.
+
+Respond with ONLY a JSON object, no prose, no fences:
+{"<exact company name as given>": "<https://...>" or null, ...}
+"""
+
+
+def _resolves(url: str | None, timeout: float = 8.0) -> bool:
+    """Does this URL answer at all? Any HTTP response counts — a 403 from bot
+    protection still proves the site exists. A DNS or connection failure is
+    the tell of an invented domain."""
+    if not url or not isinstance(url, str) or not url.startswith(("http://", "https://")):
+        return False
+    try:
+        import httpx
+        httpx.get(url, timeout=timeout, follow_redirects=True,
+                  headers={"User-Agent": "Mozilla/5.0 (recon website check)"})
+        return True
+    except Exception:
+        return False
+
+
+def backfill_websites(db: Session, limit: int = 100) -> dict:
+    """Fill `Startup.website` for rows that have none, so board discovery can
+    use the strongest signal it has instead of guessing slugs from names.
+
+    One LLM call for the whole batch, each description included so same-named
+    companies are told apart. Every URL returned is checked to resolve before
+    it is stored; anything unsure or unreachable stays NULL.
+    """
+    if not llm.configured():
+        return {"error": "no LLM configured"}
+    rows = list(db.scalars(select(Startup).where(Startup.website.is_(None))
+                           .order_by(Startup.name).limit(limit)).all())
+    if not rows:
+        return {"asked": 0, "stored": [], "unsure": [], "unreachable": []}
+    lines = "\n".join(f"- {s.name} — {s.one_liner or ''} ({s.hq_location or 'unknown'})"
+                      for s in rows)
+    res = llm.complete(system=WEBSITE_SYSTEM, max_tokens=min(6000, 60 * len(rows) + 300),
+                       model=settings.claude_model,
+                       messages=[{"role": "user", "content": lines}])
+    try:
+        data = _parse_json_block(res.text)
+        data = data if isinstance(data, dict) else {}
+    except json.JSONDecodeError:
+        log.warning("website backfill: unparseable response")
+        return {"error": "unparseable LLM response", "asked": len(rows)}
+
+    stored, unsure, unreachable = [], [], []
+    for s in rows:
+        url = data.get(s.name)
+        if not url:
+            unsure.append(s.name)
+        elif not _resolves(url):
+            unreachable.append({"startup": s.name, "url": url})
+        else:
+            s.website = url
+            stored.append({"startup": s.name, "url": url})
+    db.commit()
+    log.info("website backfill: %d stored, %d unsure, %d unreachable",
+             len(stored), len(unsure), len(unreachable))
+    return {"asked": len(rows), "stored": stored, "unsure": unsure, "unreachable": unreachable}
 
 
 def _parse_json_block(text: str):

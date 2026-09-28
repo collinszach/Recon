@@ -859,6 +859,31 @@ def discover_startups(n: int = 10, db: Session = Depends(get_db)):
     return run_discovery(db, n=n)
 
 
+@app.post("/api/startups/promote")
+def promote_startups_endpoint(backfill: bool = True, dry_run: bool = False,
+                              limit: int = 100, db: Session = Depends(get_db)):
+    """Wire tracked startups into the job scan.
+
+    Startups were researched and written up but never scanned: 47 of 66 had no
+    Company row. This finds each one's board, confirms the board is actually
+    theirs (scan/identity.py — five boards that answered with jobs turned out
+    to belong to a different company), and creates or upgrades the Company so
+    the next scan pulls it.
+
+    `backfill` first fills missing websites, which is what lets discovery use
+    the careers domain instead of guessing slugs from the name. `dry_run`
+    reports what would change without writing. Anything unconfirmed comes back
+    under `review` and is never created automatically.
+    """
+    from scan.ats_discovery import promote_startups
+    result: dict = {}
+    if backfill and not dry_run:
+        from startups.researcher import backfill_websites
+        result["websites"] = backfill_websites(db)
+    result.update(promote_startups(db, limit=limit, dry_run=dry_run))
+    return result
+
+
 @app.post("/api/startups/{startup_id}/contacts/research")
 def research_startup_contacts(startup_id: int, db: Session = Depends(get_db)):
     """Who-to-reach research (warm-path personas, never invented names) — same

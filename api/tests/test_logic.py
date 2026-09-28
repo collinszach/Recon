@@ -140,3 +140,50 @@ check("plain: no tags left", "<" in pl, False)
 check("inline tags don't break", html_to_text("<p>a <strong>b</strong> c</p>"), "a b c")
 
 print("all logic checks passed (including JD extraction)")
+
+# ── board identity (appended 2026-09-28) ───────────────────────────────────
+# Every case below is real. Five hand-picked slugs answered with live postings
+# from a different company; probe() alone would have accepted all five.
+from scan.identity import identity_key, judge, site_domain   # noqa: E402
+
+GH = "https://job-boards.greenhouse.io/x/jobs/1"
+LV = "https://jobs.lever.co/x/abc"
+
+# A tracked startup must match the Company that already scans it.
+for startup, company in [("Anduril Industries", "Anduril"), ("Palantir Technologies", "Palantir"),
+                         ("Saronic Technologies", "Saronic"), ("Primer AI", "Primer"),
+                         ("Altana AI", "Altana"), ("Gusto, Inc.", "Gusto")]:
+    check(f"dedup: {startup}", identity_key(startup), identity_key(company))
+# ...but descriptors that distinguish companies are kept.
+check("axiom space != axiom", identity_key("Axiom Space") == identity_key("Axiom"), False)
+
+check("domain", site_domain("https://www.axiomspace.com/careers"), "axiomspace.com")
+
+def verdict(*a):
+    return judge(*a)[0]
+
+# The five that were wrong.
+check("wise: insurance board", verdict("Wise", "https://wise.com",
+      "Wise Worksite Field Sales", [GH], []), "reject")
+check("axiom: law firm board, website known", verdict("Axiom Space", "https://www.axiomspace.com",
+      "Axiom", ["https://www.axiomlaw.com/careers/x"], []), "reject")
+check("axiom: law firm board, no website", verdict("Axiom Space", None,
+      "Axiom", ["https://www.axiomlaw.com/careers/x"], []), "reject")
+check("watershed: bioinformatics board", verdict("Watershed", "https://watershed.com",
+      "Watershed Informatics", [GH], []), "reject")
+check("neon: bank postings say 'Neon' but never 'neon.tech'", verdict("Neon", "https://neon.tech",
+      None, [LV], ["Na Neon, buscamos um Analista de Growth"]), "review")
+check("arcadia: no energy domain in postings", verdict("Arcadia", "https://www.arcadia.com",
+      None, [LV], ["Customer Insights role in Life Sciences"]), "review")
+
+# The genuine ones.
+check("redwood: exact board name", verdict("Redwood Materials", None,
+      "Redwood Materials", [GH], []), "promote")
+check("gusto: legal suffix on board", verdict("Gusto", None, "Gusto, Inc.", [GH], []), "promote")
+check("aptos: 'Labs' dropped on board", verdict("Aptos Labs", None, "Aptos", [GH], []), "promote")
+check("own domain in postings", verdict("Neon", "https://neon.tech",
+      None, [LV], ["Build Postgres at neon.tech"]), "promote")
+check("postings link to own site", verdict("Acme", "https://acme.com",
+      "Something Else", ["https://careers.acme.com/j/1"], []), "promote")
+
+print("all logic checks passed (including board identity)")
