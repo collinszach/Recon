@@ -36,7 +36,7 @@ struct Role: Codable, Identifiable, Hashable {
     /// newly posted. Kept out of "posted today" counts.
     let isBackfill: Bool?
     let isMba: Bool?           // MBA-track internship (rule-based, see api/scan/intern_filter.py)
-    let sector: String?        // company sector: big_tech | finance | defense_aerospace | consulting | nil
+    let sector: String?        // company sector: big_tech | finance | defense_aerospace | climate_energy | consulting | nil
 
     enum CodingKeys: String, CodingKey {
         case id, track, company, title, location, metro, state, url, status, domain, tier, concerns, description, remote, interest, sector
@@ -75,7 +75,8 @@ struct Role: Codable, Identifiable, Hashable {
 
     static let sectorLabels: [(String, String)] = [
         ("big_tech", "Big Tech"), ("finance", "Finance"),
-        ("defense_aerospace", "Defense / Aerospace"), ("consulting", "Consulting"),
+        ("defense_aerospace", "Defense / Aerospace"), ("climate_energy", "Climate / Energy"),
+        ("consulting", "Consulting"),
     ]
     var sectorLabel: String {
         sector.flatMap { s in Self.sectorLabels.first { $0.0 == s }?.1 } ?? "Other"

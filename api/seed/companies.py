@@ -357,6 +357,28 @@ SEED = [
     ("Northrop Grumman",    "A", "jsearch_company", None, "https://www.northropgrumman.com/careers", "Defense/Aerospace · Fortune 500"),
     ("Raytheon Technologies (RTX)", "A", "jsearch_company", None, "https://www.rtx.com/careers", "Defense/Aerospace · Fortune 500"),
     ("Charter Communications", "B", "jsearch_company", None, "https://jobs.charter.com", "Telecom · Fortune 500"),
+
+    # ── Added 2026-09-28 ──────────────────────────────────────────────────────
+    # Each token was checked for *identity*, not just a live response: the board's
+    # own name and its postings had to match the company. A 200 with jobs is not
+    # proof — five candidates answered with jobs from a different company that
+    # happened to own the slug, and were dropped:
+    #   wise      -> "Wise Worksite Field Sales" (insurance), not Wise the fintech
+    #   axiom     -> Axiom Law (axiomlaw.com), not Axiom Space
+    #   neon      -> Neon, the Brazilian bank, not Neon the Postgres company
+    #   watershed -> Watershed Informatics (bioinformatics), not the carbon one
+    #   arcadia   -> Arcadia's life-sciences data business, not the energy one
+    # None of the five intended companies has a findable public board.
+    ("Redwood Materials",   "B", "greenhouse", "redwoodmaterials", "https://job-boards.greenhouse.io/redwoodmaterials", "Climate · battery recycling & materials"),
+    ("Antora Energy",       "B", "greenhouse", "antora",           "https://job-boards.greenhouse.io/antora",           "Climate · industrial thermal storage"),
+    ("Fervo Energy",        "B", "greenhouse", "fervoenergy",      "https://job-boards.greenhouse.io/fervoenergy",      "Climate · next-gen geothermal"),
+    ("CHAOS Industries",    "B", "greenhouse", "chaosindustries",  "https://job-boards.greenhouse.io/chaosindustries",  "Defense · sensing & radar"),
+    ("Gusto",               "B", "greenhouse", "gusto",            "https://job-boards.greenhouse.io/gusto",            "Fintech · payroll & HR"),
+    ("Carta",               "B", "greenhouse", "carta",            "https://job-boards.greenhouse.io/carta",            "Fintech · equity management"),
+    ("Aptos Labs",          "B", "greenhouse", "aptoslabs",        "https://job-boards.greenhouse.io/aptoslabs",        "Fintech · blockchain infrastructure"),
+    ("Incode Technologies", "B", "greenhouse", "incode",           "https://job-boards.greenhouse.io/incode",           "Fintech · identity verification"),
+    ("Together AI",         "B", "greenhouse", "togetherai",       "https://job-boards.greenhouse.io/togetherai",       "AI&Data · inference & training cloud"),
+    ("Isomorphic Labs",     "B", "greenhouse", "isomorphiclabs",   "https://job-boards.greenhouse.io/isomorphiclabs",   "AI&Data · AI drug discovery (DeepMind spin-out)"),
 ]
 
 

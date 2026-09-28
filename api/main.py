@@ -453,7 +453,8 @@ def list_states(scored_only: bool = True, db: Session = Depends(get_db)):
 # ─── sectors (company facet) ─────────────────────────────────
 _SECTOR_LABELS = [
     ("big_tech", "Big Tech"), ("finance", "Finance"),
-    ("defense_aerospace", "Defense / Aerospace"), ("consulting", "Consulting"),
+    ("defense_aerospace", "Defense / Aerospace"), ("climate_energy", "Climate / Energy"),
+    ("consulting", "Consulting"),
 ]
 
 

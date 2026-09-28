@@ -24,7 +24,8 @@ _FINANCE = {
     "citi", "citigroup", "bank of america", "wells fargo", "visa", "mastercard",
     "american express", "amex", "fidelity", "charles schwab", "blackrock",
     "stripe", "plaid", "robinhood", "coinbase", "affirm", "chime", "sofi",
-    "betterment", "brex", "ramp", "mercury",
+    "betterment", "brex", "ramp", "mercury", "gusto", "carta", "aptos",
+    "incode",
 }
 
 _DEFENSE_AEROSPACE = {
@@ -32,7 +33,20 @@ _DEFENSE_AEROSPACE = {
     "northrop grumman", "general dynamics", "l3harris", "boeing",
     "collins aerospace", "textron", "leidos", "booz allen", "saildrone",
     "shield ai", "hermeus", "relativity space", "rocket lab", "firefly",
-    "epirus", "castelion", "applied intuition",
+    "epirus", "castelion", "applied intuition", "chaos industries",
+}
+
+# Climate & energy — added 2026-09-28, when the sector breakdown of scanned
+# companies turned out to contain no climate employer at all despite 18 tracked
+# climate startups. Distinctive names only: this matches by substring, so a
+# generic word ("twelve", "arbor", "arcadia", "watershed") would tag unrelated
+# companies — and "watershed" and "arcadia" are exactly the slugs that turned
+# out to belong to someone else.
+_CLIMATE_ENERGY = {
+    "redwood materials", "antora", "fervo", "commonwealth fusion", "crusoe",
+    "electric hydrogen", "form energy", "helion", "sublime systems",
+    "boston metal", "solugen", "natron", "terraform industries", "ambri",
+    "northvolt", "rivian", "tesla energy",
 }
 
 _CONSULTING = {
@@ -54,6 +68,7 @@ def sector_for(company_name: str) -> str | None:
         ("big_tech", _BIG_TECH),
         ("finance", _FINANCE),
         ("defense_aerospace", _DEFENSE_AEROSPACE),
+        ("climate_energy", _CLIMATE_ENERGY),
         ("consulting", _CONSULTING),
     ):
         if any(name in n or n in name for name in names):
