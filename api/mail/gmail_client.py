@@ -32,9 +32,15 @@ ATS_SENDERS = [
 ]
 
 
+# Every call retries with exponential backoff: googleapiclient treats 429 and
+# 403 rateLimitExceeded as retryable when num_retries is set. A cold poll reads
+# ~150 threads plus ~120 sent messages, and the first one after the 2026-10-20
+# re-auth hit "Units per minute per user" and died instead of waiting.
+
+
 def mailbox_address() -> str:
     """The address the token actually reads."""
-    return _service().users().getProfile(userId="me").execute().get("emailAddress", "")
+    return _service().users().getProfile(userId="me").execute(num_retries=5).get("emailAddress", "")
 
 
 def configured() -> bool:
@@ -166,11 +172,11 @@ def fetch(company_names: list[str], lookback_days: int, limit: int) -> list[dict
     svc = _service()
     q = build_query(company_names, lookback_days)
     log.info("gmail query: %s", q[:200])
-    listing = svc.users().messages().list(userId="me", q=q, maxResults=limit).execute()
+    listing = svc.users().messages().list(userId="me", q=q, maxResults=limit).execute(num_retries=5)
     out = []
     for stub in listing.get("messages", []) or []:
         msg = svc.users().messages().get(
-            userId="me", id=stub["id"], format="full").execute()
+            userId="me", id=stub["id"], format="full").execute(num_retries=5)
         out.append(_shape(msg))
     return out
 
@@ -207,12 +213,12 @@ def sent_by_domain(lookback_days: int, limit: int = 120) -> dict[str, datetime]:
     svc = _service()
     since = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).strftime("%Y/%m/%d")
     listing = svc.users().messages().list(
-        userId="me", q=f"in:sent after:{since}", maxResults=limit).execute()
+        userId="me", q=f"in:sent after:{since}", maxResults=limit).execute(num_retries=5)
     out: dict[str, datetime] = {}
     for stub in listing.get("messages", []) or []:
         msg = svc.users().messages().get(
             userId="me", id=stub["id"], format="metadata",
-            metadataHeaders=["To", "Cc"]).execute()
+            metadataHeaders=["To", "Cc"]).execute(num_retries=5)
         payload = msg.get("payload") or {}
         ts = msg.get("internalDate")
         when = datetime.fromtimestamp(int(ts) / 1000, tz=timezone.utc) if ts else None
@@ -239,11 +245,11 @@ def fetch_threads(company_names: list[str], lookback_days: int, limit: int) -> l
     svc = _service()
     q = build_query(company_names, lookback_days)
     log.info("gmail thread query: %s", q[:200])
-    listing = svc.users().threads().list(userId="me", q=q, maxResults=limit).execute()
+    listing = svc.users().threads().list(userId="me", q=q, maxResults=limit).execute(num_retries=5)
     out = []
     for stub in listing.get("threads", []) or []:
         thread = svc.users().threads().get(
-            userId="me", id=stub["id"], format="full").execute()
+            userId="me", id=stub["id"], format="full").execute(num_retries=5)
         msgs = [_shape(m) for m in thread.get("messages", []) or []]
         msgs.sort(key=lambda m: m["received_at"] or datetime.min.replace(tzinfo=timezone.utc))
         if not msgs:
