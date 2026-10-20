@@ -103,7 +103,7 @@ def _units(th: dict) -> list[dict]:
     return units if latest in units else units + [latest]
 
 
-def poll(db: Session, limit: int | None = None) -> dict:
+def poll(db: Session, limit: int | None = None, full: bool = False) -> dict:
     """Read recent threads, file one proposal per conversation."""
     if not settings.mail_enabled:
         return {"status": "disabled", "reason": "MAIL_ENABLED is false"}
@@ -124,8 +124,13 @@ def poll(db: Session, limit: int | None = None) -> dict:
                         "reason": f"the Gmail token reads {actual}, not {settings.mail_account}. "
                                   "Re-run scripts/gmail_auth.py and sign in as "
                                   f"{settings.mail_account}."}
+        # full=True re-reads every thread — needed after the rules change,
+        # since an unchanged thread is otherwise never re-classified.
+        known = {} if full else {
+            t: h for t, h in db.execute(select(MailMessage.thread_id, MailMessage.history_id)
+                                        .where(MailMessage.history_id.is_not(None))).all()}
         threads = fetch_threads(names, settings.mail_lookback_days,
-                                limit or settings.mail_max_messages)
+                                limit or settings.mail_max_messages, known)
     except Exception as e:
         detail = f"{type(e).__name__}: {e}"
         if "invalid_grant" in str(e).lower():
@@ -170,6 +175,7 @@ def poll(db: Session, limit: int | None = None) -> dict:
         else:
             is_new = False
         decided_at = row.received_at
+        row.history_id = th.get("history_id")
         row.role_title = (role or row.role_title or None)
         if row.role_title:
             row.role_title = row.role_title[:200]

@@ -146,6 +146,8 @@ class MailMessage(Base):
     # several applications (Nike sent two roles into one thread), so a thread
     # files one row per distinct role.
     role_title: Mapped[str | None] = mapped_column(String)
+    # Gmail's historyId for the thread when last read; unchanged means skip.
+    history_id: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     application: Mapped["Application | None"] = relationship()
 

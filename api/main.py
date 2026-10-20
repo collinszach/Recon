@@ -56,7 +56,7 @@ def _ensure_schema():
         # Thread state for mail (2026-09-22).
         for col, typ in (("awaiting", "VARCHAR"), ("last_outbound_at", "TIMESTAMPTZ"),
                          ("last_message_at", "TIMESTAMPTZ"), ("message_count", "INTEGER DEFAULT 1"),
-                         ("role_title", "VARCHAR")):
+                         ("role_title", "VARCHAR"), ("history_id", "VARCHAR")):
             conn.execute(text(f"ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS {col} {typ}"))
         # Standard application fields the 2026-09-21 portal survey turned up:
         # Greenhouse asks "Preferred First Name" separately from the legal first
@@ -1094,9 +1094,9 @@ def mail_status(db: Session = Depends(get_db)):
 
 
 @app.post("/api/mail/poll")
-def mail_poll(limit: int | None = None, db: Session = Depends(get_db)):
+def mail_poll(limit: int | None = None, full: bool = False, db: Session = Depends(get_db)):
     from mail.poll import poll
-    return poll(db, limit=limit)
+    return poll(db, limit=limit, full=full)
 
 
 @app.get("/api/mail/proposals")

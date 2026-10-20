@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import logging
 import re
+import time
 from datetime import datetime, timedelta, timezone
 
 from config import settings
@@ -232,7 +233,27 @@ def sent_by_domain(lookback_days: int, limit: int = 120) -> dict[str, datetime]:
     return out
 
 
-def fetch_threads(company_names: list[str], lookback_days: int, limit: int) -> list[dict]:
+def _paced(request, attempts: int = 4):
+    """Execute, waiting out Gmail's per-minute quota instead of failing.
+
+    num_retries backs off for ~30s in total, which is shorter than the
+    window "Units per minute per user" counts over, so a cold poll still died
+    on it. A rate-limit error here waits the window out.
+    """
+    from googleapiclient.errors import HttpError
+    for attempt in range(attempts):
+        try:
+            return request.execute(num_retries=3)
+        except HttpError as e:
+            limited = e.resp.status in (403, 429) and "ratelimit" in str(e).lower().replace(" ", "")
+            if not limited or attempt == attempts - 1:
+                raise
+            log.info("gmail rate-limited; waiting 61s (attempt %d)", attempt + 1)
+            time.sleep(61)
+
+
+def fetch_threads(company_names: list[str], lookback_days: int, limit: int,
+                  known: dict[str, str] | None = None) -> list[dict]:
     """Whole conversations, not loose messages.
 
     A single message can't answer the question that matters — "is anyone
@@ -245,11 +266,16 @@ def fetch_threads(company_names: list[str], lookback_days: int, limit: int) -> l
     svc = _service()
     q = build_query(company_names, lookback_days)
     log.info("gmail thread query: %s", q[:200])
-    listing = svc.users().threads().list(userId="me", q=q, maxResults=limit).execute(num_retries=5)
+    listing = _paced(svc.users().threads().list(userId="me", q=q, maxResults=limit))
     out = []
+    known = known or {}
     for stub in listing.get("threads", []) or []:
-        thread = svc.users().threads().get(
-            userId="me", id=stub["id"], format="full").execute(num_retries=5)
+        # Unchanged since the last poll (same historyId): nothing to re-read.
+        # Before this every hourly poll re-fetched all 150 threads in full.
+        if stub.get("historyId") and known.get(stub["id"]) == stub["historyId"]:
+            continue
+        thread = _paced(svc.users().threads().get(userId="me", id=stub["id"], format="full"))
+        time.sleep(0.2)       # ~50 units/s, well under the per-user rate
         msgs = [_shape(m) for m in thread.get("messages", []) or []]
         msgs.sort(key=lambda m: m["received_at"] or datetime.min.replace(tzinfo=timezone.utc))
         if not msgs:
@@ -259,6 +285,7 @@ def fetch_threads(company_names: list[str], lookback_days: int, limit: int) -> l
         last = msgs[-1]
         out.append({
             "thread_id": thread.get("id"),
+            "history_id": thread.get("historyId") or stub.get("historyId"),
             "messages": msgs,
             "latest": last,
             # Classification reads the employer's words, so the newest inbound
