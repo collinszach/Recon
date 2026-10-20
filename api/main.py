@@ -571,6 +571,11 @@ def create_app(body: AppCreate, db: Session = Depends(get_db)):
         r = db.get(Role, body.role_id)
         if not r:
             raise HTTPException(404, "role not found")
+        # Tracking a role twice returns the existing application. Three taps
+        # on "track" made Atlassian #37-39 within 2ms on 2026-09-22.
+        existing = db.scalar(select(Application).where(Application.role_id == r.id))
+        if existing:
+            return _app_dict(existing)
         a = Application(role_id=r.id,
                         company_name=r.company.name if r.company else None,
                         role_title=r.title, role_url=r.url, stage=body.stage)
