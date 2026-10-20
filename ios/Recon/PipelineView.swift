@@ -73,15 +73,20 @@ struct PipelineView: View {
                 if items.isEmpty {
                     Text(emptyText).font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 }
-                if seg == .active {
-                    let silent = items.filter(\.isSilent)
-                    if !silent.isEmpty && query.isEmpty {
-                        sectionHeader("No reply in 3+ weeks", count: silent.count, color: Theme.gold)
-                        ForEach(silent) { AppCard(app: $0) }
-                        sectionHeader("Everything active", count: items.count, color: Theme.ink)
+                // Active splits into what moved and what's gone quiet; each
+                // application appears once.
+                let silent = seg == .active && query.isEmpty ? items.filter(\.isSilent) : []
+                let rest = silent.isEmpty ? items : items.filter { !$0.isSilent }
+                if !silent.isEmpty {
+                    if !rest.isEmpty {
+                        sectionHeader("In progress", count: rest.count, color: Theme.ink)
+                        ForEach(rest) { AppCard(app: $0) }
                     }
+                    sectionHeader("No reply in 3+ weeks", count: silent.count, color: Theme.gold)
+                    ForEach(silent) { AppCard(app: $0) }
+                } else {
+                    ForEach(rest) { AppCard(app: $0) }
                 }
-                ForEach(items) { AppCard(app: $0) }
             }
             .padding(16)
         }
@@ -111,10 +116,10 @@ private struct SummaryStrip: View {
         let s = store.appSummary
         HStack(spacing: 10) {
             Stat(num: "\(s?.applied ?? store.apps.filter(\.isActive).count)", label: "applied", color: Theme.ink)
-            Stat(num: "\(s?.interviewing ?? 0)", label: "interviewing", color: Theme.green)
+            Stat(num: "\(s?.interviewing ?? 0)", label: "screens", color: Theme.green)
             Stat(num: "\(s?.closed ?? 0)", label: "closed", color: Theme.rust)
             Stat(num: s?.responseRate.map { "\(Int(($0 * 100).rounded()))%" } ?? "—",
-                 label: "heard back", color: Theme.gold)
+                 label: "replied", color: Theme.gold)
         }
     }
 }
@@ -309,7 +314,8 @@ struct AppCard: View {
 
     var body: some View {
         NavigationLink {
-            ApplicationDetailView(app: app)
+            // Pushed views don't inherit the tab's injected store.
+            ApplicationDetailView(app: app).environmentObject(store)
         } label: {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 8) {
