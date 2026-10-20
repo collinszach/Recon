@@ -1171,15 +1171,23 @@ def mail_accept(proposal_id: int, stage: str | None = None,
                                      or _company_from_subject(m.subject), db) or "(unknown)"
         # Accepting the same confirmation twice, or two confirmations for one
         # role, must not make two applications — Atlassian ended up with three.
-        from mail.classify import same_role
-        twin = next((a for a in db.scalars(select(Application)).all()
-                     if (a.company_name or "").lower() == company.lower()
-                     and m.role_title and same_role(a.role_title, m.role_title)), None)
+        from mail.classify import placeholder_title, same_role
+        at_company = [a for a in db.scalars(select(Application)).all()
+                      if (a.company_name or "").lower() == company.lower()]
+        twin = next((a for a in at_company
+                     if m.role_title and same_role(a.role_title, m.role_title)), None)
+        # The company's only untitled, not-yet-screened application is this
+        # one (Mercedes: titled with its confirmation's subject line).
+        untitled = [a for a in at_company if placeholder_title(a.role_title)
+                    and (a.stage or "applied") in ("watching", "drafting", "applied")]
+        if not twin and m.role_title and len(untitled) == 1:
+            twin = untitled[0]
         if twin:
+            # Attach, then fall through so the proposed stage still applies —
+            # attaching a rejection without closing the application is the
+            # bug this replaced.
             m.application_id = twin.id
-            db.commit()
-            return {"status": "ok", "id": m.id, "moved_to": None,
-                    "created_application": None, "attached_to": twin.id}
+    if not m.application_id:
         app_row = Application(company_name=company,
                               # The role the mail names; the subject only as a
                               # last resort, and then it says it's a subject.
