@@ -57,7 +57,11 @@ def match_application(msg: dict, apps: list[Application],
                 return app, f"{why}, and the role ({role})"
         # An application titled with an email subject is one whose role was
         # never known; the mail can claim it rather than create a twin.
-        unknown = [c for c in candidates if placeholder_title(c[0].role_title)]
+        # Only applications not yet past "applied": one in screen has a human
+        # history, and on 2026-10-20 an untitled Skydio screen was claimed —
+        # and retitled — by a rejection for a different Skydio role.
+        unknown = [c for c in candidates if placeholder_title(c[0].role_title)
+                   and (c[0].stage or "applied") in ("watching", "drafting", "applied")]
         if len(unknown) == 1:
             # Record the role now, so the company's next confirmation for a
             # different role doesn't claim the same row (Mastercard's TPM and PM
@@ -176,9 +180,8 @@ def poll(db: Session, limit: int | None = None, full: bool = False) -> dict:
             is_new = False
         decided_at = row.received_at
         row.history_id = th.get("history_id")
-        row.role_title = (role or row.role_title or None)
-        if row.role_title:
-            row.role_title = row.role_title[:200]
+        # What this read says, not what an older rule extracted.
+        row.role_title = role[:200] if role else None
         row.from_addr = (inbound.get("from_addr") or "")[:300]
         row.subject = (inbound.get("subject") or "")[:500]
         row.snippet = (inbound.get("snippet") or "")[:500]
@@ -195,6 +198,12 @@ def poll(db: Session, limit: int | None = None, full: bool = False) -> dict:
                 row.last_outbound_at = sent_at
         row.message_count = len(th["messages"])
 
+        # "Thanks for joining our career network" reads like a confirmation
+        # but is a talent-community sign-up (Under Armour, GM).
+        if re.search(r"\b(career|talent)\s+(network|community)\b",
+                     f"{inbound.get('subject') or ''} {(inbound.get('body') or '')[:1500]}", re.I) \
+                and verdict["kind"] in ("ack", "other"):
+            marketing = True
         if marketing:
             row.status, row.kind = "ignored", "marketing"
             row.evidence = "job alert / account mail, not application correspondence"
@@ -233,8 +242,9 @@ def poll(db: Session, limit: int | None = None, full: bool = False) -> dict:
         # A confirmation for an application already tracked past "applied"
         # says nothing new. Filing it as pending buried the four real
         # rejections under a dozen "we received your application" rows.
-        if verdict["kind"] == "ack" and app and row.proposed_stage is None:
-            row.status, row.evidence = "ignored", f"{why}. Confirmation for an application already tracked."
+        if verdict["kind"] in ("ack", "screen") and app and row.proposed_stage is None:
+            row.status, row.evidence = "ignored", (f"{why}. Nothing new for an application "
+                                                   f"already at {app.stage}.")
             ignored += 1
             continue
 

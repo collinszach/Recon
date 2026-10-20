@@ -995,6 +995,24 @@ def _company_from_subject(subject: str | None) -> str | None:
     return None
 
 
+def _canonical_company(name: str | None, db: Session) -> str | None:
+    """A known spelling of the employer, if Recon has one.
+
+    Workday tenants name the employer in lowercase run-together form
+    ("capitalone@myworkday.com" -> "Capitalone"); Recon already knows it as
+    "Capital One", and a second spelling is a second, unmatched company.
+    """
+    if not name:
+        return name
+    name = re.sub(r"^at\s+", "", name.strip(), flags=re.I)
+    squash = re.sub(r"[^a-z0-9]", "", name.lower())
+    for known in db.scalars(select(Company.name)).all() + \
+            db.scalars(select(Application.company_name)).all():
+        if known and re.sub(r"[^a-z0-9]", "", known.lower()) == squash:
+            return known
+    return name
+
+
 def _company_from_sender(from_addr: str | None) -> str | None:
     """Company name out of a From header.
 
@@ -1118,8 +1136,8 @@ def mail_proposals(status: str = "pending", limit: int = 50,
             "message_count": m.message_count,
             "application_id": m.application_id,
             # Unmatched: the employer accepting would create the application under.
-            "company": (app_row.company_name if app_row else
-                        _company_from_sender(m.from_addr) or _company_from_subject(m.subject)),
+            "company": (app_row.company_name if app_row else _canonical_company(
+                        _company_from_sender(m.from_addr) or _company_from_subject(m.subject), db)),
             "role_title": app_row.role_title if app_row else m.role_title,
             "mail_role_title": m.role_title,
             "current_stage": app_row.stage if app_row else None,
@@ -1149,8 +1167,8 @@ def mail_accept(proposal_id: int, stage: str | None = None,
         # Sender first (it names the employer on most ATS mail), subject as the
         # fallback for shared domains like us.greenhouse-mail.io that name
         # nobody.
-        company = (_company_from_sender(m.from_addr)
-                   or _company_from_subject(m.subject) or "(unknown)")
+        company = _canonical_company(_company_from_sender(m.from_addr)
+                                     or _company_from_subject(m.subject), db) or "(unknown)"
         # Accepting the same confirmation twice, or two confirmations for one
         # role, must not make two applications — Atlassian ended up with three.
         from mail.classify import same_role
