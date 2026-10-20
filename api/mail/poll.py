@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from config import settings
 from db import Application, MailMessage
-from mail.classify import classify
+from mail.classify import classify, placeholder_title, role_title, same_role
 from datetime import datetime, timezone
 
 from mail.gmail_client import (configured, fetch_threads, is_ats_sender,
@@ -29,12 +29,16 @@ def _norm(s: str | None) -> str:
     return _PUNCT.sub(" ", _SUFFIX.sub(" ", (s or "").lower())).strip()
 
 
-def match_application(msg: dict, apps: list[Application]) -> tuple[Application | None, str]:
+def match_application(msg: dict, apps: list[Application],
+                      role: str | None = None) -> tuple[Application | None, str]:
     """The application this message is about, and why.
 
     Company name first: it appears in the sender's domain or display name on
-    virtually every ATS mail ("Stripe via Greenhouse"). Role title is the
-    tiebreak when several applications share a company.
+    virtually every ATS mail ("Stripe via Greenhouse"). When the mail names a
+    role, the role decides among that company's applications — and a role
+    Recon has no application for is a NEW application, not the nearest
+    existing one. Before this, Intuit's six confirmations all attached to
+    whichever Intuit row came first, and five applications never existed.
     """
     hay = _norm(" ".join(filter(None, [msg.get("from_addr"), msg.get("subject"),
                                        (msg.get("body") or "")[:1500]])))
@@ -47,6 +51,16 @@ def match_application(msg: dict, apps: list[Application]) -> tuple[Application |
             candidates.append((app, f"mentions {app.company_name}"))
     if not candidates:
         return None, ""
+    if role:
+        for app, why in candidates:
+            if same_role(app.role_title, role):
+                return app, f"{why}, and the role ({role})"
+        # An application titled with an email subject is one whose role was
+        # never known; the mail can claim it rather than create a twin.
+        unknown = [c for c in candidates if placeholder_title(c[0].role_title)]
+        if len(unknown) == 1:
+            return unknown[0][0], f"{unknown[0][1]} (its role was never recorded; this mail says {role})"
+        return None, f"a role Recon has no application for at {candidates[0][0].company_name}"
     if len(candidates) == 1:
         return candidates[0]
     # Several applications at the same company — use the role title.
@@ -58,6 +72,29 @@ def match_application(msg: dict, apps: list[Application]) -> tuple[Application |
     # proposal says so rather than pretending to be sure.
     best = max(candidates, key=lambda c: c[0].updated_at or c[0].created_at)
     return best[0], f"{best[1]} (several applications there; picked the most recent)"
+
+
+def _units(th: dict) -> list[dict]:
+    """The messages in a thread that each deserve a proposal.
+
+    Normally just the newest inbound one. But an ATS will drop several
+    confirmations into one thread when the subject repeats — Nike's two roles,
+    sent minutes apart as "You have successfully applied to NIKE!" — and
+    reading only the newest loses the others. So a thread made purely of
+    acknowledgements files one proposal per distinct role it names.
+    """
+    inbound = [m for m in th["messages"] if not m["outbound"]]
+    if not inbound:
+        return []
+    latest = th["latest_inbound"]
+    if len(inbound) == 1 or any(classify(m.get("subject"), m.get("body"))["kind"] != "ack"
+                                for m in inbound):
+        return [latest]
+    by_role: dict[str, dict] = {}
+    for m in inbound:                       # oldest first; later wins per role
+        by_role[(role_title(m.get("subject"), m.get("body")) or "").lower()] = m
+    units = list(by_role.values())
+    return units if latest in units else units + [latest]
 
 
 def poll(db: Session, limit: int | None = None) -> dict:
@@ -94,13 +131,20 @@ def poll(db: Session, limit: int | None = None) -> dict:
         sent_map = {}
 
     created = updated = ignored = unmatched = 0
-    for th in threads:
-        inbound = th["latest_inbound"]
-        if not inbound:
-            continue          # a thread of only your own mail says nothing yet
-        latest = th["latest"]
-        row = db.scalar(select(MailMessage).where(MailMessage.thread_id == th["thread_id"]))
-        app, why = match_application(inbound, apps)
+    for th, inbound in ((th, u) for th in threads for u in _units(th)):
+        # (a thread of only your own mail has no units — it says nothing yet)
+        role = role_title(inbound.get("subject"), inbound.get("body"))
+        existing = db.scalars(select(MailMessage).where(
+            MailMessage.thread_id == th["thread_id"])).all()
+        # This role's row; else, for the thread's newest message, the row a
+        # poll before role-splitting filed for the whole thread.
+        row = next((r for r in existing if role and r.role_title
+                    and r.role_title.lower() == role.lower()), None)
+        if row is None and inbound is th["latest_inbound"]:
+            row = next((r for r in existing if not r.role_title), None)
+        if row is None:
+            row = next((r for r in existing if r.message_id == inbound["message_id"]), None)
+        app, why = match_application(inbound, apps, role)
         verdict = classify(inbound.get("subject"), inbound.get("body"))
         from_ats = is_ats_sender(inbound.get("from_addr"))
         marketing = looks_like_marketing(inbound.get("from_addr"), inbound.get("subject"))
@@ -111,6 +155,10 @@ def poll(db: Session, limit: int | None = None) -> dict:
             is_new = True
         else:
             is_new = False
+        decided_at = row.received_at
+        row.role_title = (role or row.role_title or None)
+        if row.role_title:
+            row.role_title = row.role_title[:200]
         row.from_addr = (inbound.get("from_addr") or "")[:300]
         row.subject = (inbound.get("subject") or "")[:500]
         row.snippet = (inbound.get("snippet") or "")[:500]
@@ -132,6 +180,16 @@ def poll(db: Session, limit: int | None = None) -> dict:
             row.evidence = "job alert / account mail, not application correspondence"
             ignored += 1
             continue
+        # A decided proposal stays decided while the thread says nothing new —
+        # re-reading it must not re-match it to a different application. A NEW
+        # message from them (the rejection that lands in the screen thread) is
+        # a new question, so it reopens.
+        if row.status in ("accepted", "dismissed"):
+            if row.message_id == inbound["message_id"] or (
+                    decided_at and inbound.get("received_at")
+                    and inbound["received_at"] <= decided_at):
+                continue
+            row.message_id, row.status = inbound["message_id"], "pending"
         if not app and verdict["kind"] not in ("ack", "screen", "rejection", "offer"):
             row.status, row.kind = "unmatched", verdict["kind"]
             row.evidence = "no application matched this sender or subject"
@@ -166,7 +224,9 @@ def poll(db: Session, limit: int | None = None) -> dict:
             if verdict["kind"] == "screen" and app and (app.stage or "") in ("screen", "onsite", "offer"):
                 row.proposed_stage = None
         else:
-            base = f"{why}. " if app else "No application in Recon matches this. Accepting creates one. "
+            base = (f"{why}. " if app else
+                    f"{(why[:1].upper() + why[1:]) if why else 'No application in Recon matches this'}. "
+                    "Accepting creates one. ")
             row.evidence = f"{base}{verdict['evidence']}"
 
         row.status = "pending" if row.status not in ("accepted", "dismissed") else row.status

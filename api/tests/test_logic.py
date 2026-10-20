@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from mail.classify import classify                      # noqa: E402
+from mail.classify import classify, placeholder_title, role_title, same_role  # noqa: E402
 from scan.geo import is_us, metro_of, states_of         # noqa: E402
 from scan.intern_filter import in_active_track, is_internship, is_pure_swe  # noqa: E402
 
@@ -65,6 +65,53 @@ check("newsletter-no-stage", classify("Weekly digest", "articles")["proposed_sta
 # An acknowledgement proposes no stage on its own; the poller decides that
 # against the application's current stage.
 check("ack-no-stage", classify("Thank you for applying", "")["proposed_stage"], None)
+
+# Real October 2026 mail the first rules read as nothing (the hourly poll was
+# also crashing, so nobody noticed). Wording verbatim from the emails.
+check("reject-unable-to-move", kind("Thank you for your interest",
+      "Based on your assessment results, we're unable to move forward with your application"), "rejection")
+check("reject-decided-not-to", kind("Your application - Product Management Intern at Datadog",
+      "but we have decided not to move forward with your application at this time."), "rejection")
+# The opposite message must not read as a rejection.
+check("advance-not-reject", kind("Next steps",
+      "we have decided to move forward with your candidacy and would like to schedule a call"), "screen")
+# Nike's confirmation invites a tax-credit survey; it is still a confirmation.
+check("nike-ack", kind("You have successfully applied to NIKE!",
+      "Thank you for your interest in the Digital Growth Graduate Internship opening. "
+      "We invite you to complete the WOTC by going to the survey here"), "ack")
+check("atlassian-ack", kind("Atlassian: Thanks for Completing Your Application",
+      "Thank you again for your interest in the Product Management Intern, 2027 Summer U.S. position."), "ack")
+check("microsoft-ack", kind("Thank you for your application!",
+      "Thank you for taking the time to submit your application for Business Program "
+      "Management INTERN (Job number: 200058904)."), "ack")
+
+# Role titles: the application gets the role, not the subject line.
+for label, subj, body, want in [
+    ("c3", "Thank you for applying to C3 AI", "Thank you for your interest in C3 AI and for applying "
+     "to the AI Product Manager - MBA Intern (Summer 2027) role.", "AI Product Manager - MBA Intern (Summer 2027)"),
+    ("intuit", "Application Received!", "taking the time to apply for the Summer 2027: Technical Program "
+     "Manager (TPM) Intern position.", "Summer 2027: Technical Program Manager (TPM) Intern"),
+    ("microsoft", "Thank you for your application!", "submit your application for Business Program "
+     "Management INTERN (Job number: 200058904).", "Business Program Management INTERN"),
+    ("mastercard", "Thank you for your application!", "We have received your application for the role: "
+     "Product Management Intern, Summer 2027 - United States . At", "Product Management Intern, Summer 2027"),
+    ("workday-req", "Thanks for Applying to Adobe", "we received your application for the R171856 2027 "
+     "Intern - Enterprise Architecture Analyst role.", "2027 Intern - Enterprise Architecture Analyst"),
+    ("nike-inc", "You have successfully applied to NIKE!", "Thank you for your interest in the NIKE, Inc. "
+     "Digital Growth Graduate Internship opening with NIKE, Inc., home", "Digital Growth Graduate Internship"),
+    ("gm-subject", "Your application to 2027 Summer Intern - Digital Product: Product Management (MBA) is in!",
+     "Thanks for applying to GM.", "2027 Summer Intern - Digital Product: Product Management (MBA)"),
+    ("unstated", "Thanks for applying to Google", "Thanks for applying to Google! There are a ton", None),
+]:
+    check(f"role-{label}", role_title(subj, body), want)
+
+check("same-role-wording", same_role("Product Management Intern, 2027 Summer U.S.", "Product Management Intern"), True)
+check("same-role-manager", same_role("Product Manager Intern", "Product Management Intern"), True)
+# Intuit's TPM and PM applications are two applications.
+check("different-role", same_role("Summer 2027: Technical Program Manager (TPM) Intern",
+                                  "Summer 2027: Product Manager Intern"), False)
+check("placeholder", placeholder_title("Thank you for applying to Relay!"), True)
+check("real-title", placeholder_title("AI Program Manager Intern"), False)
 
 if failures:
     print(f"FAILED ({len(failures)}):")

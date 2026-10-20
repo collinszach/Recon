@@ -1,12 +1,3 @@
+# Worker-only dependencies. Everything the API's code needs comes from
+# api/requirements.txt, which worker/Dockerfile installs first.
 apscheduler==3.11.0
-sqlalchemy==2.0.36
-psycopg[binary]==3.2.3
-pydantic==2.10.4
-pydantic-settings==2.7.1
-httpx==0.28.1
-anthropic==0.42.0
-openai==1.59.6                       # gs65 local Ollama (OpenAI-compatible) when LLM_PROVIDER=local; must match api/requirements.txt
-pgvector==0.3.6                      # worker imports api/db.py which defines a Vector column
-PyJWT==2.10.1                        # APNs provider-token auth (lazy-imported; only needed if NOTIFY_APNS_ENABLED)
-cryptography==44.0.0                 # signs the APNs .p8 auth key
-h2==4.1.0                            # httpx HTTP/2 support, required by Apple's APNs endpoint

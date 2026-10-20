@@ -55,7 +55,8 @@ def _ensure_schema():
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_backfill BOOLEAN DEFAULT FALSE"))
         # Thread state for mail (2026-09-22).
         for col, typ in (("awaiting", "VARCHAR"), ("last_outbound_at", "TIMESTAMPTZ"),
-                         ("last_message_at", "TIMESTAMPTZ"), ("message_count", "INTEGER DEFAULT 1")):
+                         ("last_message_at", "TIMESTAMPTZ"), ("message_count", "INTEGER DEFAULT 1"),
+                         ("role_title", "VARCHAR")):
             conn.execute(text(f"ALTER TABLE mail_messages ADD COLUMN IF NOT EXISTS {col} {typ}"))
         # Standard application fields the 2026-09-21 portal survey turned up:
         # Greenhouse asks "Preferred First Name" separately from the legal first
@@ -1100,8 +1101,11 @@ def mail_proposals(status: str = "pending", limit: int = 50,
             "last_outbound_at": m.last_outbound_at.isoformat() if m.last_outbound_at else None,
             "message_count": m.message_count,
             "application_id": m.application_id,
-            "company": app_row.company_name if app_row else None,
-            "role_title": app_row.role_title if app_row else None,
+            # Unmatched: the employer accepting would create the application under.
+            "company": (app_row.company_name if app_row else
+                        _company_from_sender(m.from_addr) or _company_from_subject(m.subject)),
+            "role_title": app_row.role_title if app_row else m.role_title,
+            "mail_role_title": m.role_title,
             "current_stage": app_row.stage if app_row else None,
         })
     return out
@@ -1131,8 +1135,21 @@ def mail_accept(proposal_id: int, stage: str | None = None,
         # nobody.
         company = (_company_from_sender(m.from_addr)
                    or _company_from_subject(m.subject) or "(unknown)")
+        # Accepting the same confirmation twice, or two confirmations for one
+        # role, must not make two applications — Atlassian ended up with three.
+        from mail.classify import same_role
+        twin = next((a for a in db.scalars(select(Application)).all()
+                     if (a.company_name or "").lower() == company.lower()
+                     and m.role_title and same_role(a.role_title, m.role_title)), None)
+        if twin:
+            m.application_id = twin.id
+            db.commit()
+            return {"status": "ok", "id": m.id, "moved_to": None,
+                    "created_application": None, "attached_to": twin.id}
         app_row = Application(company_name=company,
-                              role_title=(m.subject or "")[:200] or None,
+                              # The role the mail names; the subject only as a
+                              # last resort, and then it says it's a subject.
+                              role_title=(m.role_title or (m.subject or "")[:200] or None),
                               stage=target or "applied",
                               applied_at=m.received_at or datetime.now(timezone.utc),
                               notes=f"Created from email: {(m.subject or '')[:160]}")
@@ -1146,6 +1163,13 @@ def mail_accept(proposal_id: int, stage: str | None = None,
         db.commit()
         return {"status": "ok", "id": m.id, "created_application": created,
                 "moved_to": app_row.stage}
+    if m.application_id and m.role_title:
+        # An application created from an older confirmation is titled with its
+        # subject line; this mail knows the real role.
+        from mail.classify import placeholder_title
+        app_row = db.get(Application, m.application_id)
+        if app_row and placeholder_title(app_row.role_title):
+            app_row.role_title = m.role_title
     if target and m.application_id:
         app_row = db.get(Application, m.application_id)
         if app_row and app_row.stage != target:

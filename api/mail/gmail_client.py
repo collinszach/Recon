@@ -63,9 +63,16 @@ APPLICATION_WORDS = [
 SENDER_DENYLIST = [
     "jobalerts-noreply@linkedin.com", "notifications-noreply@linkedin.com",
     "jobs-listings@linkedin.com", "notification.capitalone.com",
-    "email.careers.microsoft.com", "indeedemail.com", "ziprecruiter.com",
+    "indeedemail.com", "ziprecruiter.com",
     "glassdoor.com", "jobright.ai", "hellofresh", "noreply@medium.com",
 ]
+# Senders that mix talent marketing with real application mail. Denylisting
+# Microsoft outright (fc67d2f, for its marketing blasts) also threw away every
+# "Thank you for your application!" it sends — three applications Recon never
+# saw. These are read, and treated as marketing unless the subject is about an
+# application.
+MIXED_SENDERS = ["email.careers.microsoft.com"]
+_APPLICATION_SUBJECT = re.compile(r"\b(application|applying|applied|candidacy|interview)\b", re.I)
 # Marketing and account mail that survives the sender rules.
 SUBJECT_DENYLIST = re.compile(
     r"(job alert|new jobs?\b|jobs? (for|at|that match)|roles at |profile is popular|"
@@ -92,6 +99,15 @@ def build_query(company_names: list[str], lookback_days: int) -> str:
         quoted = " OR ".join(f'"{n}"' for n in names)
         words = " OR ".join(APPLICATION_WORDS)
         clauses.append(f"(({quoted}) AND ({words}))")
+    # Employers that run their own mailer rather than an ATS domain — Intuit,
+    # Datadog, Duolingo, NVIDIA's Workday alias aside — and that Recon has no
+    # application for yet. Without this, the first application to a new
+    # company is invisible until Zach adds it by hand, which is the thing the
+    # mail reader exists to save him.
+    clauses.append('subject:("thank you for applying" OR "thanks for applying" OR '
+                   '"your application" OR "application received" OR '
+                   '"successfully applied" OR "application to" OR "applying to" OR '
+                   '"your interest in")')
     excluded = " ".join(f"-from:{d}" for d in SENDER_DENYLIST)
     # When a label is configured, it replaces the heuristics entirely: Zach's
     # own filters decide what Recon may see, and nothing outside them is read.
@@ -108,6 +124,8 @@ def is_ats_sender(from_addr: str | None) -> bool:
 def looks_like_marketing(from_addr: str | None, subject: str | None) -> bool:
     low = (from_addr or "").lower()
     if any(d in low for d in SENDER_DENYLIST):
+        return True
+    if any(d in low for d in MIXED_SENDERS) and not _APPLICATION_SUBJECT.search(subject or ""):
         return True
     return bool(SUBJECT_DENYLIST.search(subject or ""))
 

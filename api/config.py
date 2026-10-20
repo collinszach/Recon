@@ -132,7 +132,8 @@ class Settings(BaseSettings):
     # become the boundary of what it can see, which is a tighter and more
     # legible privacy story than any query I can write.
     mail_label_filter: str = ""
-    mail_max_messages: int = 60           # cap per poll (quota + N95 politeness)
+    mail_max_messages: int = 150          # cap per poll (quota + N95 politeness); 60 was
+                                          # fewer than one busy month of application mail
 
     # ─── Notifications: email ───────────────────────────────
     notify_email_enabled: bool = False
