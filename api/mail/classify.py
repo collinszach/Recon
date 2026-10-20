@@ -106,6 +106,11 @@ _ROLE_RES = [
     # "...apply for GE Vernova Controls Product Management Intern - Summer 2027 ." —
     # Workday templates leave a space before the full stop.
     re.compile(r"\bapply\s+for\s+(?:the\s+)?(?P<t>[^.!]{4,140}?)\s\.", re.I),
+    # Subject: "Update on your AI Program Manager Intern application - Mercedes-Benz R&D" (Lever)
+    # The capture must name a role, or "Update on your Skydio Application"
+    # reads the company as one.
+    re.compile(r"\bupdate\s+on\s+your\s+(?P<t>[^!]{0,100}?\b(?:intern|internship|manager|analyst|"
+               r"engineer|associate|fellow|designer|specialist)\b[^!]{0,40}?)\s+application\b", re.I),
     # Subject: "Update on your Skydio Application - Operations Program Management Intern"
     re.compile(r"\bapplication\s+[-–:]\s+(?P<t>[^!]{4,140}?)\s*$", re.I),
     # Subject: "Your application to 2027 Summer Intern - Digital Product ... is in!" (GM)
@@ -126,6 +131,9 @@ _NOT_A_ROLE = re.compile(r"^(?:a|an|this|that|our|your|the)\b|\b(?:company|team|
 def role_title(subject: str | None, body: str | None) -> str | None:
     """Role title out of application mail, or None when it isn't stated."""
     for text in (body or "", subject or ""):
+        # Lever pads titles with zero-width spaces ("​​AI Program Manager Intern​"),
+        # which hid Mercedes's role and made a duplicate application.
+        text = re.sub(r"[\u200b-\u200d\ufeff]", "", text)
         flat = re.sub(r"\s+", " ", text.replace("&amp;", "&"))
         flat = re.sub(r"\b(Inc|Corp|Ltd|Co)\.", r"\1", flat)     # "[^.]" must survive "NIKE, Inc."
         for pat in _ROLE_RES:

@@ -125,6 +125,9 @@ check("same-role-not-contained", same_role("Product Manager: Internship Opportun
       "Product Management Intern - CTJ - TS with Security Clearance"), False)
 check("same-role-one-word", same_role("MBA Product Intern - Summer 2027",
       "Product Development Internship Program - Summer 2027"), False)
+check("role-zero-width", role_title(
+      "Update on your \u200b\u200bAI Program Manager Intern\u200b application - Mercedes-Benz R&D", ""),
+      "AI Program Manager Intern")
 check("placeholder", placeholder_title("Thank you for applying to Relay!"), True)
 check("real-title", placeholder_title("AI Program Manager Intern"), False)
 

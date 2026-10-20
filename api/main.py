@@ -1332,7 +1332,12 @@ def _accept_proposal(m: MailMessage, stage: str | None, db: Session) -> dict:
             app_row.role_title = m.role_title
     if target and m.application_id:
         app_row = db.get(Application, m.application_id)
-        if app_row and app_row.stage != target:
+        # A confirmation only ever moves a saved application to applied. On
+        # 2026-10-20 a same-day Adobe confirmation, accepted after its
+        # rejection, reopened the closed application.
+        if app_row and m.kind == "ack" and (app_row.stage or "") not in ("watching", "drafting"):
+            target = None
+        if target and app_row and app_row.stage != target:
             db.add(ApplicationEvent(
                 application_id=app_row.id, from_stage=app_row.stage, to_stage=target,
                 note=f"From email: {(m.subject or '')[:120]} — {m.evidence or ''}"[:500]))
