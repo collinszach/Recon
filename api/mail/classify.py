@@ -172,4 +172,9 @@ def same_role(a: str | None, b: str | None) -> bool:
     # Overlap over the union, not the smaller set: "Product Manager:
     # Internship Opportunities" is wholly contained in "Product Management
     # Intern - CTJ - TS with Security Clearance", and they are not one role.
+    # One distinctive word is not enough to call two roles the same: "MBA
+    # Product Intern" reduces to {product}, which half-matches every product
+    # role at the company.
+    if min(len(wa), len(wb)) < 2:
+        return wa == wb
     return len(wa & wb) / len(wa | wb) >= 0.5

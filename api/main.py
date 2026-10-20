@@ -562,7 +562,69 @@ def list_apps(stage: str | None = None, db: Session = Depends(get_db)):
     q = select(Application)
     if stage:
         q = q.where(Application.stage == stage)
-    return [_app_dict(a) for a in db.scalars(q.order_by(Application.updated_at.desc())).all()]
+    rows = db.scalars(q.order_by(Application.updated_at.desc())).all()
+    last = _last_mail_by_app(db)
+    return [_app_dict(a, last.get(a.id)) for a in rows]
+
+
+_ACTIVE = ("applied", "screen", "onsite", "offer")
+SILENT_DAYS = 21
+
+
+@app.get("/api/applications/summary")
+def apps_summary(db: Session = Depends(get_db)):
+    """The numbers that say how the search is going.
+
+    "Applied" counts everything that was ever sent — active or closed after
+    applying — because a rejection is still an application. "Responded" is
+    anything past applied, or a rejection: an employer that said something.
+    """
+    apps_ = db.scalars(select(Application)).all()
+    now = datetime.now(timezone.utc)
+    events = db.scalars(select(ApplicationEvent)).all()
+    reached: dict[int, set[str]] = {}
+    for e in events:
+        reached.setdefault(e.application_id, set()).update(
+            x for x in (e.from_stage, e.to_stage) if x)
+    sent = [a for a in apps_ if a.stage in _ACTIVE or a.applied_at
+            or "applied" in reached.get(a.id, set())]
+    rejected = [a for a in sent if a.stage == "closed"]
+    responded = [a for a in sent if a.stage in ("screen", "onsite", "offer") or a.stage == "closed"
+                 or reached.get(a.id, set()) & {"screen", "onsite", "offer"}]
+    silent = [a for a in apps_ if a.stage == "applied" and a.applied_at
+              and (now - a.applied_at).days >= SILENT_DAYS]
+    return {"applied": len(sent),
+            "active": sum(1 for a in apps_ if a.stage in _ACTIVE),
+            "interviewing": sum(1 for a in apps_ if a.stage in ("screen", "onsite")),
+            "offers": sum(1 for a in apps_ if a.stage == "offer"),
+            "closed": len(rejected),
+            "saved": sum(1 for a in apps_ if a.stage in ("watching", "drafting")),
+            "silent": len(silent), "silent_days": SILENT_DAYS,
+            "response_rate": round(len(responded) / len(sent), 3) if sent else None,
+            "pending_mail": db.scalar(select(func.count()).select_from(MailMessage)
+                                      .where(MailMessage.status == "pending")) or 0}
+
+
+@app.get("/api/applications/{app_id}/timeline")
+def app_timeline(app_id: int, db: Session = Depends(get_db)):
+    """Everything that happened to one application, newest first: stage moves
+    and the emails behind them, in one list."""
+    a = db.get(Application, app_id)
+    if not a:
+        raise HTTPException(404, "application not found")
+    items = [{"type": "event", "at": e.at.isoformat() if e.at else None,
+              "from_stage": e.from_stage, "to_stage": e.to_stage, "note": e.note}
+             for e in db.scalars(select(ApplicationEvent)
+                                 .where(ApplicationEvent.application_id == app_id)).all()]
+    items += [{"type": "email", "at": m.received_at.isoformat() if m.received_at else None,
+               "kind": m.kind, "subject": m.subject, "from": m.from_addr,
+               "snippet": m.snippet, "status": m.status}
+              for m in db.scalars(select(MailMessage)
+                                  .where(MailMessage.application_id == app_id,
+                                         MailMessage.kind != "marketing")).all()]
+    items.sort(key=lambda i: i["at"] or "", reverse=True)
+    return {"application": _app_dict(a, _last_mail_by_app(db, [app_id]).get(app_id)),
+            "items": items}
 
 
 @app.post("/api/applications")
@@ -666,14 +728,35 @@ def list_app_events(app_id: int, db: Session = Depends(get_db)):
              "note": e.note, "at": e.at.isoformat() if e.at else None} for e in rows]
 
 
-def _app_dict(a: Application) -> dict:
+def _app_dict(a: Application, last_mail: MailMessage | None = None) -> dict:
     return {"id": a.id, "company_name": a.company_name, "role_title": a.role_title,
             "role_url": a.role_url, "stage": a.stage, "outcome": a.outcome,
             "applied_at": a.applied_at.isoformat() if a.applied_at else None,
             "next_action": a.next_action,
             "next_action_due": a.next_action_due.isoformat() if a.next_action_due else None,
             "notes": a.notes,
-            "fit_score": a.role.fit_score if a.role else None}
+            "fit_score": a.role.fit_score if a.role else None,
+            "updated_at": a.updated_at.isoformat() if a.updated_at else None,
+            # The newest employer mail on file — what the card shows under the
+            # role ("Rejected · Oct 16"), so the list answers "where does this
+            # stand?" without opening anything.
+            "last_email": ({"kind": last_mail.kind, "subject": last_mail.subject,
+                            "received_at": last_mail.received_at.isoformat()
+                            if last_mail.received_at else None}
+                           if last_mail else None)}
+
+
+def _last_mail_by_app(db: Session, app_ids: list[int] | None = None) -> dict[int, MailMessage]:
+    """Newest linked, non-marketing mail per application, in one query."""
+    q = (select(MailMessage).where(MailMessage.application_id.is_not(None),
+                                   MailMessage.kind != "marketing")
+         .order_by(MailMessage.received_at.desc().nullslast()))
+    if app_ids is not None:
+        q = q.where(MailMessage.application_id.in_(app_ids))
+    out: dict[int, MailMessage] = {}
+    for m in db.scalars(q).all():
+        out.setdefault(m.application_id, m)
+    return out
 
 
 # ─── contacts (networking CRM) ──────────────────────────────
@@ -1156,6 +1239,42 @@ def mail_accept(proposal_id: int, stage: str | None = None,
     m = db.get(MailMessage, proposal_id)
     if not m:
         raise HTTPException(404, "proposal not found")
+    out = _accept_proposal(m, stage, db)
+    db.commit()
+    return out
+
+
+# Kinds "accept all" may act on: each announces itself in near-boilerplate and
+# carries an unambiguous move. Screens, offers and requests stay one-by-one.
+_BULK_KINDS = ("ack", "rejection")
+
+
+@app.post("/api/mail/proposals/accept-all")
+def mail_accept_all(db: Session = Depends(get_db)):
+    """Accept every pending confirmation and rejection that proposes a move.
+
+    Oldest first, so a confirmation creates the application before its
+    rejection arrives to close it — the other order would make a closed
+    application and then a second, open one.
+    """
+    rows = db.scalars(
+        select(MailMessage).where(MailMessage.status == "pending",
+                                  MailMessage.kind.in_(_BULK_KINDS),
+                                  MailMessage.proposed_stage.is_not(None))
+        .order_by(MailMessage.received_at.asc().nullsfirst())).all()
+    results = []
+    for m in rows:
+        results.append(_accept_proposal(m, None, db))
+        db.flush()
+    db.commit()
+    return {"accepted": len(results),
+            "created": sum(1 for r in results if r.get("created_application")),
+            "moved": sum(1 for r in results if r.get("moved_to")),
+            "results": results}
+
+
+def _accept_proposal(m: MailMessage, stage: str | None, db: Session) -> dict:
+    """The accept itself, without committing — shared by one and all."""
     target = stage or m.proposed_stage
     m.status = "accepted"
     moved = None
@@ -1202,7 +1321,6 @@ def mail_accept(proposal_id: int, stage: str | None = None,
                                 note=f"Created from email from {m.from_addr}"))
         m.application_id = app_row.id
         created = {"id": app_row.id, "company": company}
-        db.commit()
         return {"status": "ok", "id": m.id, "created_application": created,
                 "moved_to": app_row.stage}
     if m.application_id and m.role_title:
@@ -1222,8 +1340,9 @@ def mail_accept(proposal_id: int, stage: str | None = None,
             if target == "applied" and not app_row.applied_at:
                 app_row.applied_at = datetime.now(timezone.utc)
             moved = target
-    db.commit()
     return {"status": "ok", "id": m.id, "moved_to": moved, "created_application": created}
+
+
 
 
 @app.post("/api/mail/proposals/{proposal_id}/dismiss")

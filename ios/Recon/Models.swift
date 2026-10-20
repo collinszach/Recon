@@ -250,6 +250,31 @@ struct AppItem: Codable, Identifiable, Hashable {
     let nextActionDue: String?
     let notes: String?
     let fitScore: Double?
+    // Optional so a payload cached before these existed still decodes.
+    var updatedAt: String? = nil
+    var lastEmail: LastEmail? = nil
+
+    struct LastEmail: Codable, Hashable {
+        let kind: String?
+        let subject: String?
+        let receivedAt: String?
+        enum CodingKeys: String, CodingKey {
+            case kind, subject
+            case receivedAt = "received_at"
+        }
+        /// "Rejected", "Confirmed", "Interview invite"… in the employer's terms.
+        var label: String {
+            switch kind {
+            case "rejection":    return "Rejected"
+            case "ack":          return "Confirmed"
+            case "screen":       return "Interview invite"
+            case "offer":        return "Offer"
+            case "info_request": return "Action requested"
+            default:             return "Email"
+            }
+        }
+        var date: Date? { Role.parseDate(receivedAt) }
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, stage, outcome, notes
@@ -260,6 +285,21 @@ struct AppItem: Codable, Identifiable, Hashable {
         case nextAction = "next_action"
         case nextActionDue = "next_action_due"
         case fitScore = "fit_score"
+        case updatedAt = "updated_at"
+        case lastEmail = "last_email"
+    }
+
+    var appliedDate: Date? { Role.parseDate(appliedAt) }
+    /// Whole days since it was sent, for "Applied Sep 21 · 29d".
+    var daysSinceApplied: Int? {
+        appliedDate.map { Calendar.current.dateComponents([.day], from: $0, to: Date()).day ?? 0 }
+    }
+    var isActive: Bool { ["applied", "screen", "onsite", "offer"].contains(stage) }
+    var isSaved: Bool { ["watching", "drafting"].contains(stage) }
+    /// Applied three weeks ago and nothing since — the follow-up list.
+    var isSilent: Bool {
+        stage == "applied" && (daysSinceApplied ?? 0) >= 21
+            && (lastEmail?.kind ?? "ack") == "ack"
     }
 
     enum DueState { case overdue, stale }
@@ -452,6 +492,44 @@ struct InterviewPrep: Codable {
     let watch_outs: [String]?
     let error: String?
 }
+
+/// GET /api/applications/summary — how the search is going, in numbers.
+struct AppSummary: Codable, Hashable {
+    let applied: Int
+    let active: Int
+    let interviewing: Int
+    let offers: Int
+    let closed: Int
+    let saved: Int
+    let silent: Int
+    let responseRate: Double?
+    let pendingMail: Int
+    enum CodingKeys: String, CodingKey {
+        case applied, active, interviewing, offers, closed, saved, silent
+        case responseRate = "response_rate"
+        case pendingMail = "pending_mail"
+    }
+}
+
+/// One line of an application's history: a stage move or an email.
+struct TimelineItem: Codable, Hashable, Identifiable {
+    let type: String          // event | email
+    let at: String?
+    let fromStage: String?
+    let toStage: String?
+    let note: String?
+    let kind: String?
+    let subject: String?
+    let from: String?
+    let snippet: String?
+    var id: String { "\(type)-\(at ?? "")-\(subject ?? note ?? "")" }
+    enum CodingKeys: String, CodingKey {
+        case type, at, note, kind, subject, from, snippet
+        case fromStage = "from_stage"
+        case toStage = "to_stage"
+    }
+}
+struct AppTimeline: Codable { let application: AppItem; let items: [TimelineItem] }
 
 enum Stage: String, CaseIterable, Identifiable {
     case watching, drafting, applied, screen, onsite, offer, closed

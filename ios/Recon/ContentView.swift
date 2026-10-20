@@ -15,8 +15,9 @@ struct ContentView: View {
             NavTab(title: "Apply", store: store, showSettings: $showSettings) { ApplyView() }
                 .tabItem { Label("Apply", systemImage: "square.and.pencil") }
 
-            NavTab(title: "Pipeline", store: store, showSettings: $showSettings) { PipelineView() }
-                .tabItem { Label("Pipeline", systemImage: "rectangle.stack") }
+            NavTab(title: "Applications", store: store, showSettings: $showSettings) { PipelineView() }
+                .tabItem { Label("Applications", systemImage: "tray.full") }
+                .badge(store.mailProposals.count)
 
             NavTab(title: "Startups", store: store, showSettings: $showSettings) { StartupsView() }
                 .tabItem { Label("Startups", systemImage: "building.2") }

@@ -14,6 +14,8 @@ final class Store: ObservableObject {
     /// Replies Recon found, each waiting on a yes/no. Nothing moves until one
     /// is accepted.
     @Published var mailProposals: [MailProposal] = []
+    /// Server-computed search numbers (applied, response rate, silent).
+    @Published var appSummary: AppSummary?
     /// Flat contact/EEO profile used to fill application forms in-app. Same
     /// payload the Chrome extension uses, so the two can't drift.
     @Published var autofillProfile: [String: String] = [:]
@@ -78,6 +80,7 @@ final class Store: ObservableObject {
         roles = Cache.load([Role].self, "roles") ?? []
         brief = Cache.load(Brief.self, "brief")
         apps = Cache.load([AppItem].self, "apps") ?? []
+        appSummary = Cache.load(AppSummary.self, "appSummary")
         companies = Cache.load([Company].self, "companies") ?? []
         contacts = Cache.load([Contact].self, "contacts") ?? []
         recentBoards = Cache.load([ConnectedBoard].self, "recentBoards") ?? []
@@ -356,6 +359,8 @@ final class Store: ObservableObject {
             Cache.save(recentBoards, "recentBoards")
             mailProposals = (try? await api.mailProposals()) ?? mailProposals
             Cache.save(mailProposals, "mailProposals")
+            appSummary = (try? await api.appSummary()) ?? appSummary
+            Cache.save(appSummary, "appSummary")
             autofillProfile = (try? await api.autofillProfile()) ?? autofillProfile
             Cache.save(autofillProfile, "autofillProfile")
             resumeOnFile = (try? await api.resumeOnFile()) ?? resumeOnFile
@@ -384,8 +389,36 @@ final class Store: ObservableObject {
         do {
             try await api.acceptProposal(id: p.id, stage: stage)
             apps = (try? await api.applications()) ?? apps
+            appSummary = (try? await api.appSummary()) ?? appSummary
             Cache.save(apps, "apps")
         } catch { self.error = error.localizedDescription }
+    }
+
+    /// Proposals "accept all" acts on — mirrors the server's _BULK_KINDS.
+    var bulkProposals: [MailProposal] {
+        mailProposals.filter { ["ack", "rejection"].contains($0.kind ?? "") && $0.proposedStage != nil }
+    }
+
+    /// Accept every confirmation and rejection in one call. Returns a one-line
+    /// summary for the banner, or nil on failure (the error is published).
+    func acceptAllProposals() async -> String? {
+        do {
+            let r = try await api.acceptAllProposals()
+            mailProposals = (try? await api.mailProposals()) ?? mailProposals.filter {
+                !["ack", "rejection"].contains($0.kind ?? "") }
+            apps = (try? await api.applications()) ?? apps
+            appSummary = (try? await api.appSummary()) ?? appSummary
+            Cache.save(mailProposals, "mailProposals"); Cache.save(apps, "apps")
+            Cache.save(appSummary, "appSummary")
+            return "\(r.created) added, \(r.moved - r.created) moved"
+        } catch {
+            self.error = error.localizedDescription
+            return nil
+        }
+    }
+
+    func timeline(for app: AppItem) async -> [TimelineItem] {
+        (try? await api.timeline(appId: app.id))?.items ?? []
     }
 
     func dismissProposal(_ p: MailProposal) async {

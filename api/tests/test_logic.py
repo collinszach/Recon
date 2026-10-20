@@ -123,6 +123,8 @@ check("role-location-us", role_title("An update", "for the role: Technical Progr
       "Intern, Summer 2027 – New York City, NY, US . At"), "Technical Program Management Intern, Summer 2027")
 check("same-role-not-contained", same_role("Product Manager: Internship Opportunities",
       "Product Management Intern - CTJ - TS with Security Clearance"), False)
+check("same-role-one-word", same_role("MBA Product Intern - Summer 2027",
+      "Product Development Internship Program - Summer 2027"), False)
 check("placeholder", placeholder_title("Thank you for applying to Relay!"), True)
 check("real-title", placeholder_title("AI Program Manager Intern"), False)
 

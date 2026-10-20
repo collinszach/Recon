@@ -143,6 +143,17 @@ struct ReconAPI {
         let q = stage.map { "?stage=\($0)" } ?? ""
         _ = try await execute("POST", "api/mail/proposals/\(id)/accept\(q)", body: nil)
     }
+    struct AcceptAllResult: Decodable { let accepted: Int; let created: Int; let moved: Int }
+    func acceptAllProposals() async throws -> AcceptAllResult {
+        let data = try await execute("POST", "api/mail/proposals/accept-all", body: nil)
+        return try JSONDecoder().decode(AcceptAllResult.self, from: data)
+    }
+    func appSummary() async throws -> AppSummary {
+        try await get("api/applications/summary", as: AppSummary.self)
+    }
+    func timeline(appId: Int) async throws -> AppTimeline {
+        try await get("api/applications/\(appId)/timeline", as: AppTimeline.self)
+    }
     func dismissProposal(id: Int) async throws {
         _ = try await execute("POST", "api/mail/proposals/\(id)/dismiss", body: nil)
     }

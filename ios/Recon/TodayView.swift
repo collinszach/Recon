@@ -78,9 +78,19 @@ struct TodayView: View {
                 // 2. Replies, above everything else that needs attention: a
                 // recruiter waiting on you outranks a role you haven't seen.
                 // These are proposals — nothing moved until you say so.
-                if !store.mailProposals.isEmpty {
-                    SectionHeader(title: "Replies", trailing: "\(store.mailProposals.count)")
-                    ForEach(store.mailProposals) { p in ProposalCard(proposal: p) }
+                // Only what needs a human: interview invites, offers, requests.
+                // Confirmations and rejections are batch work, done from the
+                // Applications tab's inbox in one tap.
+                let urgent = store.mailProposals.filter { ["screen", "offer", "info_request"].contains($0.kind ?? "") }
+                if !urgent.isEmpty {
+                    SectionHeader(title: "Replies", trailing: "\(urgent.count)")
+                    ForEach(urgent) { p in ProposalCard(proposal: p) }
+                }
+                let routine = store.mailProposals.count - urgent.count
+                if routine > 0 {
+                    Label("\(routine) confirmation\(routine == 1 ? "" : "s") and rejection\(routine == 1 ? "" : "s") to file — Applications tab",
+                          systemImage: "tray.full")
+                        .font(.caption).foregroundStyle(Theme.inkSoft)
                 }
 
                 // 3. Needs action, before the browsing sections.
