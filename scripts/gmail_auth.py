@@ -58,7 +58,11 @@ def main() -> int:
         with open(path) as fh:
             config = json.load(fh)
 
-    creds = flow.run_local_server(port=0, prompt="consent")
+    # select_account forces the account picker and login_hint preselects the
+    # application inbox: without them Google silently uses the browser's
+    # default account, which on 2026-10-20 minted a token for the wrong inbox.
+    creds = flow.run_local_server(port=0, prompt="consent select_account",
+                                  login_hint="collinszach01@gmail.com")
     installed = config["installed"]
 
     print("\nAdd these to ~/recon/.env on the NUC, then restart the api+worker:\n")
