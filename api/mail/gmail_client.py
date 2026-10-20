@@ -32,6 +32,11 @@ ATS_SENDERS = [
 ]
 
 
+def mailbox_address() -> str:
+    """The address the token actually reads."""
+    return _service().users().getProfile(userId="me").execute().get("emailAddress", "")
+
+
 def configured() -> bool:
     return bool(settings.gmail_client_id and settings.gmail_client_secret
                 and settings.gmail_refresh_token)

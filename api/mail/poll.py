@@ -17,7 +17,7 @@ from mail.classify import classify, placeholder_title, role_title, same_role
 from datetime import datetime, timezone
 
 from mail.gmail_client import (configured, fetch_threads, is_ats_sender,
-                               looks_like_marketing, sent_by_domain)
+                               looks_like_marketing, mailbox_address, sent_by_domain)
 
 log = logging.getLogger("recon.mail")
 
@@ -110,6 +110,14 @@ def poll(db: Session, limit: int | None = None) -> dict:
     names = [a.company_name for a in apps if a.company_name]
 
     try:
+        if settings.mail_account:
+            actual = mailbox_address()
+            if actual.lower() != settings.mail_account.lower():
+                log.warning("gmail token is for %s, expected %s", actual, settings.mail_account)
+                return {"status": "error",
+                        "reason": f"the Gmail token reads {actual}, not {settings.mail_account}. "
+                                  "Re-run scripts/gmail_auth.py and sign in as "
+                                  f"{settings.mail_account}."}
         threads = fetch_threads(names, settings.mail_lookback_days,
                                 limit or settings.mail_max_messages)
     except Exception as e:

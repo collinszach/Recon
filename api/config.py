@@ -134,6 +134,11 @@ class Settings(BaseSettings):
     mail_label_filter: str = ""
     mail_max_messages: int = 150          # cap per poll (quota + N95 politeness); 60 was
                                           # fewer than one busy month of application mail
+    # The mailbox the token must belong to. A re-auth that signs in with the
+    # browser's default Google account mints a perfectly valid token for the
+    # WRONG inbox (2026-10-20: zakslax instead of collinszach01), and the poll
+    # happily filed its newsletters. Set, a mismatch stops the poll instead.
+    mail_account: str = "collinszach01@gmail.com"
 
     # ─── Notifications: email ───────────────────────────────
     notify_email_enabled: bool = False
