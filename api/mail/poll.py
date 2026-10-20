@@ -59,6 +59,11 @@ def match_application(msg: dict, apps: list[Application],
         # never known; the mail can claim it rather than create a twin.
         unknown = [c for c in candidates if placeholder_title(c[0].role_title)]
         if len(unknown) == 1:
+            # Record the role now, so the company's next confirmation for a
+            # different role doesn't claim the same row (Mastercard's TPM and PM
+            # mail both did). Correcting a title the mail states isn't a
+            # pipeline move, so it doesn't wait for acceptance.
+            unknown[0][0].role_title = role[:200]
             return unknown[0][0], f"{unknown[0][1]} (its role was never recorded; this mail says {role})"
         return None, f"a role Recon has no application for at {candidates[0][0].company_name}"
     if len(candidates) == 1:
@@ -68,10 +73,11 @@ def match_application(msg: dict, apps: list[Application],
         title = _norm(app.role_title)
         if title and len(title) > 6 and re.search(rf"{re.escape(title[:40])}", hay):
             return app, f"{why}, and the role title"
-    # Ambiguous: the most recently touched application is the likeliest, and the
-    # proposal says so rather than pretending to be sure.
-    best = max(candidates, key=lambda c: c[0].updated_at or c[0].created_at)
-    return best[0], f"{best[1]} (several applications there; picked the most recent)"
+    # Ambiguous: don't guess. Guessing "the most recent" put a Skydio
+    # rejection for one role on the Skydio application in screen for another,
+    # one tap away from closing it.
+    return None, (f"{len(candidates)} applications at {candidates[0][0].company_name} "
+                  "and this mail doesn't say which role")
 
 
 def _units(th: dict) -> list[dict]:
@@ -198,7 +204,7 @@ def poll(db: Session, limit: int | None = None) -> dict:
                     and inbound["received_at"] <= decided_at):
                 continue
             row.message_id, row.status = inbound["message_id"], "pending"
-        if not app and verdict["kind"] not in ("ack", "screen", "rejection", "offer"):
+        if not app and verdict["kind"] not in ("ack", "screen", "rejection", "offer", "info_request"):
             row.status, row.kind = "unmatched", verdict["kind"]
             row.evidence = "no application matched this sender or subject"
             unmatched += 1
@@ -216,6 +222,15 @@ def poll(db: Session, limit: int | None = None) -> dict:
         if verdict["kind"] == "ack":
             row.proposed_stage = "applied" if (not app or (app.stage or "") in
                                                ("watching", "drafting")) else None
+        if app and row.proposed_stage == app.stage:
+            row.proposed_stage = None      # already there; a second invite isn't news
+        # A confirmation for an application already tracked past "applied"
+        # says nothing new. Filing it as pending buried the four real
+        # rejections under a dozen "we received your application" rows.
+        if verdict["kind"] == "ack" and app and row.proposed_stage is None:
+            row.status, row.evidence = "ignored", f"{why}. Confirmation for an application already tracked."
+            ignored += 1
+            continue
 
         # What the thread says, not just the last inbound message. A screen
         # invite you already answered and attended is not an invitation any

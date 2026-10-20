@@ -975,6 +975,8 @@ _SUBJECT_COMPANY_RES = [
     re.compile(r"(?:applying|application)\s+(?:to|at)\s+(.+?)[!.?]*$", re.I),
     re.compile(r"^(.+?)\s*[-–]\s*application\s+update", re.I),
     re.compile(r"thank you for your (?:interest in|application to)\s+(.+?)[!.?]*$", re.I),
+    re.compile(r"^update from\s+(.+?)[!.?]*$", re.I),             # "Update from Muon Space"
+    re.compile(r"\bapplying\s+at\s+(.+?)[!.?]*$", re.I),
 ]
 
 
@@ -985,7 +987,7 @@ def _company_from_subject(subject: str | None) -> str | None:
     for pat in _SUBJECT_COMPANY_RES:
         m = pat.search(text)
         if m:
-            name = m.group(1).strip(" !.,-–—")
+            name = re.sub(r"^at\s+", "", m.group(1).strip(" !.,-–—"), flags=re.I)
             # Trim trailing role/req noise: "Acme for the PM Intern role".
             name = re.split(r"\s+\b(for|regarding|re|position|role|req)\b", name, flags=re.I)[0]
             if 2 < len(name) <= 80:
@@ -1005,10 +1007,19 @@ def _company_from_sender(from_addr: str | None) -> str | None:
     m = re.match(r'\s*"?([^"<]+?)"?\s*<', from_addr)
     if m:
         # "MasterCard People Services" is Mastercard; "Visa People Team" is Visa.
+        # "CapitalOneHRWorkday" -> "Capital One HR Workday"; "do-not-reply adobe" -> "adobe".
+        # Split only when that exposes HR/ATS noise — "MasterCard" stays whole.
+        disp = m.group(1)
+        split = re.sub(r"(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", " ", disp)
+        if re.search(r"\b(HR|Workday|Recruiting|Talent|Careers)\b", split):
+            disp = split
+        disp = re.sub(r"\b(do[- ]?not[- ]?reply|no[- ]?reply)\b", "", disp, flags=re.I)
+        if disp.strip() == disp.strip().lower():
+            disp = disp.title()                           # "adobe" -> "Adobe"
         name = re.sub(r"\b(hr|recruiting|recruitment|talent|careers?|team|hiring|"
                       r"people\s+services|people|services|notifications?|"
                       r"workday|icims|greenhouse|lever|ashby)\b", "",
-                      m.group(1), flags=re.I)
+                      disp, flags=re.I)
         name = re.sub(r"@\s*\w*\s*$", "", name)          # "Joby Aviation @ icims"
         name = re.sub(r"\s+", " ", name).strip(" -|,@")
         # A human sender's name is not the company. "Zoe Downey

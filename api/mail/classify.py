@@ -19,7 +19,9 @@ RULES: list[tuple[str, str | None, str, list[re.Pattern]]] = [
         # "not moving forward", "unable to move forward" (Capital One),
         # "decided not to move forward" (Datadog). The first live rules only
         # knew "moving", so both of October's rejections read as nothing.
-        re.compile(r"\b(not|unable)\s+(to\s+)?(be\s+)?(mov(e|ing)\s+forward|proceed|progress)", re.I),
+        # ...but not Amex's draft reminder: "If you choose not to move forward
+        # with your application, you may delete it."
+        re.compile(r"(?<!choose )(?<!decide )\b(not|unable)\s+(to\s+)?(be\s+)?(mov(e|ing)\s+forward|proceed|progress)", re.I),
         re.compile(r"move\s+forward\s+with\s+(other|another)", re.I),
         re.compile(r"\bunfortunately\b.{0,60}\b(position|role|application|candidat)", re.I),
         # Not bare "decided to move forward" — "...with your candidacy" is the
@@ -104,6 +106,8 @@ _ROLE_RES = [
     # "...apply for GE Vernova Controls Product Management Intern - Summer 2027 ." —
     # Workday templates leave a space before the full stop.
     re.compile(r"\bapply\s+for\s+(?:the\s+)?(?P<t>[^.!]{4,140}?)\s\.", re.I),
+    # Subject: "Update on your Skydio Application - Operations Program Management Intern"
+    re.compile(r"\bapplication\s+[-–:]\s+(?P<t>[^!]{4,140}?)\s*$", re.I),
     # Subject: "Your application to 2027 Summer Intern - Digital Product ... is in!" (GM)
     re.compile(r"\bapplication\s+to\s+(?P<t>[^!]{4,140}?)\s+is\s+in\b", re.I),
 ]
@@ -114,8 +118,9 @@ _INNER_TRIGGER = re.compile(r".*\b(?:appl(?:y|ying|ied|ication)\s+(?:to|for)|and
                             r"for\s+the|in\s+the)\s+(?:the\s+|our\s+)?", re.I)
 _REQ_PREFIX = re.compile(r"^(?:[A-Z]{0,3}\d{5,}\s+)")          # "R171856 ", "JR2025670 ", "128509 "
 _REQ_SUFFIX = re.compile(r"\s*(?:[-–]\s*\d{5,}|\(\d{5,}\))$")  # "... - 3095762", "(26107924)"
-_LOCATION_SUFFIX = re.compile(r"\s+[-–]\s+[A-Z][\w .]+,\s+[A-Z]{2}$")  # "... - New York, NY"
-_NOT_A_ROLE = re.compile(r"^(?:a|an|this|that|our|your|the)\b|\b(?:company|team|careers?)\b", re.I)
+_LOCATION_SUFFIX = re.compile(r"\s+[-–]\s+[A-Z][\w .]+,\s+[A-Z]{2}(?:,\s*US)?$")  # "... – New York City, NY, US"
+# "fit for the position we will contact you soon" is not a role (Muon, Zipline).
+_NOT_A_ROLE = re.compile(r"^(?:a|an|this|that|our|your|the)\b|\b(?:company|team|careers?|we|you|will)\b", re.I)
 
 
 def role_title(subject: str | None, body: str | None) -> str | None:
@@ -164,5 +169,7 @@ def same_role(a: str | None, b: str | None) -> bool:
     wa, wb = words(a), words(b)
     if not wa or not wb:
         return False
-    small, large = (wa, wb) if len(wa) <= len(wb) else (wb, wa)
-    return len(small & large) / len(small) >= 0.75
+    # Overlap over the union, not the smaller set: "Product Manager:
+    # Internship Opportunities" is wholly contained in "Product Management
+    # Intern - CTJ - TS with Security Clearance", and they are not one role.
+    return len(wa & wb) / len(wa | wb) >= 0.5

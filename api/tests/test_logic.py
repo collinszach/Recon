@@ -110,6 +110,19 @@ check("same-role-manager", same_role("Product Manager Intern", "Product Manageme
 # Intuit's TPM and PM applications are two applications.
 check("different-role", same_role("Summer 2027: Technical Program Manager (TPM) Intern",
                                   "Summer 2027: Product Manager Intern"), False)
+# From the first full poll (2026-10-20): an Amex draft reminder read as a
+# rejection, and a Skydio rejection for one role nearly closed another.
+check("draft-reminder-not-reject", kind("Submit your application",
+      "If you choose not to move forward with your application, you may delete it"), "other")
+check("role-subject-dash", role_title(
+      "Update on your Skydio Application - Operations Program Management Intern", ""),
+      "Operations Program Management Intern")
+check("role-not-boilerplate", role_title("Thank you for applying to Muon Space",
+      "If your application seems like a good fit for the position we will contact you soon."), None)
+check("role-location-us", role_title("An update", "for the role: Technical Program Management "
+      "Intern, Summer 2027 – New York City, NY, US . At"), "Technical Program Management Intern, Summer 2027")
+check("same-role-not-contained", same_role("Product Manager: Internship Opportunities",
+      "Product Management Intern - CTJ - TS with Security Clearance"), False)
 check("placeholder", placeholder_title("Thank you for applying to Relay!"), True)
 check("real-title", placeholder_title("AI Program Manager Intern"), False)
 
