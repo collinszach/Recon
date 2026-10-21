@@ -1221,7 +1221,10 @@ def _company_from_sender(from_addr: str | None) -> str | None:
         if not labels:
             return None
         if labels:
-            return labels[-1].replace("-", " ").title()[:80]
+            # "marriotthiring.com" is Marriott: careers sites often glue a
+            # hiring word onto the brand.
+            name = re.sub(r"(?<=[a-z]{3})(hiring|careers|jobs|recruiting|talent)$", "", labels[-1])
+            return name.replace("-", " ").title()[:80]
     return None
 
 

@@ -141,6 +141,10 @@ check("timing-mba-early", expect("MBA Product Intern", "Intuit", "applied", date
 check("timing-rolling-dead", expect("Product Manager, Intern", "Tessera Labs", "applied",
       date(2026, 7, 17), None, today=date(2026, 10, 20))["state"], "likely_no")
 check("timing-saved-none", expect("PM Intern", "Acme", "watching", None, None), None)
+check("role-amex-received", role_title("Thank you for applying",
+      "Your application for the position of Campus Graduate Masters Summer Internship Program - 2027 "
+      "AI Engineer, Enterprise Technology Services- New York, NY has been received."),
+      "Campus Graduate Masters Summer Internship Program - 2027 AI Engineer, Enterprise Technology Services")
 check("placeholder", placeholder_title("Thank you for applying to Relay!"), True)
 check("real-title", placeholder_title("AI Program Manager Intern"), False)
 check("unrecorded-is-placeholder", placeholder_title("(role not recorded)"), True)

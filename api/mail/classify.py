@@ -143,6 +143,9 @@ def role_title(subject: str | None, body: str | None) -> str | None:
             t = _INNER_TRIGGER.sub("", m.group("t")).strip(" :-–,\"'")
             t = re.sub(r"^(?:of\s+|[\w&]+'s\s+)", "", t)          # "position of X", "DoorDash's X"
             t = re.sub(r"^[A-Z][\w&]*,?\s+Inc\s+", "", t)          # "NIKE, Inc. Digital Growth ..."
+            # "...Enterprise Technology Services- New York, NY has been received" (Amex)
+            t = re.sub(r"\s+(?:has\s+been|was|is)\s+(?:received|submitted)$", "", t, flags=re.I)
+            t = re.sub(r"\s*[-–]\s*[A-Z][\w .]+,\s+[A-Z]{2}$", "", t)
             t = _LOCATION_SUFFIX.sub("", _REQ_SUFFIX.sub("", _REQ_PREFIX.sub("", t))).strip(" -–,")
             if 4 <= len(t) <= 140 and not _NOT_A_ROLE.search(t):
                 return t
