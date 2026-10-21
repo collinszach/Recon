@@ -61,6 +61,8 @@ def _ensure_schema():
         # Standard application fields the 2026-09-21 portal survey turned up:
         # Greenhouse asks "Preferred First Name" separately from the legal first
         # name, and its education block is School / Degree / Discipline.
+        conn.execute(text("ALTER TABLE applications ADD COLUMN IF NOT EXISTS fit_read TEXT"))
+        conn.execute(text("ALTER TABLE applications ADD COLUMN IF NOT EXISTS fit_read_at TIMESTAMPTZ"))
         for col in ("preferred_name", "discipline"):
             conn.execute(text(f"ALTER TABLE autofill_profile ADD COLUMN IF NOT EXISTS {col} VARCHAR"))
         # APNs environment per device token; NULL until send_apns() probes for it.
@@ -605,6 +607,29 @@ def apps_summary(db: Session = Depends(get_db)):
                                       .where(MailMessage.status == "pending")) or 0}
 
 
+class FitRead(BaseModel):
+    verdict: str                      # strong | good | stretch | weak
+    summary: str
+    strengths: list[str] = []
+    gaps: list[str] = []
+    basis: str                        # "job description" | "title and company only"
+    author: str | None = None         # who wrote it: a model, or Zach
+
+
+@app.put("/api/applications/{app_id}/fit-read")
+def put_fit_read(app_id: int, body: FitRead, db: Session = Depends(get_db)):
+    """Store a written fit read. Written outside Recon (e.g. by Claude in a
+    session on Zach's subscription), so Recon's own API key pays nothing."""
+    import json
+    a = db.get(Application, app_id)
+    if not a:
+        raise HTTPException(404, "application not found")
+    a.fit_read = json.dumps(body.model_dump())
+    a.fit_read_at = datetime.now(timezone.utc)
+    db.commit()
+    return _app_dict(a, _last_mail_by_app(db, [app_id]).get(app_id))
+
+
 @app.get("/api/applications/{app_id}/timeline")
 def app_timeline(app_id: int, db: Session = Depends(get_db)):
     """Everything that happened to one application, newest first: stage moves
@@ -743,7 +768,27 @@ def _app_dict(a: Application, last_mail: MailMessage | None = None) -> dict:
             "last_email": ({"kind": last_mail.kind, "subject": last_mail.subject,
                             "received_at": last_mail.received_at.isoformat()
                             if last_mail.received_at else None}
-                           if last_mail else None)}
+                           if last_mail else None),
+            "expect": _expect(a, last_mail),
+            "fit_read": _json_or_none(a.fit_read),
+            "fit_read_at": a.fit_read_at.isoformat() if a.fit_read_at else None}
+
+
+def _json_or_none(raw: str | None):
+    import json
+    try:
+        return json.loads(raw) if raw else None
+    except ValueError:
+        return None
+
+
+def _expect(a: Application, last_mail: MailMessage | None) -> dict | None:
+    from tracking.timing import expect
+    # Only employer contact past an acknowledgement counts as "last contact".
+    contact = (last_mail.received_at.date() if last_mail and last_mail.received_at
+               and last_mail.kind not in ("ack", None) else None)
+    return expect(a.role_title, a.company_name, a.stage,
+                  a.applied_at.date() if a.applied_at else None, contact)
 
 
 def _last_mail_by_app(db: Session, app_ids: list[int] | None = None) -> dict[int, MailMessage]:

@@ -167,6 +167,10 @@ class Application(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    # A written read on fit — verdict, why, strengths, gaps, and what it was
+    # based on (the job description, or only the title). JSON text.
+    fit_read: Mapped[str | None] = mapped_column(Text)
+    fit_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     role: Mapped["Role | None"] = relationship()
 
 

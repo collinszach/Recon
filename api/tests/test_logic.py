@@ -9,6 +9,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from mail.classify import classify, placeholder_title, role_title, same_role  # noqa: E402
+from tracking.timing import classify as timing_kind, expect  # noqa: E402
+from datetime import date  # noqa: E402
 from scan.geo import is_us, metro_of, states_of         # noqa: E402
 from scan.intern_filter import in_active_track, is_internship, is_pure_swe  # noqa: E402
 
@@ -128,6 +130,17 @@ check("same-role-one-word", same_role("MBA Product Intern - Summer 2027",
 check("role-zero-width", role_title(
       "Update on your \u200b\u200bAI Program Manager Intern\u200b application - Mercedes-Benz R&D", ""),
       "AI Program Manager Intern")
+# ── expected-response timing ───────────────────────────────────────────────
+check("timing-mba", timing_kind("Summer 2027: MBA Strategy & Operations Intern", "Intuit"), "mba_cycle")
+check("timing-off-cycle", timing_kind("Technical Program Manager Intern (Spring 2027)", "Zipline"), "off_cycle")
+check("timing-structured", timing_kind("Product Management Intern (Summer 2027)", "Databricks"), "structured")
+check("timing-rolling", timing_kind("Product Manager, Intern", "Tessera Labs"), "rolling")
+# An MBA application in October is early, not late — the calendar hasn't opened.
+check("timing-mba-early", expect("MBA Product Intern", "Intuit", "applied", date(2026, 10, 6),
+      None, today=date(2026, 10, 20))["state"], "early")
+check("timing-rolling-dead", expect("Product Manager, Intern", "Tessera Labs", "applied",
+      date(2026, 7, 17), None, today=date(2026, 10, 20))["state"], "likely_no")
+check("timing-saved-none", expect("PM Intern", "Acme", "watching", None, None), None)
 check("placeholder", placeholder_title("Thank you for applying to Relay!"), True)
 check("real-title", placeholder_title("AI Program Manager Intern"), False)
 
