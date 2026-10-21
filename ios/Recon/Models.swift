@@ -253,6 +253,34 @@ struct AppItem: Codable, Identifiable, Hashable {
     // Optional so a payload cached before these existed still decodes.
     var updatedAt: String? = nil
     var lastEmail: LastEmail? = nil
+    var expect: Expect? = nil
+    var fitRead: FitRead? = nil
+
+    /// When to expect word, computed server-side (tracking/timing.py).
+    struct Expect: Codable, Hashable {
+        let kind: String
+        let label: String
+        let state: String       // early | window | overdue | likely_no
+        let why: String
+        var stateText: String {
+            switch state {
+            case "early":     return "Too early to expect word"
+            case "window":    return "Could hear any day"
+            case "overdue":   return "Past the usual window — worth a follow-up"
+            case "likely_no": return "Silence this long usually means no"
+            default:          return state
+            }
+        }
+    }
+    /// A written read on fit, with what it was based on.
+    struct FitRead: Codable, Hashable {
+        let verdict: String     // strong | good | stretch | weak
+        let summary: String
+        let strengths: [String]
+        let gaps: [String]
+        let basis: String
+        let author: String?
+    }
 
     struct LastEmail: Codable, Hashable {
         let kind: String?
@@ -287,6 +315,8 @@ struct AppItem: Codable, Identifiable, Hashable {
         case fitScore = "fit_score"
         case updatedAt = "updated_at"
         case lastEmail = "last_email"
+        case expect
+        case fitRead = "fit_read"
     }
 
     var appliedDate: Date? { Role.parseDate(appliedAt) }
@@ -298,7 +328,8 @@ struct AppItem: Codable, Identifiable, Hashable {
     var isSaved: Bool { ["watching", "drafting"].contains(stage) }
     /// Applied three weeks ago and nothing since — the follow-up list.
     var isSilent: Bool {
-        stage == "applied" && (daysSinceApplied ?? 0) >= 21
+        if let e = expect { return ["overdue", "likely_no"].contains(e.state) }
+        return stage == "applied" && (daysSinceApplied ?? 0) >= 21
             && (lastEmail?.kind ?? "ack") == "ack"
     }
 
@@ -310,6 +341,10 @@ struct AppItem: Codable, Identifiable, Hashable {
         if let s = nextActionDue,
            let d = DateFormatter.ymd.date(from: String(s.prefix(10))),
            cal.startOfDay(for: d) <= cal.startOfDay(for: Date()) { return .overdue }
+        // "Stale" means past the window this kind of application usually
+        // answers in (server's tracking/timing.py) — not a flat 10 days, which
+        // flagged every MBA application before the MBA calendar even opened.
+        if let e = expect { return e.state == "overdue" ? .stale : nil }
         if stage == "applied", let s = appliedAt,
            let d = Role.parseDate(s),
            let cutoff = cal.date(byAdding: .day, value: -10, to: Date()), d <= cutoff { return .stale }

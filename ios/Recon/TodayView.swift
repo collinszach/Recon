@@ -211,7 +211,7 @@ struct FollowUpsSection: View {
     private var items: [(label: String, sub: String, reason: String, urgency: Int)] {
         var out: [(String, String, String, Int)] = []
         for app in store.apps where app.dueState != nil {
-            let reason = app.dueState == .overdue ? "Action due" : "No update in 10d"
+            let reason = app.dueState == .overdue ? "Action due" : "Past usual window"
             let urgency = app.dueState == .overdue ? 0 : 2
             out.append((app.companyName ?? "—", app.roleTitle ?? "—", reason, urgency))
         }

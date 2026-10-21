@@ -154,7 +154,7 @@ _ROLE_STOP = {"intern", "internship", "summer", "the", "and", "of", "for", "a", 
               "program", "opportunities", "graduate", "masters"}
 # Titles the old accept path copied from email subjects.
 _PLACEHOLDER = re.compile(r"^(thank|thanks|your application|application|you have|"
-                          r"successfully|we got|invitation|update)\b", re.I)
+                          r"successfully|we got|invitation|update)\b|^\(role not recorded\)", re.I)
 
 
 def placeholder_title(title: str | None) -> bool:

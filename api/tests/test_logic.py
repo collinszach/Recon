@@ -143,6 +143,7 @@ check("timing-rolling-dead", expect("Product Manager, Intern", "Tessera Labs", "
 check("timing-saved-none", expect("PM Intern", "Acme", "watching", None, None), None)
 check("placeholder", placeholder_title("Thank you for applying to Relay!"), True)
 check("real-title", placeholder_title("AI Program Manager Intern"), False)
+check("unrecorded-is-placeholder", placeholder_title("(role not recorded)"), True)
 
 if failures:
     print(f"FAILED ({len(failures)}):")

@@ -21,7 +21,7 @@ MBA_INTERVIEWS_END = date(2027, 2, 18)
 
 _MBA = re.compile(r"\bMBA\b|graduate\s+internship|campus\s+graduate\s+masters|"
                   r"leadership\s+accelerator|fellowship", re.I)
-_OFF_CYCLE = re.compile(r"\b(fall|winter|spring)\s+20(26|27)\b|\bco-?op\b", re.I)
+_OFF_CYCLE = re.compile(r"\b(fall|winter|spring)\s+20(26|27)\b", re.I)   # not "co-op": AMD's is summer
 
 # Employers big enough to run a structured intern program on a slower clock
 # than a startup's rolling hiring.

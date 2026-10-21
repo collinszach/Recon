@@ -82,7 +82,7 @@ struct PipelineView: View {
                         sectionHeader("In progress", count: rest.count, color: Theme.ink)
                         ForEach(rest) { AppCard(app: $0) }
                     }
-                    sectionHeader("No reply in 3+ weeks", count: silent.count, color: Theme.gold)
+                    sectionHeader("Past the usual window", count: silent.count, color: Theme.gold)
                     ForEach(silent) { AppCard(app: $0) }
                 } else {
                     ForEach(rest) { AppCard(app: $0) }
@@ -324,6 +324,7 @@ struct AppCard: View {
                     StagePill(stage: app.stage)
                     dueBadge
                     Spacer()
+                    if let f = app.fitRead { FitPill(verdict: f.verdict) }
                     Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.inkSoft)
                 }
                 Text(app.roleTitle ?? "—").font(.callout).foregroundStyle(Theme.ink)
@@ -339,6 +340,10 @@ struct AppCard: View {
                     }
                 }
                 .font(.caption).foregroundStyle(Theme.inkSoft)
+                if let e = app.expect {
+                    Label("Expect \(e.label)", systemImage: "clock")
+                        .font(.caption).foregroundStyle(ExpectColor.of(e.state))
+                }
                 if let na = app.nextAction, !na.isEmpty {
                     Label("\(na)\(app.nextActionDue.map { " · due \($0.prefix(10))" } ?? "")", systemImage: "bell")
                         .font(.caption).foregroundStyle(Theme.rust)
@@ -356,8 +361,10 @@ struct AppCard: View {
     }
 
     @ViewBuilder private var dueBadge: some View {
-        if app.isSilent {
-            badge("NO REPLY", Theme.gold)
+        if app.expect?.state == "likely_no" {
+            badge("LIKELY NO", Theme.rust)
+        } else if app.isSilent {
+            badge("FOLLOW UP", Theme.gold)
         } else {
             switch app.dueState {
             case .overdue: badge("DUE", Theme.rust)
@@ -368,6 +375,33 @@ struct AppCard: View {
     private func badge(_ t: String, _ c: Color) -> some View {
         Text(t).font(.caption2.weight(.bold)).foregroundStyle(.white)
             .padding(.horizontal, 6).padding(.vertical, 2).background(c, in: Capsule())
+    }
+}
+
+struct FitPill: View {
+    let verdict: String
+    var body: some View {
+        Text(verdict.capitalized).font(.caption2.weight(.bold)).foregroundStyle(.white)
+            .padding(.horizontal, 6).padding(.vertical, 2).background(color, in: Capsule())
+    }
+    private var color: Color {
+        switch verdict {
+        case "strong":  return Theme.green
+        case "good":    return Theme.gold
+        case "stretch", "unknown": return Theme.inkSoft
+        default:        return Theme.rust
+        }
+    }
+}
+
+enum ExpectColor {
+    static func of(_ state: String) -> Color {
+        switch state {
+        case "window":    return Theme.green
+        case "overdue":   return Theme.gold
+        case "likely_no": return Theme.rust
+        default:          return Theme.inkSoft
+        }
     }
 }
 
@@ -426,6 +460,35 @@ struct ApplicationDetailView: View {
                     }
                 }
                 .reconCard()
+
+                if let e = current.expect {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("When to expect word").font(.headline).foregroundStyle(Theme.ink)
+                        Text(e.label).font(.title3.weight(.semibold)).foregroundStyle(ExpectColor.of(e.state))
+                        Text(e.stateText).font(.subheadline).foregroundStyle(Theme.ink)
+                        Text(e.why).font(.caption).foregroundStyle(Theme.inkSoft)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading).reconCard()
+                }
+                if let f = current.fitRead {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Fit").font(.headline).foregroundStyle(Theme.ink)
+                            FitPill(verdict: f.verdict)
+                            Spacer()
+                        }
+                        Text(f.summary).font(.callout).foregroundStyle(Theme.ink)
+                        ForEach(f.strengths, id: \.self) { s in
+                            Label(s, systemImage: "plus.circle").font(.caption).foregroundStyle(Theme.green)
+                        }
+                        ForEach(f.gaps, id: \.self) { g in
+                            Label(g, systemImage: "exclamationmark.circle").font(.caption).foregroundStyle(Theme.rust)
+                        }
+                        Text("Based on \(f.basis)\(f.author.map { " · \($0)" } ?? "")")
+                            .font(.caption2).foregroundStyle(Theme.inkSoft)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading).reconCard()
+                }
 
                 Text("History").font(.headline).foregroundStyle(Theme.ink)
                 if loaded && items.isEmpty {
