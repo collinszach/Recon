@@ -1279,12 +1279,24 @@ def activity(limit: int = 40, db: Session = Depends(get_db)):
     by_day: dict[date, list[ScanRun]] = {}
     for r in db.scalars(select(ScanRun).where(ScanRun.finished_at >= since)).all():
         by_day.setdefault(r.finished_at.date(), []).append(r)
+    # Count what's relevant: new internships in your tracks, not the raw
+    # number of postings across every board ("370 new" beside "0 new today"
+    # read as a contradiction).
+    from scan.intern_filter import in_active_track
+    mode = getattr(settings, "track_mode", "intern")
+    recent = db.execute(select(Role.title, Role.department, Role.first_seen).where(
+        Role.first_seen >= since, Role.is_backfill.is_not(True))).all()
+    relevant: dict[date, int] = {}
+    for title, dept, seen in recent:
+        if seen and in_active_track(title or "", dept, mode):
+            relevant[seen.date()] = relevant.get(seen.date(), 0) + 1
     for day, runs in by_day.items():
-        new = sum(r.new_count or 0 for r in runs)
         last = max(r.finished_at for r in runs)
+        n = relevant.get(day, 0)
         items.append({"id": -max(r.id for r in runs), "type": "scan", "at": last.isoformat(),
                       "actor": "recon",
-                      "note": f"{len(runs)} scans, {new} new postings across all boards",
+                      "note": (f"{n} new internship{'s' if n != 1 else ''} in your tracks"
+                               f" ({len(runs)} scans)"),
                       "undoable": False, "undone": False})
     items.sort(key=lambda i: i["at"] or "", reverse=True)
     return items[:limit]
