@@ -1282,21 +1282,22 @@ def activity(limit: int = 40, db: Session = Depends(get_db)):
     # Count what's relevant: new internships in your tracks, not the raw
     # number of postings across every board ("370 new" beside "0 new today"
     # read as a contradiction).
-    from scan.intern_filter import in_active_track
-    mode = getattr(settings, "track_mode", "intern")
-    recent = db.execute(select(Role.title, Role.department, Role.first_seen).where(
-        Role.first_seen >= since, Role.is_backfill.is_not(True))).all()
+    # The same filters the feed uses (tracks, US, eligibility, targets,
+    # dismissals), by calling the feed itself — a second copy of those rules
+    # would drift, and "13 new" beside a feed showing 1 is the drift.
+    feed = list_roles(since_days=3, limit=2000, include_backfill=False, db=db)
     relevant: dict[date, int] = {}
-    for title, dept, seen in recent:
-        if seen and in_active_track(title or "", dept, mode):
-            relevant[seen.date()] = relevant.get(seen.date(), 0) + 1
+    for r in feed:
+        seen = datetime.fromisoformat(r["first_seen"]).date() if r.get("first_seen") else None
+        if seen:
+            relevant[seen] = relevant.get(seen, 0) + 1
     for day, runs in by_day.items():
         last = max(r.finished_at for r in runs)
         n = relevant.get(day, 0)
         items.append({"id": -max(r.id for r in runs), "type": "scan", "at": last.isoformat(),
                       "actor": "recon",
-                      "note": (f"{n} new internship{'s' if n != 1 else ''} in your tracks"
-                               f" ({len(runs)} scans)"),
+                      "note": (f"{n} new role{'s' if n != 1 else ''} for you"
+                               f" · {len(runs)} scans"),
                       "undoable": False, "undone": False})
     items.sort(key=lambda i: i["at"] or "", reverse=True)
     return items[:limit]
