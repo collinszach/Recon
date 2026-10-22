@@ -761,6 +761,9 @@ def _app_dict(a: Application, last_mail: MailMessage | None = None) -> dict:
             "next_action_due": a.next_action_due.isoformat() if a.next_action_due else None,
             "notes": a.notes,
             "fit_score": a.role.fit_score if a.role else None,
+            # Whether the posting is still up — a saved posting that closed is
+            # no longer something to apply to (7 of 25 had, unnoticed).
+            "posting_status": a.role.status if a.role else None,
             "updated_at": a.updated_at.isoformat() if a.updated_at else None,
             # The newest employer mail on file — what the card shows under the
             # role ("Rejected · Oct 16"), so the list answers "where does this

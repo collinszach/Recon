@@ -255,6 +255,8 @@ struct AppItem: Codable, Identifiable, Hashable {
     var lastEmail: LastEmail? = nil
     var expect: Expect? = nil
     var fitRead: FitRead? = nil
+    var postingStatus: String? = nil
+    var postingClosed: Bool { postingStatus == "closed" }
 
     /// When to expect word, computed server-side (tracking/timing.py).
     struct Expect: Codable, Hashable {
@@ -317,6 +319,7 @@ struct AppItem: Codable, Identifiable, Hashable {
         case lastEmail = "last_email"
         case expect
         case fitRead = "fit_read"
+        case postingStatus = "posting_status"
     }
 
     var appliedDate: Date? { Role.parseDate(appliedAt) }

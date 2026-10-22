@@ -7,6 +7,20 @@ struct PipelineView: View {
     @EnvironmentObject var store: Store
     @State private var seg = Segment.active
     @State private var query = ""
+    @State private var filter = Filter.all
+
+    enum Filter: String, CaseIterable, Identifiable {
+        case all = "All", followUp = "Follow up", strong = "Strong fit", screens = "Interviews"
+        var id: String { rawValue }
+        func keeps(_ a: AppItem) -> Bool {
+            switch self {
+            case .all:      return true
+            case .followUp: return a.isSilent || a.dueState == .overdue
+            case .strong:   return a.fitRead?.verdict == "strong"
+            case .screens:  return ["screen", "onsite", "offer"].contains(a.stage)
+            }
+        }
+    }
 
     enum Segment: String, CaseIterable, Identifiable {
         case active = "Active", saved = "Saved", closed = "Closed", contacts = "Contacts"
@@ -45,11 +59,13 @@ struct PipelineView: View {
         case .closed:   base = store.apps.filter { $0.stage == "closed" }
         case .contacts: base = []
         }
-        let filtered = q.isEmpty ? base : base.filter {
+        let searched = q.isEmpty ? base : base.filter {
             ($0.companyName ?? "").lowercased().contains(q) || ($0.roleTitle ?? "").lowercased().contains(q)
         }
+        let filtered = seg == .contacts ? searched : searched.filter(filter.keeps)
         let rank = ["offer": 0, "onsite": 1, "screen": 2, "applied": 3]
         return filtered.sorted { a, b in
+            if seg == .saved, a.postingClosed != b.postingClosed { return !a.postingClosed }
             if seg == .active, rank[a.stage] != rank[b.stage] {
                 return (rank[a.stage] ?? 9) < (rank[b.stage] ?? 9)
             }
@@ -70,6 +86,7 @@ struct PipelineView: View {
                 TextField("Search company or role", text: $query)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                     .padding(10).background(Theme.card, in: RoundedRectangle(cornerRadius: 10))
+                filterChips
                 if items.isEmpty {
                     Text(emptyText).font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 }
@@ -93,9 +110,40 @@ struct PipelineView: View {
         .scrollContentBackground(.hidden)
     }
 
+    /// The slices worth one tap. Counts are for the current segment, so a
+    /// chip with nothing behind it says so before you tap it.
+    private var filterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Filter.allCases) { f in
+                    let n = segmentBase.filter(f.keeps).count
+                    Button { filter = f } label: {
+                        Text("\(f.rawValue) \(n)")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .frame(minHeight: 44)
+                            .foregroundStyle(filter == f ? .white : Theme.ink)
+                            .background(filter == f ? Theme.rust : Theme.card, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(filter == f ? .isSelected : [])
+                }
+            }
+        }
+    }
+
+    private var segmentBase: [AppItem] {
+        switch seg {
+        case .active:   return store.apps.filter(\.isActive)
+        case .saved:    return store.apps.filter(\.isSaved)
+        case .closed:   return store.apps.filter { $0.stage == "closed" }
+        case .contacts: return []
+        }
+    }
+
     private var emptyText: String {
         switch seg {
-        case .active: return query.isEmpty ? "Nothing sent yet. Applications appear here when you mark one applied, or accept a confirmation email." : "No active application matches."
+        case .active: return filter != .all ? "Nothing in \(filter.rawValue) right now." : query.isEmpty ? "Nothing sent yet. Applications appear here when you mark one applied, or accept a confirmation email." : "No active application matches."
         case .saved:  return "Nothing saved. Track a role under Roles to keep it here until you apply."
         default:      return "Nothing closed."
         }
@@ -114,7 +162,7 @@ private struct SummaryStrip: View {
     @EnvironmentObject var store: Store
     var body: some View {
         let s = store.appSummary
-        HStack(spacing: 10) {
+        AdaptiveRow {
             Stat(num: "\(s?.applied ?? store.apps.filter(\.isActive).count)", label: "applied", color: Theme.ink)
             Stat(num: "\(s?.interviewing ?? 0)", label: "screens", color: Theme.green)
             Stat(num: "\(s?.closed ?? 0)", label: "closed", color: Theme.rust)
@@ -322,6 +370,11 @@ struct AppCard: View {
                     Text(app.companyName ?? "—").font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.ink)
                     StagePill(stage: app.stage)
+                    if app.isSaved && app.postingClosed {
+                        Text("POSTING CLOSED").font(.caption2.weight(.bold)).foregroundStyle(Theme.inkSoft)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .overlay(Capsule().stroke(Theme.inkSoft.opacity(0.6), lineWidth: 1))
+                    }
                     dueBadge
                     Spacer()
                     if let f = app.fitRead { FitPill(verdict: f.verdict) }
@@ -351,8 +404,27 @@ struct AppCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .reconCard()
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Opens the application")
         }
         .buttonStyle(.plain)
+        // A saved posting's next step is almost always "I applied" — one tap,
+        // not a long-press menu. The server stamps the applied date.
+        .overlay(alignment: .bottomTrailing) {
+            if app.isSaved && !app.postingClosed {
+                Button { Task { await store.move(app, to: .applied) } } label: {
+                    Label("Mark applied", systemImage: "paperplane")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .frame(minHeight: 44)
+                        .foregroundStyle(.white).background(Theme.green, in: Capsule())
+                }
+                .padding(12)
+            }
+        }
+        .accessibilityAction(named: "Mark applied") {
+            if app.isSaved { Task { await store.move(app, to: .applied) } }
+        }
         .contextMenu {
             ForEach(Stage.allCases) { s in
                 Button("Move to \(s.label)") { Task { await store.move(app, to: s) } }

@@ -36,25 +36,38 @@ struct TodayView: View {
         store.apps.filter { ["watching", "drafting"].contains($0.stage) }
     }
 
+    private var headerTitle: some View {
+        Text("Summer 2027 internships")
+            .font(.caption.weight(.semibold)).foregroundStyle(Theme.rust)
+            .textCase(.uppercase)
+            .accessibilityAddTraits(.isHeader)
+    }
+    @ViewBuilder private var syncLabel: some View {
+        if let sync = store.lastSyncedText {
+            Text("synced \(sync)").font(.caption).foregroundStyle(Theme.inkSoft)
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let err = store.error { ErrorBanner(message: err) }
 
-                HStack(spacing: 6) {
-                    Text("Summer 2027 internships")
-                        .font(.caption.weight(.semibold)).foregroundStyle(Theme.rust)
-                        .textCase(.uppercase)
-                    Spacer()
-                    if let sync = store.lastSyncedText {
-                        Text("synced \(sync)").font(.caption).foregroundStyle(Theme.inkSoft)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        headerTitle
+                        Spacer()
+                        syncLabel
                     }
+                    VStack(alignment: .leading, spacing: 4) { headerTitle; syncLabel }
                 }
 
-                HStack(spacing: 10) {
+                AdaptiveRow {
                     Stat(num: "\(store.newToday.count)", label: "new today", color: Theme.gold)
                     Stat(num: "\(store.newWithin(days: 7).count)", label: "this week", color: Theme.rust)
-                    Stat(num: "\(applied.count)", label: "applied", color: Theme.green)
+                    // Same number as the Applications tab: everything ever sent, closed
+                    // included — a rejection is still an application.
+                    Stat(num: "\(store.appSummary?.applied ?? applied.count)", label: "applied", color: Theme.green)
                 }
 
                 // 1. New today — the reason to open the app. "New" is either
@@ -207,47 +220,68 @@ struct TodayView: View {
 struct FollowUpsSection: View {
     @EnvironmentObject var store: Store
 
-    /// Merge apps needing action and contacts needing follow-up, capped at 6 total.
-    private var items: [(label: String, sub: String, reason: String, urgency: Int)] {
-        var out: [(String, String, String, Int)] = []
+    private enum Item { case app(AppItem), contact(Contact) }
+
+    /// Apps needing action and contacts needing follow-up, capped at 6 total.
+    /// Apps open their detail screen — a follow-up you can't act on from the
+    /// list is just a reminder of guilt.
+    private var items: [(item: Item, label: String, sub: String, reason: String, urgency: Int)] {
+        var out: [(Item, String, String, String, Int)] = []
         for app in store.apps where app.dueState != nil {
             let reason = app.dueState == .overdue ? "Action due" : "Past usual window"
             let urgency = app.dueState == .overdue ? 0 : 2
-            out.append((app.companyName ?? "—", app.roleTitle ?? "—", reason, urgency))
+            out.append((.app(app), app.companyName ?? "—", app.roleTitle ?? "—", reason, urgency))
         }
         for c in store.followUpContacts {
             let reason = c.nextTouchDue ? "Touch due" : "No reply · 5d+"
-            out.append((c.name ?? "—", c.company ?? "—", reason, 1))
+            out.append((.contact(c), c.name ?? "—", c.company ?? "—", reason, 1))
         }
-        return out.sorted { $0.3 < $1.3 }.prefix(6).map { $0 }
+        return out.sorted { $0.4 < $1.4 }.prefix(6).map { $0 }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             SectionHeader(title: "Follow-ups",
                           trailing: "\(store.totalNudgeCount)")
-            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                HStack(spacing: 0) {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(item.urgency == 0 ? Theme.rust : Theme.gold)
-                        .frame(width: 4)
-                        .padding(.vertical, 2)
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text(item.label)
-                                .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
-                            Spacer()
-                            Pill(text: item.reason,
-                                 color: item.urgency == 0 ? Theme.rust : Theme.gold,
-                                 filled: item.urgency == 0)
-                        }
-                        Text(item.sub).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
-                    }
-                    .padding(.leading, 12)
+            ForEach(Array(items.enumerated()), id: \.offset) { _, entry in
+                switch entry.item {
+                case .app(let app):
+                    NavigationLink {
+                        ApplicationDetailView(app: app).environmentObject(store)
+                    } label: { row(entry, chevron: true) }
+                    .buttonStyle(.plain)
+                case .contact:
+                    row(entry, chevron: false)
                 }
-                .reconCard()
             }
         }
+    }
+
+    private func row(_ entry: (item: Item, label: String, sub: String, reason: String, urgency: Int),
+                     chevron: Bool) -> some View {
+        HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(entry.urgency == 0 ? Theme.rust : Theme.gold)
+                .frame(width: 4)
+                .padding(.vertical, 2)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(entry.label)
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                    Spacer()
+                    Pill(text: entry.reason,
+                         color: entry.urgency == 0 ? Theme.rust : Theme.gold,
+                         filled: entry.urgency == 0)
+                    if chevron {
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.inkSoft)
+                    }
+                }
+                Text(entry.sub).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+            }
+            .padding(.leading, 12)
+        }
+        .reconCard()
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -319,13 +353,34 @@ struct ProposalCard: View {
 
 struct Stat: View {
     let num: String; let label: String; let color: Color
+    @Environment(\.dynamicTypeSize) private var typeSize
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        // At accessibility sizes the tiles stack (see AdaptiveRow), so number
+        // and label sit side by side instead of the label breaking mid-word.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 10))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+        layout {
             Text(num).font(.system(.title, design: .serif).weight(.semibold)).foregroundStyle(color)
             Text(label).font(.caption2).foregroundStyle(Theme.inkSoft).textCase(.uppercase)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .reconCard()
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A row of tiles that becomes a column at accessibility text sizes, where
+/// three side by side leave each tile a few characters wide.
+struct AdaptiveRow<Content: View>: View {
+    var spacing: CGFloat = 10
+    @ViewBuilder let content: Content
+    @Environment(\.dynamicTypeSize) private var typeSize
+    var body: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: spacing))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: spacing))
+        layout { content }
     }
 }
 
