@@ -108,6 +108,50 @@ def _units(th: dict) -> list[dict]:
 
 
 def poll(db: Session, limit: int | None = None, full: bool = False) -> dict:
+    """Read recent threads, file proposals, auto-file the routine ones, and
+    record the run so the app can show whether mail is working."""
+    from tracking.runs import record
+    with record(db, "mail") as run:
+        result = _poll(db, limit, full)
+        if result.get("status") == "ok":
+            result["auto_filed"] = auto_file(db)
+            run.summary = (f"{result['threads']} threads read, {result['auto_filed']} filed "
+                           f"automatically, {result['proposals']} new to review")
+        else:
+            run.fail(result.get("reason") or result.get("status"))
+        run.detail = result
+    return result
+
+
+def auto_file(db: Session) -> int:
+    """File what needs no judgment: high-confidence confirmations and
+    rejections that propose a move. Interview invites, offers and requests
+    always wait. A new application is only created when the email names the
+    role — otherwise it would be filed as "(role not recorded)". Every filing
+    is an ApplicationEvent with actor="recon", which the app shows with Undo.
+    """
+    if not settings.mail_auto_file:
+        return 0
+    from tracking.accept import _accept_proposal
+    rows = db.scalars(
+        select(MailMessage).where(MailMessage.status == "pending",
+                                  MailMessage.kind.in_(("ack", "rejection")),
+                                  MailMessage.confidence == "high",
+                                  MailMessage.proposed_stage.is_not(None),
+                                  MailMessage.no_auto.is_not(True))
+        .order_by(MailMessage.received_at.asc().nullsfirst())).all()
+    n = 0
+    for m in rows:
+        if not m.application_id and not m.role_title:
+            continue
+        _accept_proposal(m, None, db, actor="recon")
+        db.flush()
+        n += 1
+    db.commit()
+    return n
+
+
+def _poll(db: Session, limit: int | None = None, full: bool = False) -> dict:
     """Read recent threads, file one proposal per conversation."""
     if not settings.mail_enabled:
         return {"status": "disabled", "reason": "MAIL_ENABLED is false"}

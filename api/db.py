@@ -146,6 +146,9 @@ class MailMessage(Base):
     # several applications (Nike sent two roles into one thread), so a thread
     # files one row per distinct role.
     role_title: Mapped[str | None] = mapped_column(String)
+    # Set when Zach undoes an automatic filing: the poller must never file
+    # this one by itself again.
+    no_auto: Mapped[bool | None] = mapped_column(Boolean)
     # Gmail's historyId for the thread when last read; unchanged means skip.
     history_id: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -182,6 +185,27 @@ class ApplicationEvent(Base):
     to_stage: Mapped[str | None] = mapped_column(String)
     note: Mapped[str | None] = mapped_column(Text)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Who moved it: "you" (accepted or edited in the app) or "recon" (filed
+    # automatically from a routine email). Recon's moves carry the email that
+    # caused them, which is what makes them undoable.
+    actor: Mapped[str | None] = mapped_column(String)
+    mail_id: Mapped[int | None] = mapped_column(Integer)
+    undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class JobRun(Base):
+    """One run of a background job — the scan or the mail check — and how it
+    went. The mail check failed silently for a month (2026-09-22 to 10-20)
+    because its result only ever reached a log file; this is what the app's
+    status line reads instead."""
+    __tablename__ = "job_runs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String)                # scan | mail
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str | None] = mapped_column(String)       # ok | error
+    summary: Mapped[str | None] = mapped_column(Text)        # one human line
+    detail: Mapped[str | None] = mapped_column(Text)         # JSON
 
 
 class Material(Base):

@@ -139,6 +139,10 @@ class Settings(BaseSettings):
     # WRONG inbox (2026-10-20: zakslax instead of collinszach01), and the poll
     # happily filed its newsletters. Set, a mismatch stops the poll instead.
     mail_account: str = "collinszach01@gmail.com"
+    # File high-confidence confirmations and rejections without asking.
+    # Each one lands in the activity feed with Undo. Interview invites,
+    # offers and requests always wait for Zach.
+    mail_auto_file: bool = True
 
     # ─── Notifications: email ───────────────────────────────
     notify_email_enabled: bool = False
