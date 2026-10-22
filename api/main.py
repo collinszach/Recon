@@ -668,6 +668,18 @@ def create_app(body: AppCreate, db: Session = Depends(get_db)):
         existing = db.scalar(select(Application).where(Application.role_id == r.id))
         if existing:
             return _app_dict(existing)
+        # Applications created from email have no role_id, so the check above
+        # misses them; match on company and role instead, and link the posting
+        # so the next lookup is exact. Without this, Keep on an already-applied
+        # role made a second, "saved" copy (NVIDIA, C3 AI, Capital One).
+        from mail.classify import same_role
+        co_name = (r.company.name if r.company else "") or ""
+        for a in db.scalars(select(Application).where(Application.role_id.is_(None))).all():
+            if (_canonical_company(a.company_name, db) or "").lower() == co_name.lower() \
+                    and same_role(a.role_title, r.title):
+                a.role_id, a.role_url = r.id, a.role_url or r.url
+                db.commit()
+                return _app_dict(a)
         a = Application(role_id=r.id,
                         company_name=r.company.name if r.company else None,
                         role_title=r.title, role_url=r.url, stage=body.stage)

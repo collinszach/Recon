@@ -574,10 +574,14 @@ struct ActivityItem: Codable, Hashable, Identifiable {
     var headline: String {
         if type == "scan" { return note ?? "Scan finished" }
         let who = company ?? "Application"
+        // "Rejection" only when an email said so — closing a bookmark yourself
+        // isn't one.
+        let fromEmail = actor == "recon" || (note ?? "").hasPrefix("From email")
         switch (fromStage, toStage) {
-        case (nil, let to?) where to == "closed": return "\(who) added and closed (rejection)"
+        case (nil, let to?) where to == "closed":
+            return fromEmail ? "\(who) added and closed (rejection)" : "\(who) added as closed"
         case (nil, let to?):  return "\(who) added as \(to.capitalized)"
-        case (_, "closed"?):  return "\(who) closed — rejection"
+        case (_, "closed"?):  return fromEmail ? "\(who) closed — rejection" : "\(who) closed by you"
         case (let f?, let t?): return "\(who): \(f.capitalized) → \(t.capitalized)"
         default:              return "\(who) updated"
         }

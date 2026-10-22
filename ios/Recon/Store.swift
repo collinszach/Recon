@@ -262,6 +262,12 @@ final class Store: ObservableObject {
         saveRatingSets()
         do { try await api.feedback(roleId: role.id, value: value) }
         catch { enqueue(.init(roleId: role.id, kind: .interest, value: value)) }
+        // Keep = save. It lands in Applications → Saved, the one saved list,
+        // instead of a separate "kept roles" list that only the Apply tab read.
+        // The server returns the existing application if it's already tracked.
+        if value == "up", !apps.contains(where: { $0.roleUrl == role.url && role.url != nil }) {
+            await track(role, stage: "watching")
+        }
     }
 
     /// Wipe a role: gone from the feed now, gone after a relaunch, gone after

@@ -165,7 +165,8 @@ struct RolesView: View {
                 Picker("Segment", selection: $segment) {
                     Text("Live (\(store.feed.count))").tag(Segment.live)
                     Text("New (\(store.newWithin(days: newWithinDays).count))").tag(Segment.new)
-                    Text("Saved (\(store.likedRoleIds.count))").tag(Segment.saved)
+                    // No "Saved" here: Keep puts a role in Applications → Saved,
+                    // the one saved list.
                 }.pickerStyle(.segmented)
 
                 // The "New" window. Only shown where it applies — a window

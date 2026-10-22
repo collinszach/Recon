@@ -64,13 +64,13 @@ private struct ProfilePage<Content: View>: View {
     }
 }
 
-/// Finding work: roles from every board, the ones you've kept and still need
-/// to submit, and the startups Recon watches.
+/// Finding work: roles from every board, and the startups Recon watches.
+/// What you keep goes to Applications → Saved.
 struct JobsView: View {
     @EnvironmentObject var store: Store
     @State private var seg = Segment.roles
     enum Segment: String, CaseIterable, Identifiable {
-        case roles = "Roles", toApply = "To apply", startups = "Startups"
+        case roles = "Roles", startups = "Startups"
         var id: String { rawValue }
     }
     var body: some View {
@@ -81,7 +81,6 @@ struct JobsView: View {
             .pickerStyle(.segmented).padding(.horizontal, 16).padding(.bottom, 8)
             switch seg {
             case .roles:    RolesView()
-            case .toApply:  ApplyView()
             case .startups: StartupsView()
             }
         }

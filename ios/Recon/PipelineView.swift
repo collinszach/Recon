@@ -372,6 +372,7 @@ struct ContactEditor: View {
 struct AppCard: View {
     let app: AppItem
     @EnvironmentObject var store: Store
+    @State private var applying = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -426,8 +427,20 @@ struct AppCard: View {
         // not a long-press menu. Its own row, so it never covers the title.
         // The server stamps the applied date.
         if app.isSaved && !app.postingClosed {
-            HStack {
+            HStack(spacing: 10) {
                 Spacer()
+                if app.roleUrl != nil {
+                    // The posting in-app, with autofill. Never submits.
+                    Button { applying = true } label: {
+                        Label("Apply", systemImage: "square.and.pencil")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .frame(minHeight: 44)
+                            .foregroundStyle(Theme.green)
+                            .overlay(Capsule().stroke(Theme.green.opacity(0.6), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
                 Button { Task { await store.move(app, to: .applied) } } label: {
                     Label("Mark applied", systemImage: "paperplane")
                         .font(.caption.weight(.semibold))
@@ -440,6 +453,9 @@ struct AppCard: View {
         }
         }
         .reconCard()
+        .fullScreenCover(isPresented: $applying) {
+            ApplyFormView(app: app, store: store).environmentObject(store)
+        }
         .accessibilityAction(named: "Mark applied") {
             if app.isSaved { Task { await store.move(app, to: .applied) } }
         }

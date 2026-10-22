@@ -42,7 +42,7 @@ struct ApplyView: View {
         }
         .scrollContentBackground(.hidden)
         .fullScreenCover(item: $applying) { role in
-            ApplyFormView(role: role).environmentObject(store)
+            ApplyFormView(role: role, store: store).environmentObject(store)
         }
     }
 }
@@ -120,7 +120,22 @@ private struct ApplyCard: View {
 struct ApplyFormView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
-    let role: Role
+    let url: String?
+    let company: String?
+    /// What "Mark applied" does — track a role, or move a saved application.
+    let markApplied: () async -> Void
+
+    init(role: Role, store: Store) {
+        url = role.url; company = role.company
+        markApplied = {
+            await store.setInterest(role, "up")
+            await store.track(role, stage: "applied")
+        }
+    }
+    init(app: AppItem, store: Store) {
+        url = app.roleUrl; company = app.companyName
+        markApplied = { await store.move(app, to: .applied) }
+    }
 
     @State private var isLoading = true
     @State private var loadError: String?
@@ -131,7 +146,7 @@ struct ApplyFormView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if let url = role.url.flatMap(URL.init) {
+                if let url = url.flatMap(URL.init) {
                     AutofillWebView(url: url, isLoading: $isLoading,
                                     loadError: $loadError, reloadToken: reloadToken,
                                     fillRequest: $filling, profile: store.autofillProfile,
@@ -147,7 +162,7 @@ struct ApplyFormView: View {
                         .padding(10).background(Theme.card)
                 }
             }
-            .navigationTitle(role.company ?? "Apply")
+            .navigationTitle(company ?? "Apply")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -164,11 +179,7 @@ struct ApplyFormView: View {
                     // separate, deliberate act — the same rule the extension
                     // follows.
                     Button {
-                        Task {
-                            await store.setInterest(role, "up")
-                            await store.track(role, stage: "applied")
-                            dismiss()
-                        }
+                        Task { await markApplied(); dismiss() }
                     } label: { Label("Mark applied", systemImage: "checkmark.circle") }
                 }
             }
