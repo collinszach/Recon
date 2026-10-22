@@ -33,6 +33,9 @@ struct PipelineView: View {
                 ForEach(Segment.allCases) { s in Text(label(s)).tag(s) }
             }
             .pickerStyle(.segmented).padding(.horizontal, 16).padding(.bottom, 8)
+            .onChange(of: seg) { _, new in
+                if !chipsForSegment.contains(filter) { filter = .all }
+            }
 
             if seg == .contacts { ContactsView() } else { applications }
         }
@@ -115,7 +118,7 @@ struct PipelineView: View {
     private var filterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(Filter.allCases) { f in
+                ForEach(chipsForSegment) { f in
                     let n = segmentBase.filter(f.keeps).count
                     Button { filter = f } label: {
                         Text("\(f.rawValue) \(n)")
@@ -129,6 +132,16 @@ struct PipelineView: View {
                     .accessibilityAddTraits(filter == f ? .isSelected : [])
                 }
             }
+        }
+    }
+
+    /// Only the slices that can mean something here: bookmarks have no
+    /// follow-ups or interviews, and closed applications need no slicing.
+    private var chipsForSegment: [Filter] {
+        switch seg {
+        case .active: return Filter.allCases
+        case .saved:  return [.all, .strong]
+        default:      return []
         }
     }
 
@@ -361,6 +374,7 @@ struct AppCard: View {
     @EnvironmentObject var store: Store
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
         NavigationLink {
             // Pushed views don't inherit the tab's injected store.
             ApplicationDetailView(app: app).environmentObject(store)
@@ -403,25 +417,29 @@ struct AppCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .reconCard()
+            .contentShape(Rectangle())
             .accessibilityElement(children: .combine)
             .accessibilityHint("Opens the application")
         }
         .buttonStyle(.plain)
         // A saved posting's next step is almost always "I applied" — one tap,
-        // not a long-press menu. The server stamps the applied date.
-        .overlay(alignment: .bottomTrailing) {
-            if app.isSaved && !app.postingClosed {
+        // not a long-press menu. Its own row, so it never covers the title.
+        // The server stamps the applied date.
+        if app.isSaved && !app.postingClosed {
+            HStack {
+                Spacer()
                 Button { Task { await store.move(app, to: .applied) } } label: {
                     Label("Mark applied", systemImage: "paperplane")
                         .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
                         .frame(minHeight: 44)
                         .foregroundStyle(.white).background(Theme.green, in: Capsule())
                 }
-                .padding(12)
+                .buttonStyle(.plain)
             }
         }
+        }
+        .reconCard()
         .accessibilityAction(named: "Mark applied") {
             if app.isSaved { Task { await store.move(app, to: .applied) } }
         }
