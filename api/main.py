@@ -1274,11 +1274,17 @@ def activity(limit: int = 40, db: Session = Depends(get_db)):
             "undoable": (e.actor == "recon" and e.mail_id is not None and e.undone_at is None),
             "undone": e.undone_at is not None,
         })
+    # Scans run hourly; one line per day, not 24, or they bury everything else.
     since = datetime.now(timezone.utc) - timedelta(days=3)
-    for r in db.scalars(select(ScanRun).where(ScanRun.finished_at >= since,
-                                              ScanRun.new_count > 0)).all():
-        items.append({"id": -r.id, "type": "scan", "at": r.finished_at.isoformat(),
-                      "actor": "recon", "note": f"{r.new_count} new postings found",
+    by_day: dict[date, list[ScanRun]] = {}
+    for r in db.scalars(select(ScanRun).where(ScanRun.finished_at >= since)).all():
+        by_day.setdefault(r.finished_at.date(), []).append(r)
+    for day, runs in by_day.items():
+        new = sum(r.new_count or 0 for r in runs)
+        last = max(r.finished_at for r in runs)
+        items.append({"id": -max(r.id for r in runs), "type": "scan", "at": last.isoformat(),
+                      "actor": "recon",
+                      "note": f"{len(runs)} scans, {new} new postings across all boards",
                       "undoable": False, "undone": False})
     items.sort(key=lambda i: i["at"] or "", reverse=True)
     return items[:limit]

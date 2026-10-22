@@ -531,6 +531,59 @@ struct InterviewPrep: Codable {
     let error: String?
 }
 
+/// GET /api/status — are Recon's background jobs working?
+struct SystemStatus: Codable, Hashable {
+    struct Job: Codable, Hashable {
+        let state: String          // ok | error | stale | never | off
+        let at: String?
+        let summary: String?
+        let fix: String?
+        var isHealthy: Bool { state == "ok" || state == "off" }
+    }
+    let scan: Job
+    let mail: Job
+    let pendingMail: Int
+    enum CodingKeys: String, CodingKey {
+        case scan, mail
+        case pendingMail = "pending_mail"
+    }
+    var isHealthy: Bool { scan.isHealthy && mail.isHealthy }
+}
+
+/// GET /api/activity — one thing that changed, by you or by Recon.
+struct ActivityItem: Codable, Hashable, Identifiable {
+    let id: Int
+    let type: String               // stage | scan
+    let at: String?
+    let actor: String              // you | recon
+    let applicationId: Int?
+    let company: String?
+    let role: String?
+    let fromStage: String?
+    let toStage: String?
+    let note: String?
+    let undoable: Bool
+    let undone: Bool
+    enum CodingKeys: String, CodingKey {
+        case id, type, at, actor, company, role, note, undoable, undone
+        case applicationId = "application_id"
+        case fromStage = "from_stage"
+        case toStage = "to_stage"
+    }
+    /// Plain-language headline for the feed.
+    var headline: String {
+        if type == "scan" { return note ?? "Scan finished" }
+        let who = company ?? "Application"
+        switch (fromStage, toStage) {
+        case (nil, let to?) where to == "closed": return "\(who) added and closed (rejection)"
+        case (nil, let to?):  return "\(who) added as \(to.capitalized)"
+        case (_, "closed"?):  return "\(who) closed — rejection"
+        case (let f?, let t?): return "\(who): \(f.capitalized) → \(t.capitalized)"
+        default:              return "\(who) updated"
+        }
+    }
+}
+
 /// GET /api/applications/summary — how the search is going, in numbers.
 struct AppSummary: Codable, Hashable {
     let applied: Int

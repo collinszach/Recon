@@ -148,6 +148,15 @@ struct ReconAPI {
         let data = try await execute("POST", "api/mail/proposals/accept-all", body: nil)
         return try JSONDecoder().decode(AcceptAllResult.self, from: data)
     }
+    func status() async throws -> SystemStatus {
+        try await get("api/status", as: SystemStatus.self)
+    }
+    func activity(limit: Int = 40) async throws -> [ActivityItem] {
+        try await get("api/activity?limit=\(limit)", as: [ActivityItem].self)
+    }
+    func undoActivity(id: Int) async throws {
+        _ = try await execute("POST", "api/activity/\(id)/undo", body: nil)
+    }
     func appSummary() async throws -> AppSummary {
         try await get("api/applications/summary", as: AppSummary.self)
     }

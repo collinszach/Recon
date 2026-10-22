@@ -62,6 +62,10 @@ struct TodayView: View {
                     VStack(alignment: .leading, spacing: 4) { headerTitle; syncLabel }
                 }
 
+                // Is Recon working? Shown first and always — the mail check
+                // was broken for a month and nothing on screen said so.
+                StatusLine()
+
                 AdaptiveRow {
                     Stat(num: "\(store.newToday.count)", label: "new today", color: Theme.gold)
                     Stat(num: "\(store.newWithin(days: 7).count)", label: "this week", color: Theme.rust)
@@ -70,120 +74,36 @@ struct TodayView: View {
                     Stat(num: "\(store.appSummary?.applied ?? applied.count)", label: "applied", color: Theme.green)
                 }
 
-                // 1. New today — the reason to open the app. "New" is either
-                // measure: the board dated it today, or it appeared on a board
-                // that doesn't publish dates and wasn't there before. Plenty of
-                // boards never date anything, and waiting for a date we'll never
-                // get would mean never surfacing their postings at all.
+                // 1. Needs you: only what a human has to decide. Routine
+                // confirmations and rejections are filed by Recon (see 3).
+                let urgent = store.mailProposals
+                if !urgent.isEmpty {
+                    SectionHeader(title: "Needs you", trailing: "\(urgent.count)")
+                    ForEach(urgent) { p in ProposalCard(proposal: p) }
+                }
+                if store.totalNudgeCount > 0 { FollowUpsSection() }
+                if urgent.isEmpty && store.totalNudgeCount == 0 {
+                    Label("Nothing needs you right now.", systemImage: "checkmark.circle")
+                        .font(.subheadline).foregroundStyle(Theme.green).reconCard()
+                }
+
+                // 2. New today — the reason to open the app.
                 SectionHeader(title: "New today",
                               trailing: store.newToday.isEmpty ? nil : "\(store.newToday.count)")
                 if store.newToday.isEmpty {
-                    Text("Nothing new today yet. Recon scans hourly; most Summer 2027 reqs post Aug 2026–Jan 2027.")
+                    Text("Nothing new yet today. Recon checks every hour; Jobs has the week.")
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 } else {
-                    ForEach(store.newToday) { role in roleLink(role) }
-                    if store.postedToday.count < store.newToday.count {
-                        Text("\(store.newToday.count - store.postedToday.count) of these are from boards that don't publish posting dates — new means they weren't on the board before.")
+                    ForEach(store.newToday.prefix(8)) { role in roleLink(role) }
+                    if store.newToday.count > 8 {
+                        Text("+ \(store.newToday.count - 8) more in Jobs")
                             .font(.caption).foregroundStyle(Theme.inkSoft)
                     }
                 }
 
-                // 2. Replies, above everything else that needs attention: a
-                // recruiter waiting on you outranks a role you haven't seen.
-                // These are proposals — nothing moved until you say so.
-                // Only what needs a human: interview invites, offers, requests.
-                // Confirmations and rejections are batch work, done from the
-                // Applications tab's inbox in one tap.
-                let urgent = store.mailProposals.filter { ["screen", "offer", "info_request"].contains($0.kind ?? "") }
-                if !urgent.isEmpty {
-                    SectionHeader(title: "Replies", trailing: "\(urgent.count)")
-                    ForEach(urgent) { p in ProposalCard(proposal: p) }
-                }
-                let routine = store.mailProposals.count - urgent.count
-                if routine > 0 {
-                    Label("\(routine) confirmation\(routine == 1 ? "" : "s") and rejection\(routine == 1 ? "" : "s") to file — Applications tab",
-                          systemImage: "tray.full")
-                        .font(.caption).foregroundStyle(Theme.inkSoft)
-                }
-
-                // 3. Needs action, before the browsing sections.
-                if store.totalNudgeCount > 0 { FollowUpsSection() }
-
-                // 4. Earlier this week, by posting day.
-                if !byDay.isEmpty {
-                    SectionHeader(title: "Earlier this week",
-                                  trailing: "\(store.postedThisWeek.count)")
-                    ForEach(byDay.prefix(6), id: \.label) { day in
-                        Text("\(day.label) · \(day.roles.count)")
-                            .font(.caption.weight(.semibold)).foregroundStyle(Theme.inkSoft)
-                            .textCase(.uppercase).padding(.top, 4)
-                        ForEach(day.roles.prefix(6)) { role in roleLink(role) }
-                        if day.roles.count > 6 {
-                            Text("+ \(day.roles.count - 6) more in Roles")
-                                .font(.caption).foregroundStyle(Theme.inkSoft)
-                        }
-                    }
-                }
-
-                // 5. Applications.
-                if !applied.isEmpty {
-                    SectionHeader(title: "Applied", trailing: "\(applied.count)")
-                    ForEach(applied.prefix(5)) { app in appRow(app, tint: Theme.green) }
-                    if applied.count > 5 {
-                        Text("+ \(applied.count - 5) more in Pipeline")
-                            .font(.caption).foregroundStyle(Theme.inkSoft)
-                    }
-                }
-
-                SectionHeader(title: "Saved — not applied yet",
-                              trailing: saved.isEmpty ? nil : "\(saved.count)")
-                if saved.isEmpty {
-                    Text("Nothing saved. Swipe right on a role — or tap Keep on one — and it lands here.")
-                        .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
-                } else {
-                    ForEach(saved.prefix(5)) { app in appRow(app, tint: Theme.gold) }
-                    if saved.count > 5 {
-                        Text("+ \(saved.count - 5) more in Pipeline")
-                            .font(.caption).foregroundStyle(Theme.inkSoft)
-                    }
-                }
-
-                // 6. Why the feed jumped: a board's back catalogue arriving is
-                // explained here instead of silently swelling the counts above.
-                if !store.recentBoards.isEmpty {
-                    SectionHeader(title: "Boards connected", trailing: "\(store.recentBoards.count)")
-                    ForEach(store.recentBoards) { b in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(b.company).font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(Theme.ink)
-                                Text("\(b.rolesAdded) existing roles added\(b.ats.map { " · \($0)" } ?? "")")
-                                    .font(.caption).foregroundStyle(Theme.inkSoft)
-                            }
-                            Spacer()
-                        }
-                        .reconCard()
-                    }
-                }
-
-                // 7. Arrived with no posting date — visible, but never counted
-                // as "today".
-                if !store.undatedArrivals.isEmpty {
-                    Button { withAnimation { showUndated.toggle() } } label: {
-                        HStack {
-                            Text("Older, date unknown · \(store.undatedArrivals.count)")
-                                .font(.caption.weight(.semibold)).textCase(.uppercase)
-                            Image(systemName: showUndated ? "chevron.up" : "chevron.down")
-                                .font(.caption2)
-                            Spacer()
-                        }
-                        .foregroundStyle(Theme.inkSoft)
-                    }
-                    .buttonStyle(.plain)
-                    if showUndated {
-                        ForEach(store.undatedArrivals.prefix(10)) { role in roleLink(role) }
-                    }
-                }
+                // 3. What changed — including what Recon did on its own, each
+                // with Undo. Automation you can't see is automation you can't trust.
+                ActivitySection()
             }
             .padding(16)
         }

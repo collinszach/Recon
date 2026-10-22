@@ -16,6 +16,10 @@ final class Store: ObservableObject {
     @Published var mailProposals: [MailProposal] = []
     /// Server-computed search numbers (applied, response rate, silent).
     @Published var appSummary: AppSummary?
+    /// Health of the scan and mail jobs — the status line on Today.
+    @Published var systemStatus: SystemStatus?
+    /// What changed, newest first — including what Recon filed on its own.
+    @Published var activity: [ActivityItem] = []
     /// Flat contact/EEO profile used to fill application forms in-app. Same
     /// payload the Chrome extension uses, so the two can't drift.
     @Published var autofillProfile: [String: String] = [:]
@@ -81,6 +85,7 @@ final class Store: ObservableObject {
         brief = Cache.load(Brief.self, "brief")
         apps = Cache.load([AppItem].self, "apps") ?? []
         appSummary = Cache.load(AppSummary.self, "appSummary")
+        activity = Cache.load([ActivityItem].self, "activity") ?? []
         companies = Cache.load([Company].self, "companies") ?? []
         contacts = Cache.load([Contact].self, "contacts") ?? []
         recentBoards = Cache.load([ConnectedBoard].self, "recentBoards") ?? []
@@ -361,6 +366,9 @@ final class Store: ObservableObject {
             Cache.save(mailProposals, "mailProposals")
             appSummary = (try? await api.appSummary()) ?? appSummary
             Cache.save(appSummary, "appSummary")
+            systemStatus = (try? await api.status()) ?? systemStatus
+            activity = (try? await api.activity()) ?? activity
+            Cache.save(activity, "activity")
             autofillProfile = (try? await api.autofillProfile()) ?? autofillProfile
             Cache.save(autofillProfile, "autofillProfile")
             resumeOnFile = (try? await api.resumeOnFile()) ?? resumeOnFile
@@ -415,6 +423,18 @@ final class Store: ObservableObject {
             self.error = error.localizedDescription
             return nil
         }
+    }
+
+    /// Undo something Recon filed on its own, then refetch what it touched.
+    func undo(_ item: ActivityItem) async {
+        do {
+            try await api.undoActivity(id: item.id)
+            activity = (try? await api.activity()) ?? activity
+            apps = (try? await api.applications()) ?? apps
+            mailProposals = (try? await api.mailProposals()) ?? mailProposals
+            appSummary = (try? await api.appSummary()) ?? appSummary
+            Cache.save(apps, "apps"); Cache.save(activity, "activity")
+        } catch { self.error = error.localizedDescription }
     }
 
     func timeline(for app: AppItem) async -> [TimelineItem] {
