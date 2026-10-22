@@ -34,7 +34,12 @@ struct StartupsView: View {
                     Text("No startups tracked yet. Tap + to add one.")
                         .font(.subheadline).foregroundStyle(Theme.inkSoft).reconCard()
                 } else {
-                    ForEach(startups) { s in
+                    // Where the pipeline stands, in one line.
+                    let hiring = startups.filter { $0.pipeline == "hiring" }.count
+                    let scanning = startups.filter { $0.pipeline == "scanning" }.count
+                    Text("\(hiring) hiring now · \(scanning) watched for roles · \(startups.count - hiring - scanning) without a job board")
+                        .font(.caption).foregroundStyle(Theme.inkSoft)
+                    ForEach(ordered) { s in
                         NavigationLink(destination: StartupDetailView(startup: s, onChanged: { Task { await load() } })) {
                             StartupRow(startup: s)
                         }.buttonStyle(.plain)
@@ -54,6 +59,19 @@ struct StartupsView: View {
         .task { await load() }
     }
 
+    /// Hiring first (most open roles), then most recently funded — a fresh
+    /// round is the best signal a startup is about to hire.
+    private var ordered: [Startup] {
+        startups.sorted { a, b in
+            let ra = a.pipeline == "hiring" ? 0 : 1, rb = b.pipeline == "hiring" ? 0 : 1
+            if ra != rb { return ra < rb }
+            if ra == 0, (a.openRoles ?? 0) != (b.openRoles ?? 0) { return (a.openRoles ?? 0) > (b.openRoles ?? 0) }
+            let da = a.roundDate ?? .distantPast, db = b.roundDate ?? .distantPast
+            if da != db { return da > db }
+            return a.name < b.name
+        }
+    }
+
     private func load() async {
         loading = true
         startups = (try? await ReconAPI.shared.startups(sector: sectorFilter)) ?? []
@@ -69,9 +87,9 @@ private struct StartupRow: View {
                 .fill(Theme.rust).frame(width: 4).padding(.vertical, 2)
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    Pill(text: startup.sectorLabel, color: Theme.gold)
                     Text(startup.name).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                     Spacer()
+                    pipelinePill
                     if startup.hasWriteup == true {
                         Image(systemName: "doc.text.fill").font(.caption).foregroundStyle(Theme.green)
                     }
@@ -79,11 +97,31 @@ private struct StartupRow: View {
                 if let o = startup.oneLiner, !o.isEmpty {
                     Text(o).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(2)
                 }
+                HStack(spacing: 8) {
+                    Pill(text: startup.sectorLabel, color: Theme.gold)
+                    if let f = startup.fundingLine {
+                        Text(f).font(.caption2).foregroundStyle(Theme.inkSoft)
+                    }
+                }
                 if let loc = startup.hqLocation, !loc.isEmpty {
                     Label(loc, systemImage: "mappin.and.ellipse").font(.caption2).foregroundStyle(Theme.inkSoft)
                 }
             }.padding(.leading, 12)
-        }.reconCard()
+        }
+        .reconCard()
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Text, not just color: "Hiring · 3", "Watching", "No board".
+    @ViewBuilder private var pipelinePill: some View {
+        switch startup.pipeline {
+        case "hiring":
+            Pill(text: "Hiring · \(startup.openRoles ?? 0)", color: Theme.green, filled: true)
+        case "scanning":
+            Pill(text: "Watching", color: Theme.inkSoft)
+        default:
+            Pill(text: "No board", color: Theme.inkSoft)
+        }
     }
 }
 

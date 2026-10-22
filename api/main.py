@@ -66,6 +66,10 @@ def _ensure_schema():
         # name, and its education block is School / Degree / Discipline.
         for col, typ in (("actor", "VARCHAR"), ("mail_id", "INTEGER"), ("undone_at", "TIMESTAMPTZ")):
             conn.execute(text(f"ALTER TABLE application_events ADD COLUMN IF NOT EXISTS {col} {typ}"))
+        for col, typ in (("last_round_date", "DATE"), ("last_round_type", "VARCHAR"),
+                         ("last_round_m", "DOUBLE PRECISION"), ("total_raised_m", "DOUBLE PRECISION"),
+                         ("headcount", "INTEGER"), ("source", "VARCHAR")):
+            conn.execute(text(f"ALTER TABLE startups ADD COLUMN IF NOT EXISTS {col} {typ}"))
         conn.execute(text("ALTER TABLE applications ADD COLUMN IF NOT EXISTS fit_read TEXT"))
         conn.execute(text("ALTER TABLE applications ADD COLUMN IF NOT EXISTS fit_read_at TIMESTAMPTZ"))
         for col in ("preferred_name", "discipline"):
@@ -908,7 +912,7 @@ class StartupContactIn(BaseModel):
     notes: str | None = None
 
 
-def _startup_dict(s: Startup) -> dict:
+def _startup_dict(s: Startup, pipeline: dict | None = None) -> dict:
     return {
         "id": s.id, "name": s.name, "sector": s.sector, "hq_location": s.hq_location,
         "stage": s.stage, "founded_year": s.founded_year, "website": s.website,
@@ -916,7 +920,33 @@ def _startup_dict(s: Startup) -> dict:
         "has_writeup": bool(s.writeup_markdown),
         "writeup_generated_at": s.writeup_generated_at.isoformat() if s.writeup_generated_at else None,
         "created_at": s.created_at.isoformat() if s.created_at else None,
+        "last_round_date": s.last_round_date.isoformat() if s.last_round_date else None,
+        "last_round_type": s.last_round_type, "last_round_m": s.last_round_m,
+        "total_raised_m": s.total_raised_m, "headcount": s.headcount, "source": s.source,
+        # Where it is in the pipeline: no_board (Recon can't see its jobs),
+        # scanning (board found, nothing for you yet), hiring (open roles in
+        # your tracks right now).
+        "pipeline": (pipeline or {}).get("state", "no_board"),
+        "open_roles": (pipeline or {}).get("open", 0),
     }
+
+
+def _startup_pipelines(db: Session) -> dict[int, dict]:
+    """startup id -> {state, open} using the companies Recon scans."""
+    from scan.identity import identity_key
+    from scan.intern_filter import in_active_track
+    companies = {identity_key(c.name): c for c in db.scalars(
+        select(Company).where(Company.ats_token.is_not(None), Company.ats_token != "")).all()}
+    out = {}
+    for s in db.scalars(select(Startup)).all():
+        co = companies.get(identity_key(s.name))
+        if not co:
+            continue
+        titles = db.execute(select(Role.title, Role.department).where(
+            Role.company_id == co.id, Role.status.in_(["open", "changed"]))).all()
+        n = sum(1 for t, d in titles if in_active_track(t or "", d, settings.track_mode))
+        out[s.id] = {"state": "hiring" if n else "scanning", "open": n}
+    return out
 
 
 def _startup_contact_dict(c: StartupContact) -> dict:
@@ -931,7 +961,58 @@ def list_startups(sector: str | None = None, db: Session = Depends(get_db)):
     if sector:
         q = q.where(Startup.sector == sector)
     rows = db.scalars(q.order_by(Startup.name)).all()
-    return [_startup_dict(s) for s in rows]
+    pipes = _startup_pipelines(db)
+    return [_startup_dict(s, pipes.get(s.id)) for s in rows]
+
+
+@app.post("/api/startups/import")
+async def import_startups(request: Request, promote: bool = True,
+                          db: Session = Depends(get_db)):
+    """Import a PitchBook company export (raw CSV body).
+
+    New companies are added, existing ones (same identity key) get the
+    PitchBook numbers. With promote=true, the job-board search and identity
+    check run on everything that doesn't have a board yet.
+    """
+    from scan.identity import identity_key
+    from startups.pitchbook import parse
+    raw = (await request.body()).decode("utf-8", "replace")
+    records, cols = parse(raw)
+    if not records:
+        raise HTTPException(422, "No companies found — is this a PitchBook company export with a "
+                                 "'Companies' column?")
+    by_key = {identity_key(s.name): s for s in db.scalars(select(Startup)).all()}
+    added = updated = 0
+    for r in records:
+        s = by_key.get(identity_key(r["name"]))
+        if s is None:
+            s = Startup(name=r["name"], source="pitchbook")
+            db.add(s)
+            by_key[identity_key(r["name"])] = s
+            added += 1
+        else:
+            updated += 1
+        for field in ("website", "one_liner", "hq_location", "founded_year"):
+            if r.get(field) and not getattr(s, field):
+                setattr(s, field, r[field])
+        if not s.sector or s.sector == "other":
+            s.sector = r["sector"]
+        for field in ("last_round_date", "last_round_type", "last_round_m", "total_raised_m", "headcount"):
+            if r.get(field) is not None:
+                setattr(s, field, r[field])
+        if r.get("last_round_type"):
+            s.stage = r["last_round_type"]
+        db.flush()
+    db.commit()
+    result = {"rows": len(records), "added": added, "updated": updated,
+              "columns_used": sorted(cols)}
+    if promote:
+        from scan.ats_discovery import promote_startups
+        p = promote_startups(db, limit=len(records) + 50, dry_run=False)
+        result["promoted"] = [x["startup"] for x in p.get("promoted", [])]
+        result["needs_review"] = [x["startup"] for x in p.get("review", [])]
+        result["no_board"] = len(p.get("no_board", []))
+    return result
 
 
 @app.post("/api/startups")

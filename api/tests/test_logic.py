@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from mail.classify import classify, placeholder_title, role_title, same_role  # noqa: E402
 from tracking.timing import classify as timing_kind, expect  # noqa: E402
+from startups.pitchbook import parse as pb_parse  # noqa: E402
 from datetime import date  # noqa: E402
 from scan.geo import is_us, metro_of, states_of         # noqa: E402
 from scan.intern_filter import in_active_track, is_internship, is_pure_swe  # noqa: E402
@@ -145,6 +146,26 @@ check("role-amex-received", role_title("Thank you for applying",
       "Your application for the position of Campus Graduate Masters Summer Internship Program - 2027 "
       "AI Engineer, Enterprise Technology Services- New York, NY has been received."),
       "Campus Graduate Masters Summer Internship Program - 2027 AI Engineer, Enterprise Technology Services")
+# ── PitchBook import ───────────────────────────────────────────────────────
+# Shaped like a real export: title rows above the header, USD-millions money,
+# PitchBook's dd-Mon-yyyy dates, a footer.
+_pb = (
+    "PitchBook Data, Inc.\nSearch: Companies\n\n"
+    "Companies,Website,Description,HQ Location,Primary Industry Sector,Verticals,"
+    "Last Financing Date,Last Financing Deal Type,Last Financing Size,Total Raised,Employees,Year Founded\n"
+    "Acme Robotics,acmerobotics.com,Warehouse robots,\"San Francisco, CA\",Information Technology,"
+    "Robotics and Drones,14-Aug-2026,Early Stage VC,\"$45.00\",\"$80.50\",120,2021\n"
+    "Volt Grid,www.voltgrid.io,Grid-scale battery storage,\"Austin, TX\",Energy,Climate Tech,"
+    "02-Mar-2026,Later Stage VC,120.00,310.00,\"1,050\",2019\n"
+    "Data provided by PitchBook\n")
+_rows, _cols = pb_parse(_pb)
+check("pb-count", len(_rows), 2)
+check("pb-website", _rows[0]["website"], "https://acmerobotics.com")
+check("pb-money", (_rows[0]["last_round_m"], _rows[0]["total_raised_m"]), (45.0, 80.5))
+check("pb-date", str(_rows[1]["last_round_date"]), "2026-03-02")
+check("pb-headcount", _rows[1]["headcount"], 1050)
+check("pb-sector-energy", _rows[1]["sector"], "sustainability_energy")
+check("pb-sector-tech", _rows[0]["sector"], "product_tech_data")
 check("placeholder", placeholder_title("Thank you for applying to Relay!"), True)
 check("real-title", placeholder_title("AI Program Manager Intern"), False)
 check("unrecorded-is-placeholder", placeholder_title("(role not recorded)"), True)

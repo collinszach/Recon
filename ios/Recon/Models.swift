@@ -718,9 +718,22 @@ struct Startup: Codable, Identifiable, Hashable {
     var writeupGeneratedAt: String? = nil
     var writeupMarkdown: String? = nil
     var createdAt: String? = nil
+    // Funding (from a PitchBook import) and pipeline state, both server-made.
+    var lastRoundDate: String? = nil
+    var lastRoundType: String? = nil
+    var lastRoundM: Double? = nil
+    var totalRaisedM: Double? = nil
+    var headcount: Int? = nil
+    var pipeline: String? = nil        // hiring | scanning | no_board
+    var openRoles: Int? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, name, sector, stage, website, notes
+        case id, name, sector, stage, website, notes, headcount, pipeline
+        case lastRoundDate = "last_round_date"
+        case lastRoundType = "last_round_type"
+        case lastRoundM = "last_round_m"
+        case totalRaisedM = "total_raised_m"
+        case openRoles = "open_roles"
         case hqLocation = "hq_location"
         case foundedYear = "founded_year"
         case oneLiner = "one_liner"
@@ -730,6 +743,16 @@ struct Startup: Codable, Identifiable, Hashable {
         case writeupMarkdown = "writeup_markdown"
         case createdAt = "created_at"
     }
+
+    /// "Series B · $45M · Aug 2026" — nil when nothing is known.
+    var fundingLine: String? {
+        var parts: [String] = []
+        if let t = lastRoundType ?? stage, !t.isEmpty { parts.append(t) }
+        if let m = lastRoundM { parts.append(m >= 1000 ? String(format: "$%.1fB", m / 1000) : "$\(Int(m.rounded()))M") }
+        if let d = Role.parseDate(lastRoundDate) { parts.append(d.formatted(.dateTime.month(.abbreviated).year())) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+    var roundDate: Date? { Role.parseDate(lastRoundDate) }
 
     static let sectors = ["fintech", "defense", "sustainability_energy", "product_tech_data", "other"]
     var sectorLabel: String {

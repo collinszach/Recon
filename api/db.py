@@ -315,6 +315,13 @@ class Startup(Base):
     website: Mapped[str | None] = mapped_column(String)
     one_liner: Mapped[str | None] = mapped_column(Text)
     funding_summary: Mapped[str | None] = mapped_column(Text)  # best-effort, LLM-researched — not authoritative
+    # From a PitchBook export: authoritative, unlike funding_summary.
+    last_round_date: Mapped[date | None] = mapped_column(Date)
+    last_round_type: Mapped[str | None] = mapped_column(String)
+    last_round_m: Mapped[float | None] = mapped_column(Float)       # USD millions
+    total_raised_m: Mapped[float | None] = mapped_column(Float)     # USD millions
+    headcount: Mapped[int | None] = mapped_column(Integer)
+    source: Mapped[str | None] = mapped_column(String)              # pitchbook | research | manual
     notes: Mapped[str | None] = mapped_column(Text)
     # cached on-demand writeup — regenerated only when explicitly requested, never on a schedule
     writeup_markdown: Mapped[str | None] = mapped_column(Text)
