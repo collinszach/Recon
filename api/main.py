@@ -937,6 +937,9 @@ def _in_priority_state(hq: str | None) -> bool:
         return False
     from scan.geo import states_of
     wanted = {x.strip().upper() for x in settings.priority_states.split(",") if x.strip()}
+    # A bare state ("CA") — how the 3D-printing additions arrived — is a state.
+    if hq.strip().upper() in wanted:
+        return True
     return bool(wanted & set(states_of(hq)))
 
 
