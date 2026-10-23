@@ -928,7 +928,16 @@ def _startup_dict(s: Startup, pipeline: dict | None = None) -> dict:
         # your tracks right now).
         "pipeline": (pipeline or {}).get("state", "no_board"),
         "open_roles": (pipeline or {}).get("open", 0),
+        "priority_location": _in_priority_state(s.hq_location),
     }
+
+
+def _in_priority_state(hq: str | None) -> bool:
+    if not hq:
+        return False
+    from scan.geo import states_of
+    wanted = {x.strip().upper() for x in settings.priority_states.split(",") if x.strip()}
+    return bool(wanted & set(states_of(hq)))
 
 
 def _startup_pipelines(db: Session) -> dict[int, dict]:

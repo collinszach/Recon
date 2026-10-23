@@ -726,6 +726,8 @@ struct Startup: Codable, Identifiable, Hashable {
     var headcount: Int? = nil
     var pipeline: String? = nil        // hiring | scanning | no_board
     var openRoles: Int? = nil
+    /// HQ in one of Zach's priority states (server setting PRIORITY_STATES).
+    var priorityLocation: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, name, sector, stage, website, notes, headcount, pipeline
@@ -734,6 +736,7 @@ struct Startup: Codable, Identifiable, Hashable {
         case lastRoundM = "last_round_m"
         case totalRaisedM = "total_raised_m"
         case openRoles = "open_roles"
+        case priorityLocation = "priority_location"
         case hqLocation = "hq_location"
         case foundedYear = "founded_year"
         case oneLiner = "one_liner"

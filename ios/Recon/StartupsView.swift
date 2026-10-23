@@ -59,12 +59,15 @@ struct StartupsView: View {
         .task { await load() }
     }
 
-    /// Hiring first (most open roles), then most recently funded — a fresh
-    /// round is the best signal a startup is about to hire.
+    /// Hiring first, then your priority locations (CA, NC, NY, VA, MD, DC,
+    /// CO), then most recently funded — a fresh round is the best signal a
+    /// startup is about to hire.
     private var ordered: [Startup] {
         startups.sorted { a, b in
             let ra = a.pipeline == "hiring" ? 0 : 1, rb = b.pipeline == "hiring" ? 0 : 1
             if ra != rb { return ra < rb }
+            let pa = a.priorityLocation == true ? 0 : 1, pb = b.priorityLocation == true ? 0 : 1
+            if pa != pb { return pa < pb }
             if ra == 0, (a.openRoles ?? 0) != (b.openRoles ?? 0) { return (a.openRoles ?? 0) > (b.openRoles ?? 0) }
             let da = a.roundDate ?? .distantPast, db = b.roundDate ?? .distantPast
             if da != db { return da > db }
@@ -104,7 +107,10 @@ private struct StartupRow: View {
                     }
                 }
                 if let loc = startup.hqLocation, !loc.isEmpty {
-                    Label(loc, systemImage: "mappin.and.ellipse").font(.caption2).foregroundStyle(Theme.inkSoft)
+                    Label(startup.priorityLocation == true ? "\(loc) · priority" : loc,
+                          systemImage: startup.priorityLocation == true ? "star.fill" : "mappin.and.ellipse")
+                        .font(.caption2)
+                        .foregroundStyle(startup.priorityLocation == true ? Theme.rust : Theme.inkSoft)
                 }
             }.padding(.leading, 12)
         }

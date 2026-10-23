@@ -143,6 +143,9 @@ class Settings(BaseSettings):
     # Each one lands in the activity feed with Undo. Interview invites,
     # offers and requests always wait for Zach.
     mail_auto_file: bool = True
+    # Where Zach most wants to be (2026-10-22): startups headquartered here
+    # sort first. Other states still count — this orders, it doesn't filter.
+    priority_states: str = "CA,NC,NY,VA,MD,DC,CO"
 
     # ─── Notifications: email ───────────────────────────────
     notify_email_enabled: bool = False

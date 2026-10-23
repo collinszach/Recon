@@ -166,6 +166,11 @@ check("pb-date", str(_rows[1]["last_round_date"]), "2026-03-02")
 check("pb-headcount", _rows[1]["headcount"], 1050)
 check("pb-sector-energy", _rows[1]["sector"], "sustainability_energy")
 check("pb-sector-tech", _rows[0]["sector"], "product_tech_data")
+# Startup HQs come as "City, ST" or "City, State"; both must resolve for the
+# location priority to work.
+check("hq-abbrev", states_of("San Francisco, CA"), ["CA"])
+check("hq-dc", "DC" in states_of("Washington, DC"), True)
+check("hq-full-state", states_of("Durham, North Carolina"), ["NC"])
 check("placeholder", placeholder_title("Thank you for applying to Relay!"), True)
 check("real-title", placeholder_title("AI Program Manager Intern"), False)
 check("unrecorded-is-placeholder", placeholder_title("(role not recorded)"), True)
