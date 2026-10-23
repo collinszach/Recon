@@ -171,6 +171,14 @@ check("pb-sector-tech", _rows[0]["sector"], "product_tech_data")
 check("hq-abbrev", states_of("San Francisco, CA"), ["CA"])
 check("hq-dc", "DC" in states_of("Washington, DC"), True)
 check("hq-full-state", states_of("Durham, North Carolina"), ["NC"])
+# Board names that are the company's domain squashed together (2026-10-23).
+from scan.identity import judge as _judge  # noqa: E402
+check("idn-domain-name", _judge("Turbalance", "https://turbalabs.com", "Turba Labs", [], [])[0], "promote")
+check("idn-domain-name-2", _judge("Sirona", "https://sironamedical.com", "Sirona Medical", [], [])[0], "promote")
+check("idn-still-rejects", _judge("Watershed", "https://watershed.com", "Watershed Informatics", [], [])[0], "reject")
+# Ashby's publicWebsite arrives as a posting URL: a match promotes, a mismatch rejects.
+check("idn-ashby-site", _judge("Rogo", "https://rogo.com", None, ["https://rogo.com/"], [])[0], "promote")
+check("idn-ashby-wrong", _judge("Moment", "https://moment.com", None, ["https://momentlabs.io"], [])[0], "reject")
 check("placeholder", placeholder_title("Thank you for applying to Relay!"), True)
 check("real-title", placeholder_title("AI Program Manager Intern"), False)
 check("unrecorded-is-placeholder", placeholder_title("(role not recorded)"), True)

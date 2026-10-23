@@ -199,6 +199,20 @@ _STARTUP_SECTOR = {"sustainability_energy": "climate_energy", "fintech": "financ
                    "defense": "defense_aerospace"}
 
 
+_ASHBY_SITE_RE = re.compile(r'"publicWebsite":"(https?://[^"]{3,200})"')
+
+
+def ashby_public_website(slug: str, timeout: float = 8.0) -> str | None:
+    """The website an Ashby board's organization lists for itself, if any."""
+    try:
+        r = httpx.get(f"https://jobs.ashbyhq.com/{slug}", timeout=timeout,
+                      headers={"User-Agent": "recon/1.0 (+job tracker)"})
+        m = _ASHBY_SITE_RE.search(r.text) if r.status_code == 200 else None
+        return m.group(1) if m else None
+    except Exception:
+        return None
+
+
 def board_evidence(ats: str, slug: str, timeout: float = 8.0
                    ) -> tuple[str | None, list[str], list[str]]:
     """(board display name, posting URLs, posting text) for identity checks.
@@ -229,9 +243,17 @@ def board_evidence(ats: str, slug: str, timeout: float = 8.0
              for j in jobs[:10]]
     if ats == "ashby":
         jobs = (get(f"https://api.ashbyhq.com/posting-api/job-board/{slug}") or {}).get("jobs") or []
-        return None, ([j.get("jobUrl") or "" for j in jobs[:15]]
-                      + [j.get("applyUrl") or "" for j in jobs[:15]]), \
-            [j.get("descriptionPlain") or "" for j in jobs[:10]]
+        urls = ([j.get("jobUrl") or "" for j in jobs[:15]]
+                + [j.get("applyUrl") or "" for j in jobs[:15]])
+        # The posting API names no company, but the public board page carries
+        # the organization's own website ("publicWebsite"). That is the
+        # strongest evidence there is: 59 Ashby boards sat in review on
+        # 2026-10-23 for want of it, including common-word slugs (moment,
+        # span, cape) that only a domain can settle.
+        site = ashby_public_website(slug, timeout)
+        if site:
+            urls.append(site)
+        return None, urls, [j.get("descriptionPlain") or "" for j in jobs[:10]]
     return None, [], []
 
 

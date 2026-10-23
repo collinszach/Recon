@@ -103,6 +103,14 @@ def judge(company: str, website: str | None, board_name: str | None,
 
     if board_name is not None:
         if identity_key(board_name) != target:
+            # "Turba Labs" for turbalabs.com, "Sirona Medical" for
+            # sironamedical.com: when the board's name squashed together *is*
+            # the company's domain, the name differs but the company doesn't.
+            # Exact equality only — "Watershed Informatics" must still fail
+            # against watershed.com.
+            label = (site or "").split(".")[0]
+            if label and _NON_ALNUM_RE.sub("", (board_name or "").lower()) == label:
+                return "promote", f"board name {board_name!r} matches {site}"
             return "reject", f"board belongs to {board_name!r}"
         if foreign:
             return "review", (f"board name matches, but postings link to "
