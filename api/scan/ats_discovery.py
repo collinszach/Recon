@@ -199,6 +199,61 @@ _STARTUP_SECTOR = {"sustainability_energy": "climate_energy", "fintech": "financ
                    "defense": "defense_aerospace"}
 
 
+# Board links as they appear in a company's own pages. Case is kept: Lever
+# slugs are case-sensitive ("MachinaLabs" works, "machinalabs" 404s), which is
+# how Machina Labs went undiscovered by name-guessing.
+_BOARD_LINK_RES = [
+    ("greenhouse", re.compile(r"(?:boards|job-boards)(?:\.eu)?\.greenhouse\.io/(?:embed/job_board(?:/js)?\?for=)?([A-Za-z0-9_-]+)")),
+    ("greenhouse", re.compile(r"boards-api\.greenhouse\.io/v1/boards/([A-Za-z0-9_-]+)")),
+    ("lever", re.compile(r"jobs\.lever\.co/([A-Za-z0-9_.-]+)")),
+    ("lever", re.compile(r"api\.lever\.co/v0/postings/([A-Za-z0-9_.-]+)")),
+    ("ashby", re.compile(r"jobs\.ashbyhq\.com/([A-Za-z0-9_.%-]+)")),
+    ("ashby", re.compile(r"api\.ashbyhq\.com/posting-api/job-board/([A-Za-z0-9_.%-]+)")),
+]
+_NOT_A_SLUG = {"embed", "api", "v1", "v0", "jobs", "js", "postings", "job-board", "boards"}
+_CAREERS_PATHS = ("", "/careers", "/jobs", "/company/careers", "/about/careers", "/careers/open-roles")
+
+
+def boards_in_html(html: str) -> list[tuple[str, str]]:
+    """[(ats, slug)] for every job-board link in a page, first seen first."""
+    out: list[tuple[str, str]] = []
+    for ats, rx in _BOARD_LINK_RES:
+        for m in rx.finditer(html or ""):
+            slug = m.group(1).rstrip(".")
+            if slug.lower() not in _NOT_A_SLUG and (ats, slug) not in out:
+                out.append((ats, slug))
+    return out
+
+
+def careers_page_boards(website: str | None, timeout: float = 8.0) -> list[tuple[str, str, str]]:
+    """[(ats, slug, page)] linked from the company's own site.
+
+    Reads the homepage and a few common careers paths. A board the company
+    itself links to is the best identity evidence there is — better than any
+    name or domain match — so these are tried before guessing slugs.
+    """
+    if not website:
+        return []
+    base = website if "://" in website else f"https://{website}"
+    base = base.rstrip("/")
+    found: list[tuple[str, str, str]] = []
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; recon/1.0; +job tracker)"}
+    for path in _CAREERS_PATHS:
+        url = base + path
+        try:
+            r = httpx.get(url, timeout=timeout, headers=headers, follow_redirects=True)
+        except Exception:
+            continue
+        if r.status_code != 200:
+            continue
+        for ats, slug in boards_in_html(r.text):
+            if not any(f[0] == ats and f[1] == slug for f in found):
+                found.append((ats, slug, str(r.url)))
+        if found:
+            break
+    return found
+
+
 _ASHBY_SITE_RE = re.compile(r'"publicWebsite":"(https?://[^"]{3,200})"')
 
 
@@ -297,7 +352,16 @@ def promote_startups(db: Session, limit: int = 100, delay: float = 0.4,
         out["checked"] += 1
 
         chosen, seen = None, []
-        for slug in slug_candidates(s.name, s.website):
+        # The company's own careers page first: a board it links to is
+        # confirmed by that link, no name or domain matching needed.
+        for ats, slug, page in careers_page_boards(s.website):
+            n = probe_one(ats, slug)
+            time.sleep(delay)
+            if n:
+                chosen = {"startup": s.name, "ats": ats, "slug": slug, "postings": n,
+                          "board_name": None, "reason": f"linked from the company's own site ({page})"}
+                break
+        for slug in ([] if chosen else slug_candidates(s.name, s.website)):
             hit = probe(slug)
             time.sleep(delay)          # be polite to the board APIs
             if not hit:

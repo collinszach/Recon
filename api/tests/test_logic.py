@@ -179,6 +179,15 @@ check("idn-still-rejects", _judge("Watershed", "https://watershed.com", "Watersh
 # Ashby's publicWebsite arrives as a posting URL: a match promotes, a mismatch rejects.
 check("idn-ashby-site", _judge("Rogo", "https://rogo.com", None, ["https://rogo.com/"], [])[0], "promote")
 check("idn-ashby-wrong", _judge("Moment", "https://moment.com", None, ["https://momentlabs.io"], [])[0], "reject")
+# Careers-page discovery keeps the slug's case (Lever's is case-sensitive).
+from scan.ats_discovery import boards_in_html  # noqa: E402
+check("careers-lever-case", boards_in_html('<script src="https://api.lever.co/v0/postings/MachinaLabs?mode=json">'),
+      [("lever", "MachinaLabs")])
+check("careers-gh-embed", boards_in_html('<script src="https://boards.greenhouse.io/embed/job_board/js?for=acmeco"></script>'),
+      [("greenhouse", "acmeco")])
+check("careers-ashby", boards_in_html('<a href="https://jobs.ashbyhq.com/Acme-Robotics/123">Jobs</a>'),
+      [("ashby", "Acme-Robotics")])
+check("careers-none", boards_in_html('<a href="https://www.linkedin.com/company/acme/jobs">'), [])
 check("placeholder", placeholder_title("Thank you for applying to Relay!"), True)
 check("real-title", placeholder_title("AI Program Manager Intern"), False)
 check("unrecorded-is-placeholder", placeholder_title("(role not recorded)"), True)
