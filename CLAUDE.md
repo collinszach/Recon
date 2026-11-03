@@ -301,6 +301,30 @@ behind a Cloudflare Tunnel. See `SPEC.md` for the full spec.
     xcodegen+xcodebuild iOS build, and extension syntax. The logic test found a contradiction on
     its first run (geo's comment promised ambiguous cities were unresolved; the table mapped
     Springfield to MA).
+- **2026-11-02 — company news (NOT deployed, not committed):**
+  - `api/news/` (provider per file + `registry.py`, like `api/search/`): **GNews** when
+    `GNEWS_API_KEY` is set (free 100 req/day, title + description), else **GDELT** (keyless).
+    `news/runner.py` picks tracked companies (curated list + anyone with an application —
+    NOT the thousands auto-created by search), queries one per company, keeps only articles
+    that name the company (`tagging.mentions`, case-sensitive), dedupes by normalized URL
+    (unique `(company_id, url_key)`) and by headline (`title_key`, catches syndication),
+    tags by keyword rules (`tagging.tag`). **No LLM** — zero AI cost.
+  - 230 tracked > GNews's 90/day budget, so it rotates on `companies.news_checked_at`
+    (live applications first, then least recently checked). Ambiguous names ("Target",
+    "Block", "Figure", "Chase"…) search for specific phrases via `PHRASE_OVERRIDES`; two
+    too-generic ones ("Future", "Superpower") are skipped.
+  - Worker `news_job` checks hourly, fetches once per `NEWS_INTERVAL_HOURS` (gate = last
+    `job_runs` row with kind=news, status=ok). A 401/403/429 stops the run early.
+  - API: `GET /api/companies/{id}/news`, `GET /api/news?tag=`, `POST /api/news/run`,
+    `news_7d` on `/api/companies`. Brief gains a "Company news" section (funding / layoffs /
+    freezes / M&A / leadership / hiring, last 48h, applied companies first).
+  - iOS: new `CompanyDetailView` (Plan → Companies → tap a company), "N news" on each row.
+  - Tests: news cases in `test_logic.py`; `api/tests/test_news_api.py` (TestClient + SQLite +
+    fake provider) with its own CI job. Migration = `_ensure_schema` ALTER + `create_all`,
+    verified on an existing Postgres (dropped and re-created on boot).
+  - **GDELT returned 429 on every request from Zach's Mac**, even 30s apart — its per-IP
+    blocks outlast the burst that caused them. Treat GDELT as best-effort; **set a GNews key
+    on the NUC** for this to be dependable.
 - **Deployed:** `zach@100.91.198.28` (Tailscale), `~/recon`, via
   `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`. The NUC is shared,
   so the prod overlay publishes **only the API on host port 8010** (8000/6379 were taken) and

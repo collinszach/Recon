@@ -1,11 +1,49 @@
 """Build and persist the daily Markdown brief."""
 import logging
-from datetime import date, timedelta
-from sqlalchemy import select, and_
+from datetime import date, datetime, timedelta, timezone
+from sqlalchemy import select, and_, func
 from sqlalchemy.orm import Session
-from db import Role, Application, DailyBrief
+from db import Role, Application, DailyBrief, Company, CompanyNews
 
 log = logging.getLogger("recon.brief")
+
+
+def company_news_lines(db: Session, hours: int = 48, max_lines: int = 8) -> list[str]:
+    """One line per company with job-hunt-relevant news (funding, layoffs,
+    freezes, M&A, leadership, hiring) in the last `hours`. Companies Zach has
+    a live application with come first. Empty when there's nothing — the
+    section is left out rather than padded."""
+    from news.tagging import BRIEF_TAGS, TAG_ORDER
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    rows = db.scalars(
+        select(CompanyNews).join(Company).where(
+            Company.dismissed_at.is_(None),
+            CompanyNews.tags.isnot(None),
+            func.coalesce(CompanyNews.published_at, CompanyNews.fetched_at) >= cutoff)
+    ).all()
+    live = set(db.scalars(
+        select(Role.company_id).join(Application, Application.role_id == Role.id)
+        .where(Application.stage != "closed")).all())
+
+    def rank(n):
+        tags = [t for t in n.tags.split(",") if t in BRIEF_TAGS]
+        return min((TAG_ORDER.index(t) for t in tags), default=99)
+
+    best: dict[int, CompanyNews] = {}
+    for n in rows:
+        if rank(n) == 99:
+            continue
+        cur = best.get(n.company_id)
+        if cur is None or rank(n) < rank(cur):
+            best[n.company_id] = n
+    picked = sorted(best.values(), key=lambda n: (n.company_id not in live, rank(n)))[:max_lines]
+    out = []
+    for n in picked:
+        tag = next(t for t in TAG_ORDER if t in n.tags.split(",") and t in BRIEF_TAGS)
+        applied = " (you applied)" if n.company_id in live else ""
+        src = f" — [{n.source}]({n.url})" if n.source else f" — [link]({n.url})"
+        out.append(f"- **{n.company.name}**{applied} · {tag.replace('_', ' ')}: {n.title}{src}")
+    return out
 
 
 def build_brief(db: Session, today: date, totals: dict) -> DailyBrief:
@@ -78,6 +116,16 @@ def build_brief(db: Session, today: date, totals: dict) -> DailyBrief:
         lines.append("- No new high-fit full-time product roles today.")
     for r in ft_fresh:
         lines.append(_line(r))
+
+    try:
+        news_lines = company_news_lines(db)
+    except Exception as e:  # news is garnish; never cost Zach the brief
+        db.rollback()
+        log.warning("brief news section failed: %s: %s", type(e).__name__, e)
+        news_lines = []
+    if news_lines:
+        lines.append("\n## Company news")
+        lines += news_lines
 
     # pipeline snapshot
     lines.append("\n## Pipeline snapshot")

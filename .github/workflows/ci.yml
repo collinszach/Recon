@@ -17,13 +17,34 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      # Deliberately no pip install: the logic under test is pure stdlib, and
-      # installing psycopg/pgvector to check a regex would trade a 10-second
-      # job for a two-minute one.
+          cache: pip
+          cache-dependency-path: api/requirements.txt
+      # This used to skip pip on the grounds that the logic under test was pure
+      # stdlib. It stopped being true: test_logic.py now reaches parsers.base
+      # (httpx, pydantic-settings via config) and scan.ats_discovery (httpx,
+      # sqlalchemy), and the job failed on main from 3a097d9 on with
+      # ModuleNotFoundError. Cached, the install costs ~20s.
+      - run: pip install -r api/requirements.txt
       - name: Compile every module
         run: python -m compileall -q api worker scripts
       - name: Logic checks
         run: python3 api/tests/test_logic.py
+
+  api-endpoints:
+    name: API — endpoint tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: api/requirements.txt
+      # Its own job so the stdlib-only logic job above stays fast. SQLite
+      # in memory + a fake news provider: no Postgres, no network.
+      - run: pip install -r api/requirements.txt
+      - name: Company news API
+        run: python3 api/tests/test_news_api.py
 
   ios:
     name: iOS — build

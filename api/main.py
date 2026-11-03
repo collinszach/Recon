@@ -6,14 +6,14 @@ from fastapi import FastAPI, HTTPException, Depends, Request, Response
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from sqlalchemy import select, func, or_, text
+from sqlalchemy import select, func, or_, text, literal
 from sqlalchemy.orm import Session
 from config import settings
 from db import (
     Base, engine, SessionLocal, Company, Role, Application, ApplicationEvent, ResumeFile,
     MailMessage,
     Contact, DailyBrief, ScanRun, PushSubscription, Resume, ResumeExperience,
-    Interview, Material, AutofillProfile, DeviceToken, Startup, StartupContact,
+    Interview, Material, AutofillProfile, DeviceToken, Startup, StartupContact, CompanyNews,
 )
 from seed.companies import seed as seed_companies
 from tracking.accept import (_accept_proposal, _canonical_company,  # noqa: F401
@@ -55,6 +55,9 @@ def _ensure_schema():
         # catalogue, not today's news.
         conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS first_scanned_at TIMESTAMPTZ"))
         conn.execute(text("ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_backfill BOOLEAN DEFAULT FALSE"))
+        # Company news (2026-11-02): rotation cursor for the daily news job.
+        # The company_news table itself comes from create_all (db.CompanyNews).
+        conn.execute(text("ALTER TABLE companies ADD COLUMN IF NOT EXISTS news_checked_at TIMESTAMPTZ"))
         # Thread state for mail (2026-09-22).
         for col, typ in (("awaiting", "VARCHAR"), ("last_outbound_at", "TIMESTAMPTZ"),
                          ("last_message_at", "TIMESTAMPTZ"), ("message_count", "INTEGER DEFAULT 1"),
@@ -487,6 +490,11 @@ def list_sectors(scored_only: bool = True, db: Session = Depends(get_db)):
 def list_companies(db: Session = Depends(get_db)):
     from scan.intern_filter import is_internship, is_ops_strategy
     cos = db.scalars(select(Company).order_by(Company.name)).all()
+    week = datetime.now(timezone.utc) - timedelta(days=7)
+    news_7d = dict(db.execute(
+        select(CompanyNews.company_id, func.count())
+        .where(func.coalesce(CompanyNews.published_at, CompanyNews.fetched_at) >= week)
+        .group_by(CompanyNews.company_id)).all())
     out = []
     for co in cos:
         open_roles = [r for r in co.roles if r.status in ("open", "changed")]
@@ -496,6 +504,7 @@ def list_companies(db: Session = Depends(get_db)):
             "id": co.id, "name": co.name, "tier": co.tier,
             "ats_name": co.ats_name, "careers_url": co.careers_url, "notes": co.notes,
             "tracked": len(open_roles), "surfaced": len(surfaced),
+            "news_7d": news_7d.get(co.id, 0),
         })
     # tier A first, then by surfaced desc
     rank = {"A": 0, "B": 1, "C": 2}
@@ -1656,6 +1665,61 @@ def list_dismissed_companies(db: Session = Depends(get_db)):
     return [{"id": c.id, "name": c.name,
              "dismissed_at": c.dismissed_at.isoformat() if c.dismissed_at else None}
             for c in rows]
+
+
+# ─── company news ───────────────────────────────────────────
+def _news_out(n: CompanyNews, with_company: bool = False) -> dict:
+    out = {"id": n.id, "company_id": n.company_id, "title": n.title, "url": n.url,
+           "source": n.source, "description": n.description,
+           "published_at": n.published_at.isoformat() if n.published_at else None,
+           "tags": n.tags.split(",") if n.tags else [], "provider": n.provider}
+    if with_company:
+        out["company_name"] = n.company.name if n.company else None
+    return out
+
+
+def _news_newest_first():
+    # Undated articles sort by when Recon found them rather than to the end.
+    return func.coalesce(CompanyNews.published_at, CompanyNews.fetched_at).desc()
+
+
+@app.get("/api/companies/{company_id}/news")
+def company_news(company_id: int, days: int = 30, limit: int = 30, db: Session = Depends(get_db)):
+    """Recent news about one company, newest first."""
+    if not db.get(Company, company_id):
+        raise HTTPException(404, "company not found")
+    cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, days))
+    rows = db.scalars(
+        select(CompanyNews).where(
+            CompanyNews.company_id == company_id,
+            func.coalesce(CompanyNews.published_at, CompanyNews.fetched_at) >= cutoff)
+        .order_by(_news_newest_first()).limit(max(1, min(limit, 100)))
+    ).all()
+    return [_news_out(n) for n in rows]
+
+
+@app.get("/api/news")
+def recent_news(days: int = 7, tag: str | None = None, limit: int = 50,
+                db: Session = Depends(get_db)):
+    """News across every tracked company, newest first; `tag` filters to one
+    kind (funding, layoffs, hiring_freeze, ...)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, days))
+    q = select(CompanyNews).join(Company).where(
+        Company.dismissed_at.is_(None),
+        func.coalesce(CompanyNews.published_at, CompanyNews.fetched_at) >= cutoff)
+    if tag:
+        # tags is a comma list; pad both sides so "hiring" never matches "hiring_freeze"
+        q = q.where((literal(",") + CompanyNews.tags + literal(",")).contains(f",{tag},"))
+    rows = db.scalars(q.order_by(_news_newest_first()).limit(max(1, min(limit, 200)))).all()
+    return [_news_out(n, with_company=True) for n in rows]
+
+
+@app.post("/api/news/run")
+def trigger_news(force: bool = True, limit: int | None = None, db: Session = Depends(get_db)):
+    """Fetch news now. `force` skips the once-a-day gate; `limit` caps how many
+    companies are queried (each is one provider request against the quota)."""
+    from news.runner import run_news_fetch
+    return run_news_fetch(db, force=force, limit=limit)
 
 
 @app.post("/api/roles/{role_id}/feedback")

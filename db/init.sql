@@ -12,9 +12,29 @@ CREATE TABLE IF NOT EXISTS companies (
     snoozed_until   DATE,
     dismissed_at    TIMESTAMPTZ,                -- "never show me this employer again"
     first_scanned_at TIMESTAMPTZ,               -- first successful board scan (see roles.is_backfill)
+    news_checked_at TIMESTAMPTZ,                -- last company-news query (rotation cursor)
     notes           TEXT,
     created_at      TIMESTAMPTZ DEFAULT now()
 );
+
+-- ─── company news (daily fetch, news/runner.py) ─────────────
+CREATE TABLE IF NOT EXISTS company_news (
+    id              SERIAL PRIMARY KEY,
+    company_id      INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    title           TEXT NOT NULL,
+    url             TEXT NOT NULL,
+    url_key         TEXT NOT NULL,              -- normalized URL: the dedupe key
+    title_key       TEXT NOT NULL,              -- normalized headline: catches syndication
+    source          TEXT,
+    description     TEXT,
+    published_at    TIMESTAMPTZ,
+    tags            TEXT,                       -- comma list: funding,layoffs,hiring_freeze,...
+    provider        TEXT,                       -- gnews | gdelt
+    fetched_at      TIMESTAMPTZ DEFAULT now(),
+    CONSTRAINT uq_company_news_url UNIQUE (company_id, url_key)
+);
+CREATE INDEX IF NOT EXISTS ix_company_news_company_id ON company_news(company_id);
+CREATE INDEX IF NOT EXISTS ix_company_news_published_at ON company_news(published_at);
 
 -- ─── mail: proposals from Gmail (Recon proposes, Zach decides) ──
 CREATE TABLE IF NOT EXISTS mail_messages (

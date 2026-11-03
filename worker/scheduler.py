@@ -43,6 +43,23 @@ def discovery_job():
         db.close()
 
 
+def news_job():
+    """Daily company news. Checked hourly but gated inside run_news_fetch to
+    once per NEWS_INTERVAL_HOURS (last successful run in job_runs), so a
+    restart never spends a second day's provider quota."""
+    from db import SessionLocal
+    from news.runner import run_news_fetch
+    db = SessionLocal()
+    try:
+        result = run_news_fetch(db)
+        if result.get("status") != "skipped":
+            log.info("news: %s", {k: v for k, v in result.items() if k != "errors"})
+    except Exception:
+        log.exception("news fetch failed")
+    finally:
+        db.close()
+
+
 def main():
     sched = BlockingScheduler(timezone=settings.tz)
     hours = max(1, settings.scan_interval_hours)
@@ -57,9 +74,16 @@ def main():
     if settings.startup_discovery_enabled:
         sched.add_job(discovery_job, IntervalTrigger(weeks=1, timezone=settings.tz),
                       id="weekly_startup_discovery", max_instances=1, coalesce=True)
+    # company news: hourly check, daily fetch (see news_job). First check runs
+    # after the startup scan has had its head start.
+    if settings.news_enabled:
+        sched.add_job(news_job, IntervalTrigger(hours=1, timezone=settings.tz),
+                      next_run_time=datetime.now() + timedelta(minutes=2),
+                      id="daily_news", max_instances=1, coalesce=True)
     log.info("worker up — scan scheduled every %d hour(s) (%s); first run ~15s after startup; "
-             "startup discovery %s",
-             hours, settings.tz, "weekly" if settings.startup_discovery_enabled else "disabled")
+             "startup discovery %s; company news %s",
+             hours, settings.tz, "weekly" if settings.startup_discovery_enabled else "disabled",
+             f"every {settings.news_interval_hours}h" if settings.news_enabled else "disabled")
     sched.start()
 
 

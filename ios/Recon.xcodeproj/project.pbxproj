@@ -25,6 +25,7 @@
 		8C251550BAE93B2382F8C60A /* PipelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1772CE16FE1EC11150F68CD /* PipelineView.swift */; };
 		8DEBDBB11C07F8CBF2757602 /* StartupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A93192B50B71EB8494EB20FD /* StartupsView.swift */; };
 		91FFAB4A17E248261C5D065D /* ResumeChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D3678E34E3D51F0A0A375DE /* ResumeChatView.swift */; };
+		957D8164B10BF59B972DCF68 /* CompanyDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E5A419A274E765CCEDF2DDB /* CompanyDetailView.swift */; };
 		966130DFC3DF40B992B6C3BE /* ReconApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAB96381FF78A23DA8778646 /* ReconApp.swift */; };
 		98F70B57F3A526D3E8766684 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ADA461DA6E79A1B1FFEF1C0 /* TodayView.swift */; };
 		9CD0E9FAF72E8591772EB2DB /* Cache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 977EA2656415D2003F53FABA /* Cache.swift */; };
@@ -44,6 +45,7 @@
 
 /* Begin PBXFileReference section */
 		02705E9FE1CBEC98C1C0D160 /* PlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanView.swift; sourceTree = "<group>"; };
+		0E5A419A274E765CCEDF2DDB /* CompanyDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanyDetailView.swift; sourceTree = "<group>"; };
 		15F7BC0F4443CCC19B2629BD /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		1C38C7B32C800934526AB5EE /* ReconAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReconAPI.swift; sourceTree = "<group>"; };
 		1F60F4B967298A00D69E514C /* WebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebView.swift; sourceTree = "<group>"; };
@@ -99,6 +101,7 @@
 				C7B717B4AF90657E5DD29661 /* AutofillProfileView.swift */,
 				949E93EE7D40B48D234BF84A /* AutofillWebView.swift */,
 				977EA2656415D2003F53FABA /* Cache.swift */,
+				0E5A419A274E765CCEDF2DDB /* CompanyDetailView.swift */,
 				CECF1C27E840019FA2318A80 /* Config.swift */,
 				B6D4386BF07A6CAF63231D0A /* ConnectionBanner.swift */,
 				76BA873DE6B0360D7C07241B /* ContentView.swift */,
@@ -225,6 +228,7 @@
 				F0068CFD2E53B04026444311 /* AutofillProfileView.swift in Sources */,
 				C00C1D82D99E7390E0F10D59 /* AutofillWebView.swift in Sources */,
 				9CD0E9FAF72E8591772EB2DB /* Cache.swift in Sources */,
+				957D8164B10BF59B972DCF68 /* CompanyDetailView.swift in Sources */,
 				C7C29FC63C967D104B0557CD /* Config.swift in Sources */,
 				0E828A7AE1F9CF1A8BCE66DB /* ConnectionBanner.swift in Sources */,
 				8931911BC248EF29396159E5 /* ContentView.swift in Sources */,

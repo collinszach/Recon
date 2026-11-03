@@ -313,3 +313,51 @@ check("postings link to own site", verdict("Acme", "https://acme.com",
       "Something Else", ["https://careers.acme.com/j/1"], []), "promote")
 
 print("all logic checks passed (including board identity)")
+
+# ── company news (appended 2026-11-02) ─────────────────────────────────────
+from news.tagging import mentions, phrases_for, tag, title_key, url_key  # noqa: E402
+
+check("news: funding", tag("Rocket Lab raises $40M Series B to scale Neutron"), ["funding"])
+check("news: layoffs", tag("Peloton lays off 6% of staff in latest restructuring"), ["layoffs"])
+check("news: laid off", tag("Hundreds laid off at Rivian plant"), ["layoffs"])
+check("news: freeze beats hiring", tag("Salesforce pauses hiring for engineers"), ["hiring_freeze"])
+check("news: leadership", tag("Stripe names former Google exec as new CFO"), ["leadership"])
+check("news: ceo exit", tag("Intel CEO steps down after board clash"), ["leadership"])
+check("news: acquisition", tag("Databricks to acquire Tabular for $1B"), ["acquisition"])
+check("news: launch", tag("Anthropic launches new Claude models"), ["launch"])
+# Found in the first local run: the noun is not a product launch.
+check("news: launch noun", tag("Rocket Lab raises $350M", "The launch company said the round..."),
+      ["funding"])
+check("news: hiring", tag("Anduril plans to hire 1,000 at new Ohio factory"), ["hiring"])
+check("news: untagged", tag("Five things to know about Waymo"), [])
+check("news: order", tag("Brex lays off 20% as it raises $50M at lower valuation"),
+      ["layoffs", "funding"])
+
+# Matching is case-sensitive and word-bounded: the name, not the word.
+check("news: apple co", mentions(["Apple"], "Apple cuts Vision Pro production"), True)
+check("news: apple pie", mentions(["Apple"], "The best apple pie recipes of the fall"), False)
+check("news: substring", mentions(["Ramp"], "Shipping firms rampup capacity"), False)
+check("news: in description", mentions(["Figma"], "Design tools roundup", "Figma ships Dev Mode"), True)
+check("news: curly apostrophe", mentions(["Lowe's"], "Lowe’s expands pro business"), True)
+# Ambiguous names search for something specific, too-generic ones not at all.
+check("news: target override", phrases_for("Target")[0], "Target Corp")
+check("news: generic skipped", phrases_for("Future"), [])
+check("news: suffix stripped", phrases_for("Gusto, Inc."), ["Gusto"])
+check("news: paren stripped", phrases_for("Acme (ACM)"), ["Acme"])
+check("news: leading the", phrases_for("The Trade Desk"), ["Trade Desk"])
+
+# Dedupe keys: the same article under tracking params, and the same wire
+# story under two outlets' headline suffixes, must collapse.
+check("news: url key", url_key("https://www.reuters.com/tech/x/?utm_source=a&id=7"),
+      url_key("http://reuters.com/tech/x?id=7"))
+check("news: title key", title_key("Rocket Lab raises $40M - Reuters"),
+      title_key("Rocket Lab raises $40M | Yahoo Finance"))
+check("news: hyphen kept", title_key("Rocket Lab's re-usable booster flies"),
+      "rocket lab s re usable booster flies")
+
+if failures:
+    print(f"FAILED ({len(failures)}):")
+    for f in failures:
+        print("  -", f)
+    sys.exit(1)
+print("all logic checks passed (including company news)")
