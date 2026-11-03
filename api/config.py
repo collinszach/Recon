@@ -79,6 +79,23 @@ class Settings(BaseSettings):
     usajobs_api_key: str = ""                # data.usajobs.gov Authorization-Key
     usajobs_email: str = ""                  # USAJobs requires a contact email as the User-Agent
 
+    # ─── Company news (funding / layoffs / launches / leadership) ───
+    # Fetched once a day by the worker's news job (news/runner.py), deduped and
+    # stored in company_news. Provider "auto" = GNews when GNEWS_API_KEY is set,
+    # else GDELT (free, keyless, noisier). Tagging is keyword rules — no LLM, so
+    # the feature's only cost is the provider's free tier.
+    news_enabled: bool = True
+    news_provider: str = "auto"              # auto | gnews | gdelt
+    news_interval_hours: int = 24            # fetch at most this often
+    # Companies queried per run, one request each. 0 = the provider's own
+    # budget (GNews free tier is 100 req/day -> 90; GDELT has no quota -> 250).
+    # Past the cap, the least recently checked companies go first, so the
+    # whole list rotates within a few days.
+    news_max_companies_per_run: int = 0
+    news_lookback_days: int = 7              # how far back each query reaches
+    news_retention_days: int = 120           # older articles are pruned
+    gnews_api_key: str = ""                  # https://gnews.io — free tier, non-commercial
+
     # ─── Semantic embeddings (pgvector dedup + search) ─────
     # Calls the Ollama OpenAI-compat /v1/embeddings on gs65 with mxbai-embed-large.
     # embed_enabled=False skips all embedding work (safe to disable for local dev).

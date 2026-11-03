@@ -180,6 +180,9 @@ struct ReconAPI {
     func brief() async throws -> Brief { try await get("api/brief", as: Brief.self) }
     func applications() async throws -> [AppItem] { try await get("api/applications", as: [AppItem].self) }
     func companies() async throws -> [Company] { try await get("api/companies", as: [Company].self) }
+    func companyNews(_ companyId: Int, days: Int = 30) async throws -> [CompanyNews] {
+        try await get("api/companies/\(companyId)/news?days=\(days)", as: [CompanyNews].self)
+    }
     func contacts() async throws -> [Contact] { try await get("api/contacts", as: [Contact].self) }
     func contacts(company: String) async throws -> [Contact] {
         let q = company.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? company

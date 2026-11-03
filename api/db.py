@@ -2,7 +2,7 @@
 from datetime import datetime, date
 from sqlalchemy import (
     create_engine, String, Integer, Float, Boolean, Text, Date, DateTime,
-    ForeignKey, LargeBinary, func,
+    ForeignKey, LargeBinary, UniqueConstraint, func,
 )
 from sqlalchemy.orm import (
     DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker,
@@ -38,8 +38,36 @@ class Company(Base):
     # postings — see Role.is_backfill.
     first_scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)
+    # Last time the news job queried this company — drives the rotation when
+    # the provider's daily budget is smaller than the company list.
+    news_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     roles: Mapped[list["Role"]] = relationship(back_populates="company", cascade="all, delete-orphan")
+
+
+class CompanyNews(Base):
+    """A news article about a tracked company (news/runner.py).
+
+    Deduped twice per company: by normalized URL (the unique key), and by
+    normalized headline, because one wire story is syndicated under a dozen
+    URLs. `tags` is a comma-joined list from news.tagging — funding, layoffs,
+    hiring_freeze, acquisition, leadership, hiring, launch, earnings.
+    """
+    __tablename__ = "company_news"
+    __table_args__ = (UniqueConstraint("company_id", "url_key", name="uq_company_news_url"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(Text)
+    url: Mapped[str] = mapped_column(Text)
+    url_key: Mapped[str] = mapped_column(String)
+    title_key: Mapped[str] = mapped_column(String)
+    source: Mapped[str | None] = mapped_column(String)
+    description: Mapped[str | None] = mapped_column(Text)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    tags: Mapped[str | None] = mapped_column(String)
+    provider: Mapped[str | None] = mapped_column(String)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    company: Mapped["Company"] = relationship()
 
 
 class Role(Base):

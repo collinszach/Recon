@@ -25,6 +25,22 @@ jobs:
       - name: Logic checks
         run: python3 api/tests/test_logic.py
 
+  api-endpoints:
+    name: API — endpoint tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: api/requirements.txt
+      # Its own job so the stdlib-only logic job above stays fast. SQLite
+      # in memory + a fake news provider: no Postgres, no network.
+      - run: pip install -r api/requirements.txt
+      - name: Company news API
+        run: python3 api/tests/test_news_api.py
+
   ios:
     name: iOS — build
     runs-on: macos-15

@@ -373,11 +373,15 @@ struct Company: Codable, Identifiable, Hashable {
     let notes: String?
     let tracked: Int
     let surfaced: Int
+    /// Articles in the last 7 days. Optional so a cached payload from before
+    /// company news (or an older server) still decodes.
+    let news7d: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, name, tier, notes, tracked, surfaced
         case atsName = "ats_name"
         case careersUrl = "careers_url"
+        case news7d = "news_7d"
     }
     /// Domain + blurb split out of the seed note ("Domain · why ...").
     var domain: String? { notes?.components(separatedBy: " · ").first }
@@ -385,6 +389,48 @@ struct Company: Codable, Identifiable, Hashable {
         guard let n = notes else { return nil }
         let parts = n.components(separatedBy: " · ")
         return parts.count > 1 ? parts.dropFirst().joined(separator: " · ") : n
+    }
+}
+
+/// A news article about a tracked company (GET /api/companies/{id}/news).
+struct CompanyNews: Codable, Identifiable, Hashable {
+    let id: Int
+    let companyId: Int
+    let title: String
+    let url: String
+    let source: String?
+    let description: String?
+    let publishedAt: String?
+    let tags: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, url, source, description, tags
+        case companyId = "company_id"
+        case publishedAt = "published_at"
+    }
+
+    /// The tags the job hunt cares about, as the app shows them.
+    static func label(_ tag: String) -> String {
+        switch tag {
+        case "hiring_freeze": return "Hiring freeze"
+        case "layoffs":       return "Layoffs"
+        case "funding":       return "Funding"
+        case "acquisition":   return "M&A"
+        case "leadership":    return "Leadership"
+        case "hiring":        return "Hiring"
+        case "launch":        return "Launch"
+        case "earnings":      return "Earnings"
+        default:              return tag.capitalized
+        }
+    }
+    /// Warning colour for news that cools hiring, green for news that warms it.
+    static func color(_ tag: String) -> Color {
+        switch tag {
+        case "layoffs", "hiring_freeze": return Theme.rust
+        case "funding", "hiring":        return Theme.green
+        case "acquisition", "leadership": return Theme.gold
+        default:                          return Theme.inkSoft
+        }
     }
 }
 

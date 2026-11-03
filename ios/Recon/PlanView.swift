@@ -74,7 +74,10 @@ private struct CompaniesView: View {
                     let cos = store.companies.filter { $0.tier == tier }
                     if !cos.isEmpty {
                         Text(label).font(.headline).foregroundStyle(Theme.ink)
-                        ForEach(cos) { companyCard($0) }
+                        ForEach(cos) { c in
+                            NavigationLink { CompanyDetailView(company: c) } label: { companyCard(c) }
+                                .buttonStyle(.plain)
+                        }
                     }
                 }
             }
@@ -100,10 +103,12 @@ private struct CompaniesView: View {
                     .font(.caption2).foregroundStyle(Theme.green)
                 Label("\(c.tracked) tracked", systemImage: "dot.radiowaves.left.and.right")
                     .font(.caption2).foregroundStyle(Theme.inkSoft)
-                Spacer()
-                if let u = c.careersUrl, let url = URL(string: u) {
-                    Link("Careers", destination: url).font(.caption2)
+                if let n = c.news7d, n > 0 {
+                    Label("\(n) news", systemImage: "newspaper")
+                        .font(.caption2).foregroundStyle(Theme.gold)
                 }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(Theme.inkSoft)
             }
         }
         .reconCard()
