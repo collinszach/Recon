@@ -1,0 +1,77 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns='http://www.w3.org/2005/Atom' xmlns:apps='http://schemas.google.com/apps/2006'>
+  <title>Recon mail filters</title>
+  <!--
+    Import: Gmail -> Settings -> Filters and Blocked Addresses -> Import filters
+    -> choose this file -> Open File -> Create filters. Tick "Also apply to
+    matching conversations" to label the backlog as well as new mail.
+
+    The labels are created by the import; nothing else is needed. Everything
+    nests under Recon/, so removing it later is one action.
+
+    Ordering matters: Gmail applies every matching filter, so a rejection also
+    matching the "applied" rule would get both labels. The rejection and offer
+    rules are therefore written to be narrow, and the acknowledgement rule
+    excludes their giveaway phrases.
+
+    Rules derived from a real 51-message poll of this mailbox on 2026-09-21,
+    not from guesswork about what recruiter mail looks like.
+  -->
+
+  <!-- 1. Application acknowledgements -> Recon/Applied -->
+  <entry>
+    <category term='filter'></category>
+    <title>Recon: applied</title>
+    <apps:property name='hasTheWord' value='subject:(&quot;thank you for applying&quot; OR &quot;thanks for applying&quot; OR &quot;thank you for your application&quot; OR &quot;application received&quot; OR &quot;successfully applied&quot; OR &quot;successfully submitted application&quot; OR &quot;thank you for your interest&quot; OR &quot;keep track of your application&quot;) -subject:(&quot;unfortunately&quot; OR &quot;other candidates&quot; OR &quot;not moving forward&quot;)'/>
+    <apps:property name='label' value='Recon/Applied'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!-- 2. Interview / screen invitations -> Recon/Interview -->
+  <entry>
+    <category term='filter'></category>
+    <title>Recon: interview</title>
+    <apps:property name='hasTheWord' value='subject:(interview OR &quot;next steps&quot; OR &quot;schedule a call&quot; OR &quot;phone screen&quot; OR &quot;recruiter screen&quot; OR &quot;your availability&quot; OR &quot;book a time&quot;) -subject:(&quot;unfortunately&quot; OR &quot;other candidates&quot;)'/>
+    <apps:property name='label' value='Recon/Interview'/>
+    <apps:property name='shouldAlwaysMarkAsImportant' value='true'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!-- 3. Rejections -> Recon/Rejected -->
+  <entry>
+    <category term='filter'></category>
+    <title>Recon: rejected</title>
+    <apps:property name='hasTheWord' value='(&quot;move forward with other&quot; OR &quot;not be moving forward&quot; OR &quot;no longer under consideration&quot; OR &quot;decided to pursue other&quot; OR &quot;will not be progressing&quot;) (application OR candidacy OR role OR position)'/>
+    <apps:property name='label' value='Recon/Rejected'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!-- 4. Offers -> Recon/Offer. Narrow on purpose: never miss one, never cry wolf. -->
+  <entry>
+    <category term='filter'></category>
+    <title>Recon: offer</title>
+    <apps:property name='hasTheWord' value='(&quot;offer of employment&quot; OR &quot;pleased to offer&quot; OR &quot;extend you an offer&quot; OR &quot;offer letter&quot;)'/>
+    <apps:property name='label' value='Recon/Offer'/>
+    <apps:property name='shouldAlwaysMarkAsImportant' value='true'/>
+    <apps:property name='shouldNeverSpam' value='true'/>
+  </entry>
+
+  <!-- 5. They want something from you -> Recon/Action-needed -->
+  <entry>
+    <category term='filter'></category>
+    <title>Recon: action needed</title>
+    <apps:property name='hasTheWord' value='subject:(assessment OR &quot;action required&quot; OR &quot;complete your&quot; OR questionnaire OR &quot;additional information&quot; OR &quot;application is incomplete&quot;) (application OR candidate OR role OR position OR intern)'/>
+    <apps:property name='label' value='Recon/Action-needed'/>
+    <apps:property name='shouldAlwaysMarkAsImportant' value='true'/>
+  </entry>
+
+  <!-- 6. Job alerts and careers marketing -> Recon/Noise, out of the inbox.
+       These were 7 of 51 messages in the sample poll. -->
+  <entry>
+    <category term='filter'></category>
+    <title>Recon: noise</title>
+    <apps:property name='hasTheWord' value='from:(jobalerts-noreply@linkedin.com OR jobs-listings@linkedin.com OR notifications-noreply@linkedin.com OR email.careers.microsoft.com OR indeedemail.com OR ziprecruiter.com OR glassdoor.com OR jobright.ai) OR subject:(&quot;job alert&quot; OR &quot;new jobs&quot; OR &quot;jobs that match&quot; OR &quot;roles at&quot; OR &quot;profile is popular&quot; OR &quot;search appearances&quot;)'/>
+    <apps:property name='label' value='Recon/Noise'/>
+    <apps:property name='shouldArchive' value='true'/>
+  </entry>
+</feed>
