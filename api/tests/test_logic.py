@@ -313,3 +313,8 @@ check("postings link to own site", verdict("Acme", "https://acme.com",
       "Something Else", ["https://careers.acme.com/j/1"], []), "promote")
 
 print("all logic checks passed (including board identity)")
+
+
+def test_logic_checks():
+    """Make the existing accumulated checks visible to pytest."""
+    assert not failures, "\n".join(failures)
